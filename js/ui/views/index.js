@@ -4,7 +4,8 @@ import { monthView } from "./month.js";
 import { weekView } from "./week.js";
 import { yearView } from "./year.js";
 
-// Chaque vue : { id, label, title(cursor), render(ctx) }, plus son pas de navigation.
+// Chaque vue : { id, title(cursor), render(ctx) }, plus son pas de navigation.
+// Son nom affiché est la traduction « view.<id> ».
 export const VIEWS = {
   day: { ...dayView, step: (d, n) => addDays(d, n) },
   week: { ...weekView, step: (d, n) => addDays(d, 7 * n) },

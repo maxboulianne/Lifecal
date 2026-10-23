@@ -1,13 +1,7 @@
 // Utilitaires de dates, toujours en heure locale.
+// (Les noms de jours et de mois, selon la langue, sont dans js/i18n/index.js.)
 // Les dates des éléments sont stockées au format ISO « AAAA-MM-JJ » (sans fuseau),
 // ce qui évite le décalage d'un jour que produisait toISOString() le soir.
-
-export const JOURS_COURTS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
-export const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-export const MOIS = [
-  "janvier", "février", "mars", "avril", "mai", "juin",
-  "juillet", "août", "septembre", "octobre", "novembre", "décembre",
-];
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -62,20 +56,4 @@ export function startOfMonth(d) {
 
 export function diffDays(fromISO, toISO) {
   return Math.round((parseISODate(toISO) - parseISODate(fromISO)) / 86400000);
-}
-
-export function capitalize(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-// « jeudi 23 octobre »
-export function formatLong(d) {
-  return `${JOURS[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]}`;
-}
-
-// « 9 h 30 »
-export function formatTime(hhmm) {
-  if (!hhmm) return "";
-  const [h, m] = hhmm.split(":");
-  return `${Number(h)} h ${m}`;
 }

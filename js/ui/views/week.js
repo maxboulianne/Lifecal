@@ -1,17 +1,13 @@
-import { JOURS_COURTS, MOIS, addDays, startOfWeek, toISODate } from "../../core/dates.js";
+import { addDays, startOfWeek, toISODate } from "../../core/dates.js";
+import { fmt } from "../../i18n/index.js";
 import { itemChip } from "../components/item-chip.js";
 
 export const weekView = {
   id: "week",
-  label: "Semaine",
 
   title(cursor) {
     const start = startOfWeek(cursor);
-    const end = addDays(start, 6);
-    const sameMonth = start.getMonth() === end.getMonth();
-    return sameMonth
-      ? `${start.getDate()} – ${end.getDate()} ${MOIS[end.getMonth()]} ${end.getFullYear()}`
-      : `${start.getDate()} ${MOIS[start.getMonth()]} – ${end.getDate()} ${MOIS[end.getMonth()]} ${end.getFullYear()}`;
+    return fmt.range(start, addDays(start, 6));
   },
 
   render({ cursor, repo, today }) {
@@ -23,7 +19,7 @@ export const weekView = {
         const items = repo.onDate(iso);
         return `<div class="week-day ${iso === today ? "is-today" : ""}">
           <button type="button" class="day-head" data-action="open-day" data-date="${iso}">
-            <span class="day-name">${JOURS_COURTS[d.getDay()]}</span><span class="day-num">${d.getDate()}</span>
+            <span class="day-name">${fmt.weekdayShort(d)}</span><span class="day-num">${d.getDate()}</span>
           </button>
           <div class="day-items">${items.map((i) => itemChip(i)).join("")}</div>
         </div>`;

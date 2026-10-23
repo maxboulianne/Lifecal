@@ -1,16 +1,17 @@
 // Déclencheurs basés sur le calendrier. Ton : doux, jamais culpabilisant.
+// Les messages sont des clés de traduction ; l'interface les traduit.
 
 import { getModule } from "../config/modules.js";
-import { addDays, diffDays, parseISODate, toISODate } from "../core/dates.js";
+import { addDays, diffDays, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
 import { isCancelled } from "../data/item.js";
+import { FREQ, doneInWeek, occurrencesBetween } from "../data/recurrence.js";
+import { fmt } from "../i18n/index.js";
 
 const upcoming = (items, today, moduleId, maxDays) =>
   items
-    .filter((i) => i.module === moduleId && !isCancelled(i) && !i.done)
+    .filter((i) => i.module === moduleId && !i.recurrence && !isCancelled(i) && !i.done)
     .map((i) => ({ item: i, days: diffDays(today, i.date) }))
     .filter(({ days }) => days >= 0 && days <= maxDays);
-
-const inDays = (n) => (n === 0 ? "aujourd'hui" : n === 1 ? "demain" : `dans ${n} jours`);
 
 // Un voyage dans 3 semaines ou moins lance sa préparation.
 export const travelPreparation = {
@@ -22,9 +23,10 @@ export const travelPreparation = {
       id: `voyage-preparation:${item.id}`,
       tone: "info",
       icon: getModule("voyage").icon,
-      message: `${item.title}, c'est ${inDays(days)}. Envie de commencer à préparer tranquillement ?`,
+      messageKey: "nudge.travel",
+      params: { title: item.title, when: fmt.inDays(days) },
       itemIds: [item.id],
-      actionLabel: "Voir le voyage",
+      actionKey: "nudge.travelAction",
       actionItemId: item.id,
     }));
   },
@@ -40,33 +42,62 @@ export const specialEventPreparation = {
       id: `evenement-preparation:${item.id}`,
       tone: "info",
       icon: getModule("evenement").icon,
-      message: `${item.title} arrive ${inDays(days)}. Un petit mot ou un cadeau à prévoir ?`,
+      messageKey: "nudge.event",
+      params: { title: item.title, when: fmt.inDays(days) },
       itemIds: [item.id],
-      actionLabel: "Voir",
+      actionKey: "nudge.eventAction",
       actionItemId: item.id,
     }));
   },
 };
 
 // Habitude manquée hier : un encouragement, pas un reproche.
+// (Les habitudes « X fois par semaine » ont leur propre bilan, plus bas.)
 export const missedHabitEncouragement = {
   id: "habitude-encouragement",
   kind: "calendar",
   evaluate({ items, today }) {
     const yesterday = toISODate(addDays(parseISODate(today), -1));
-    const missed = items.filter((i) => i.module === "habitude" && i.date === yesterday && !i.done && !isCancelled(i));
+    const missed = occurrencesBetween(items, yesterday, yesterday).filter(
+      (i) => i.module === "habitude" && !i.done && !isCancelled(i) && i.recurrence?.freq !== FREQ.FLEXIBLE,
+    );
     if (!missed.length) return [];
-    const names = missed.map((i) => i.title).join(", ");
     return [
       {
         id: `habitude-encouragement:${yesterday}`,
         tone: "soft",
         icon: getModule("habitude").icon,
-        message: `Hier, ${names} n'a pas eu lieu, et c'est correct. Chaque jour est une nouvelle chance 🌿`,
+        messageKey: "nudge.missedHabit",
+        params: { count: missed.length, names: fmt.list(missed.map((i) => i.title)) },
         itemIds: missed.map((i) => i.id),
       },
     ];
   },
 };
 
-export const calendarTriggers = [travelPreparation, specialEventPreparation, missedHabitEncouragement];
+// Le lundi, bilan doux de la semaine passée pour les habitudes « X fois par semaine ».
+export const flexibleWeekReview = {
+  id: "habitude-bilan-semaine",
+  kind: "calendar",
+  evaluate({ items, today }) {
+    const thisWeek = startOfWeek(parseISODate(today));
+    if (toISODate(thisWeek) !== today) return [];
+    const lastWeek = toISODate(addDays(thisWeek, -7));
+    const lastSunday = toISODate(addDays(thisWeek, -1));
+    return items
+      .filter((i) => i.recurrence?.freq === FREQ.FLEXIBLE && !isCancelled(i) && i.date <= lastSunday)
+      .filter((i) => !i.recurrence.until || i.recurrence.until >= lastWeek)
+      .map((i) => ({ item: i, done: doneInWeek(i, lastWeek), target: i.recurrence.timesPerWeek }))
+      .filter(({ done, target }) => done > 0 && done < target)
+      .map(({ item, done, target }) => ({
+        id: `habitude-bilan-semaine:${item.id}:${lastWeek}`,
+        tone: "soft",
+        icon: getModule("habitude").icon,
+        messageKey: "nudge.weekReview",
+        params: { title: item.title, done, target },
+        itemIds: [item.id],
+      }));
+  },
+};
+
+export const calendarTriggers = [travelPreparation, specialEventPreparation, missedHabitEncouragement, flexibleWeekReview];

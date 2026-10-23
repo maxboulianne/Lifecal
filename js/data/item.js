@@ -4,7 +4,7 @@
 // Champs ajoutés pour préparer la suite :
 //   status     "active" | "cancelled" — un élément annulé reste visible, barré.
 //   notes      texte libre.
-//   recurrence null pour l'instant ; accueillera la règle de répétition des habitudes.
+//   recurrence null, ou règle de répétition (voir recurrence.js).
 //   data       charge utile propre au module (liste d'épicerie, lieux d'un voyage…).
 //   source     provenance : "local" ou un fournisseur externe (google, outlook, yahoo)
 //              avec son identifiant, pour la synchronisation future.
@@ -12,6 +12,7 @@
 
 import { DEFAULT_MODULE, MODULES } from "../config/modules.js";
 import { isISODate } from "../core/dates.js";
+import { FREQ, normalizeRecurrence } from "./recurrence.js";
 
 export const STATUS = Object.freeze({ ACTIVE: "active", CANCELLED: "cancelled" });
 
@@ -50,7 +51,7 @@ export function normalizeItem(raw) {
     done: Boolean(raw.done),
     status: raw.status === STATUS.CANCELLED ? STATUS.CANCELLED : STATUS.ACTIVE,
     notes: String(raw.notes ?? ""),
-    recurrence: raw.recurrence ?? null,
+    recurrence: normalizeRecurrence(raw.recurrence),
     data: raw.data && typeof raw.data === "object" ? raw.data : {},
     source: {
       provider: raw.source?.provider ?? "local",
@@ -62,12 +63,13 @@ export function normalizeItem(raw) {
   };
 }
 
-// Retourne une liste de messages d'erreur (vide si l'élément est valide).
+// Retourne une liste de clés d'erreur à traduire (vide si l'élément est valide).
 export function validateItem(item) {
   const errors = [];
-  if (!item.title) errors.push("Donne un petit titre à cet élément.");
-  if (!isISODate(item.date)) errors.push("Choisis une date.");
-  if ((item.lat === null) !== (item.lng === null)) errors.push("Coordonnées incomplètes.");
+  if (!item.title) errors.push("errors.title");
+  if (!isISODate(item.date)) errors.push("errors.date");
+  if ((item.lat === null) !== (item.lng === null)) errors.push("errors.coords");
+  if (item.recurrence?.freq === FREQ.WEEKLY && !item.recurrence.days.length) errors.push("errors.days");
   return errors;
 }
 

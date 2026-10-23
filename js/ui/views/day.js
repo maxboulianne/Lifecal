@@ -1,13 +1,13 @@
-import { capitalize, formatLong, toISODate } from "../../core/dates.js";
+import { toISODate } from "../../core/dates.js";
 import { isCancelled } from "../../data/item.js";
+import { fmt, t } from "../../i18n/index.js";
 import { itemChip } from "../components/item-chip.js";
 
 export const dayView = {
   id: "day",
-  label: "Jour",
 
   title(cursor) {
-    return capitalize(formatLong(cursor));
+    return fmt.longDate(cursor);
   },
 
   render({ cursor, repo }) {
@@ -15,14 +15,17 @@ export const dayView = {
     const items = repo.onDate(iso);
     if (!items.length) {
       return `<section class="day-view empty">
-        <p class="empty-msg">Rien de prévu. Profite de la journée 🌿</p>
-        <button type="button" class="btn soft" data-action="new-item" data-date="${iso}">Ajouter quelque chose</button>
+        <p class="empty-msg">${t("day.empty")}</p>
+        <button type="button" class="btn soft" data-action="new-item" data-date="${iso}">${t("day.add")}</button>
       </section>`;
     }
-    const active = items.filter((i) => !isCancelled(i));
+    // Les jours facultatifs d'une habitude « X fois par semaine » ne comptent pas.
+    const active = items.filter((i) => !isCancelled(i) && !(i.occurrence?.optional && !i.done));
     const done = active.filter((i) => i.done).length;
     const progress = active.length
-      ? `<p class="day-progress">${done} sur ${active.length} ${done === active.length ? "— tout est fait, bravo ✨" : "fait" + (done > 1 ? "s" : "")}</p>`
+      ? `<p class="day-progress">${done === active.length
+          ? t("day.allDone", { total: active.length })
+          : t("day.progress", { count: done, done, total: active.length })}</p>`
       : "";
     return `<section class="day-view">
       ${progress}

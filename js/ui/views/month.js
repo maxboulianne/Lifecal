@@ -1,15 +1,15 @@
-import { MOIS, capitalize, daysInMonth, toISODate } from "../../core/dates.js";
+import { daysInMonth, toISODate } from "../../core/dates.js";
+import { fmt, t } from "../../i18n/index.js";
 import { dot } from "../components/item-chip.js";
 
-const HEADERS = ["L", "M", "M", "J", "V", "S", "D"];
 const MAX_DOTS = 6;
+const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
 
 export const monthView = {
   id: "month",
-  label: "Mois",
 
   title(cursor) {
-    return `${capitalize(MOIS[cursor.getMonth()])} ${cursor.getFullYear()}`;
+    return fmt.monthYear(cursor);
   },
 
   render({ cursor, repo, today }) {
@@ -20,18 +20,19 @@ export const monthView = {
 
     let cells = '<div class="month-cell is-blank"></div>'.repeat(offset);
     for (let day = 1; day <= n; day++) {
-      const iso = toISODate(new Date(y, m, day, 12));
+      const date = new Date(y, m, day, 12);
+      const iso = toISODate(date);
       const items = repo.onDate(iso);
       const extra = items.length > MAX_DOTS ? `<span class="more">+${items.length - MAX_DOTS}</span>` : "";
       cells += `<button type="button" class="month-cell ${iso === today ? "is-today" : ""}"
-        data-action="open-day" data-date="${iso}" aria-label="${day} ${MOIS[m]}, ${items.length} élément(s)">
+        data-action="open-day" data-date="${iso}" aria-label="${fmt.date(date)}, ${t("count.items", { count: items.length })}">
         <span class="day-num">${day}</span>
         <span class="dots">${items.slice(0, MAX_DOTS).map(dot).join("")}${extra}</span>
       </button>`;
     }
 
     return `<section class="month-view">
-      ${HEADERS.map((h) => `<div class="month-head">${h}</div>`).join("")}
+      ${MONDAY_FIRST.map((d) => `<div class="month-head">${fmt.weekdayNarrow(d)}</div>`).join("")}
       ${cells}
     </section>`;
   },

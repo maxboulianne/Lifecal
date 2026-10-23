@@ -6,7 +6,9 @@
 // Chaque écriture émet "change", ce qui redessine l'interface.
 
 import { Emitter } from "../core/events.js";
+import { addDays, parseISODate, toISODate } from "../core/dates.js";
 import { STATUS, compareItems, createItem, normalizeItem, validateItem } from "./item.js";
+import { occurrencesBetween } from "./recurrence.js";
 import { SCHEMA_VERSION, emptyDocument, migrate, readLegacy } from "./migrations.js";
 
 export class ValidationError extends Error {
@@ -57,13 +59,25 @@ export class Repository extends Emitter {
     return this.#byId.get(id) ?? null;
   }
 
+  // Éléments d'une journée, habitudes répétées comprises (sous forme d'occurrences).
   onDate(iso) {
-    return this.#doc.items.filter((i) => i.date === iso).sort(compareItems);
+    return this.between(iso, iso);
   }
 
   // Bornes incluses, dates ISO.
   between(fromISO, toISO) {
-    return this.#doc.items.filter((i) => i.date >= fromISO && i.date <= toISO).sort(compareItems);
+    return occurrencesBetween(this.#doc.items, fromISO, toISO).sort(compareItems);
+  }
+
+  // L'élément tel qu'il apparaît à une date (occurrence s'il est répété).
+  getOn(id, iso) {
+    const item = this.get(id);
+    if (!item?.recurrence || !iso) return item;
+    return occurrencesBetween([item], iso, iso)[0] ?? item;
+  }
+
+  habits() {
+    return this.#doc.items.filter((i) => i.recurrence).sort((a, b) => a.title.localeCompare(b.title));
   }
 
   findBySource(provider, externalId) {
@@ -101,8 +115,30 @@ export class Repository extends Emitter {
     await this.#commit("remove", item);
   }
 
-  toggleDone(id) {
-    return this.update(id, { done: !this.#require(id).done });
+  // `iso` est requis pour un élément répété : on coche ce jour-là seulement.
+  toggleDone(id, iso) {
+    const item = this.#require(id);
+    if (!item.recurrence) return this.update(id, { done: !item.done });
+    return this.#toggleDay(item, "completions", iso);
+  }
+
+  // Sauter (ou rétablir) un jour d'une habitude, sans la casser.
+  toggleSkip(id, iso) {
+    return this.#toggleDay(this.#require(id), "skipped", iso);
+  }
+
+  // Arrêter une habitude à partir d'une date (l'historique est conservé).
+  stopRecurrence(id, fromISO) {
+    const item = this.#require(id);
+    const until = toISODate(addDays(parseISODate(fromISO), -1));
+    return this.update(id, { recurrence: { ...item.recurrence, until } });
+  }
+
+  #toggleDay(item, field, iso) {
+    const map = { ...(item.data[field] ?? {}) };
+    if (map[iso]) delete map[iso];
+    else map[iso] = true;
+    return this.update(item.id, { data: { ...item.data, [field]: map } });
   }
 
   cancel(id) {

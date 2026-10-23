@@ -35,6 +35,9 @@
 
 * { box-sizing: border-box; }
 
+/* « hidden » doit toujours gagner sur les display des composants. */
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; }
 
 body {
@@ -88,6 +91,7 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .icon-btn:hover { background: var(--soft); }
+.icon-btn.active { background: var(--surface); box-shadow: var(--shadow); }
 
 .segmented {
   display: flex;
@@ -133,6 +137,7 @@ button { font: inherit; color: inherit; }
 
 /* ---- Légende & coups de pouce ---------------------------------------- */
 
+.legend[hidden] { display: none; }
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -209,6 +214,9 @@ button { font: inherit; color: inherit; }
   border: 1.5px dashed var(--c);
 }
 .chip.is-cancelled .chip-title { text-decoration: line-through; }
+.chip-repeat { opacity: 0.8; font-size: 0.75rem; }
+/* Habitude « X fois par semaine » : objectif atteint, ce jour devient facultatif. */
+.chip.is-optional { background: transparent; color: var(--muted); border: 1.5px dotted var(--c); }
 
 /* Semaine */
 .week-view { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
@@ -333,6 +341,7 @@ button { font: inherit; color: inherit; }
 
 .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .actions.stack { flex-direction: column; align-items: stretch; }
+.actions.start { justify-content: flex-start; }
 
 /* Formulaire */
 .form label { display: block; margin-bottom: 12px; font-size: 0.9rem; color: var(--muted); }
@@ -391,6 +400,75 @@ button { font: inherit; color: inherit; }
 .provider-list li { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .file-btn { position: relative; }
 
+/* Répétition (habitudes) */
+.repeat { border: none; padding: 0; margin: 0 0 12px; }
+.repeat legend { font-size: 0.9rem; color: var(--muted); margin-bottom: 6px; padding: 0; }
+.segmented.wrap { flex-wrap: wrap; gap: 2px; }
+.form .seg-option { margin: 0; color: var(--ink); }
+.seg-option input, .weekday-option input { position: absolute; opacity: 0; pointer-events: none; }
+.seg-option span {
+  display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px;
+  border-radius: 9px; cursor: pointer; font-size: 0.9rem;
+}
+.seg-option input:checked + span { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+.weekday-picker { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; }
+.form .weekday-option { margin: 0; color: var(--ink); }
+.weekday-option span {
+  display: flex; align-items: center; justify-content: center; min-height: 40px;
+  border-radius: 10px; border: 1.5px solid var(--line); cursor: pointer; font-size: 0.8rem;
+}
+.weekday-option input:checked + span { background: #22c55e; border-color: #22c55e; color: #fff; font-weight: 600; }
+.seg-option input:focus-visible + span, .weekday-option input:focus-visible + span {
+  outline: 3px solid color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.form .times { margin-top: 10px; }
+.form .times input { max-width: 120px; }
+.repeat .hint { margin: 8px 0 0; }
+
+/* ---- Pages (Mes habitudes, Paramètres) -------------------------------- */
+
+.page { max-width: 720px; margin: 0 auto; display: grid; gap: 12px; }
+.page.empty { text-align: center; justify-items: center; }
+.card { background: var(--surface); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+.card h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.card .hint { margin: 0 0 10px; }
+
+.language-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
+.language-option {
+  min-height: var(--tap); padding: 0 14px; border-radius: 12px; border: 1.5px solid var(--line);
+  background: var(--surface); text-align: left; cursor: pointer;
+}
+.language-option.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); font-weight: 600; }
+
+.habit-card { border-top: 5px solid var(--c); }
+.habit-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.habit-head .hint { margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 14px 0 8px; }
+.stat { background: var(--bg); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.stat-value { font-size: 1.15rem; font-weight: 700; }
+.stat-label { font-size: 0.8rem; color: var(--muted); }
+.cheer { margin: 6px 0 12px; }
+
+.history { display: flex; gap: 6px; overflow-x: auto; }
+.history-days { display: grid; grid-template-rows: repeat(7, 16px); gap: 3px; font-size: 0.65rem; color: var(--muted); }
+.history-days span { line-height: 16px; }
+.history-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 16px); grid-auto-columns: 16px; gap: 3px; }
+.cell { display: inline-block; width: 16px; height: 16px; border-radius: 4px; background: var(--soft); vertical-align: middle; }
+.cell.done { background: var(--c); }
+.cell.missed { background: transparent; border: 1.5px solid var(--line); }
+.cell.skipped { background: transparent; border: 1.5px dashed var(--muted); }
+.cell.off { background: var(--soft); opacity: 0.5; }
+.cell.future { background: transparent; }
+.cell.today { background: transparent; border: 2px solid var(--c); }
+.grid-legend { justify-content: center; padding: 0; }
+.grid-legend .cell { margin-right: 4px; }
+
+/* Accueil */
+.welcome { text-align: center; }
+.welcome img { border-radius: 14px; }
+.welcome .language-list { text-align: left; }
+.welcome .actions { justify-content: center; }
+
 /* ---- Message éphémère ------------------------------------------------- */
 
 .toast {
@@ -421,6 +499,7 @@ button { font: inherit; color: inherit; }
   .month-cell { min-height: 54px; padding: 4px; border-radius: 9px; }
   .dot { width: 7px; height: 7px; }
   .legend { font-size: 0.75rem; }
+  .weekday-option span { font-size: 0.7rem; }
   .nudge { flex-wrap: wrap; }
   .nudge p { flex: 1 1 calc(100% - 90px); }
   .nudge .btn.link { order: 3; margin-left: 38px; }

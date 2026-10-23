@@ -1,5 +1,6 @@
 // Petit message éphémère et bienveillant.
 import { $ } from "../../core/dom.js";
+import { tList } from "../../i18n/index.js";
 
 let timer;
 
@@ -15,6 +16,7 @@ export function toast(message) {
   }, 2600);
 }
 
-const CHEERS = ["Bravo 🌱", "Bien joué ✨", "Un pas de plus 💪", "Super, c'est fait 🌿", "Fier de toi 🙌"];
-
-export const cheer = () => CHEERS[Math.floor(Math.random() * CHEERS.length)];
+export function cheer() {
+  const cheers = tList("toast.cheers");
+  return cheers[Math.floor(Math.random() * cheers.length)] ?? "✨";
+}

@@ -14,6 +14,7 @@ export const SCHEMA_VERSION = 2;
 export const LEGACY_KEY = "items";
 
 export const DEFAULT_SETTINGS = Object.freeze({
+  language: null, // null = pas encore choisie (écran d'accueil)
   proximityEnabled: false,
   proximityRadiusMeters: 300,
   dismissedNudges: {},
