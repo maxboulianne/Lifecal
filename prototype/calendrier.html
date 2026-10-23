@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ma Vie – Calendrier</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#f5f6fa;color:#222}
+  header{display:flex;justify-content:space-between;align-items:center;padding:10px;background:#fff;box-shadow:0 1px 4px #0001;flex-wrap:wrap;gap:6px}
+  .views button,.nav button{border:none;background:#eee;padding:8px 12px;border-radius:8px;cursor:pointer}
+  .views button.active{background:#4a6cf7;color:#fff}
+  #title{font-weight:600}
+  #cal{padding:10px}
+  .week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .day{background:#fff;border-radius:10px;min-height:140px;padding:6px}
+  .day h4{margin:0 0 6px;font-size:13px;cursor:pointer;color:#4a6cf7}
+  .day.today{outline:2px solid #4a6cf7}
+  .item{font-size:12px;color:#fff;padding:4px 6px;border-radius:6px;margin-bottom:4px;cursor:pointer}
+  .item.done{opacity:.45;text-decoration:line-through}
+  .month{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .month .day{min-height:70px}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin:1px}
+  .year{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+  .year div{background:#fff;padding:10px;border-radius:10px;cursor:pointer}
+  #fab{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border-radius:50%;border:none;background:#4a6cf7;color:#fff;font-size:28px;cursor:pointer}
+  .modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center}
+  .modal .box{background:#fff;padding:20px;border-radius:12px;width:90%;max-width:360px}
+  .box input,.box select{width:100%;padding:8px;margin:4px 0 10px;box-sizing:border-box}
+  .legend span{font-size:12px;margin-right:10px}
+  @media(max-width:700px){.week{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav"><button onclick="move(-1)">◀</button> <span id="title"></span> <button onclick="move(1)">▶</button> <button onclick="goToday()">Aujourd'hui</button></div>
+  <div class="views">
+    <button data-v="day">Jour</button><button data-v="week" class="active">Semaine</button><button data-v="month">Mois</button><button data-v="year">Année</button>
+  </div>
+</header>
+<div class="legend" id="legend" style="padding:6px 10px"></div>
+<div id="cal"></div>
+<button id="fab" onclick="openForm()">+</button>
+
+<div class="modal" id="formModal"><div class="box">
+  <h3>Nouvel élément</h3>
+  <label>Titre</label><input id="fTitle">
+  <label>Module</label><select id="fModule"></select>
+  <label>Date</label><input id="fDate" type="date">
+  <label>Heure</label><input id="fTime" type="time">
+  <label>Lieu (optionnel)</label><input id="fPlace" placeholder="ex. IGA Laval">
+  <button onclick="saveItem()">Enregistrer</button> <button onclick="closeM('formModal')">Annuler</button>
+</div></div>
+
+<div class="modal" id="detailModal"><div class="box" id="detailBox"></div></div>
+
+<script>
+const MODULES={
+  rdv:{nom:"Rendez-vous",c:"#3b82f6"},
+  habitude:{nom:"Habitude",c:"#22c55e"},
+  commission:{nom:"Commission",c:"#f59e0b"},
+  evenement:{nom:"Événement",c:"#ec4899"},
+  voyage:{nom:"Voyage",c:"#8b5cf6"},
+  journal:{nom:"Journal",c:"#64748b"}
+};
+let items=JSON.parse(localStorage.getItem("items")||"[]");
+let view="week", cur=new Date();
+const fmt=d=>d.toISOString().slice(0,10);
+const jours=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+const mois=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+function save(){localStorage.setItem("items",JSON.stringify(items))}
+
+document.getElementById("legend").innerHTML=Object.values(MODULES).map(m=>`<span><span class="dot" style="background:${m.c}"></span>${m.nom}</span>`).join("");
+document.getElementById("fModule").innerHTML=Object.entries(MODULES).map(([k,m])=>`<option value="${k}">${m.nom}</option>`).join("");
+document.querySelectorAll(".views button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
+
+function setView(v){view=v;document.querySelectorAll(".views button").forEach(b=>b.classList.toggle("active",b.dataset.v==v));render()}
+function goToday(){cur=new Date();render()}
+function move(n){
+  if(view=="day")cur.setDate(cur.getDate()+n);
+  if(view=="week")cur.setDate(cur.getDate()+7*n);
+  if(view=="month")cur.setMonth(cur.getMonth()+n);
+  if(view=="year")cur.setFullYear(cur.getFullYear()+n);
+  render();
+}
+function itemsOf(ds){return items.filter(i=>i.date==ds).sort((a,b)=>(a.time||"").localeCompare(b.time||""))}
+function itemHTML(i){return `<div class="item ${i.done?"done":""}" style="background:${MODULES[i.module].c}" onclick="showDetail('${i.id}')">${i.time||""} ${i.title}</div>`}
+function dayBox(d,cls="day"){
+  const ds=fmt(d),today=fmt(new Date())==ds;
+  return `<div class="${cls} ${today?"today":""}"><h4 onclick="openDay('${ds}')">${jours[d.getDay()]} ${d.getDate()}</h4>${itemsOf(ds).map(itemHTML).join("")}</div>`;
+}
+function openDay(ds){cur=new Date(ds+"T12:00");setView("day")}
+
+function render(){
+  const c=document.getElementById("cal"),t=document.getElementById("title");
+  if(view=="day"){
+    t.textContent=`${jours[cur.getDay()]} ${cur.getDate()} ${mois[cur.getMonth()]}`;
+    const l=itemsOf(fmt(cur));
+    c.innerHTML=`<div class="day" style="min-height:300px">${l.length?l.map(itemHTML).join(""):"<p>Rien de prévu. Profite de la journée 🌿</p>"}</div>`;
+  }
+  if(view=="week"){
+    const s=new Date(cur);s.setDate(s.getDate()-((s.getDay()+6)%7));
+    t.textContent=`Semaine du ${s.getDate()} ${mois[s.getMonth()]}`;
+    let h="";for(let k=0;k<7;k++){const d=new Date(s);d.setDate(s.getDate()+k);h+=dayBox(d)}
+    c.innerHTML=`<div class="week">${h}</div>`;
+  }
+  if(view=="month"){
+    t.textContent=`${mois[cur.getMonth()]} ${cur.getFullYear()}`;
+    const f=new Date(cur.getFullYear(),cur.getMonth(),1),off=(f.getDay()+6)%7,n=new Date(cur.getFullYear(),cur.getMonth()+1,0).getDate();
+    let h="<div></div>".repeat(off);
+    for(let k=1;k<=n;k++){const d=new Date(cur.getFullYear(),cur.getMonth(),k),ds=fmt(d);
+      h+=`<div class="day" onclick="openDay('${ds}')"><h4>${k}</h4>${itemsOf(ds).map(i=>`<span class="dot" style="background:${MODULES[i.module].c}"></span>`).join("")}</div>`}
+    c.innerHTML=`<div class="month">${h}</div>`;
+  }
+  if(view=="year"){
+    t.textContent=cur.getFullYear();
+    c.innerHTML=`<div class="year">${mois.map((m,k)=>{
+      const n=items.filter(i=>i.date.startsWith(`${cur.getFullYear()}-${String(k+1).padStart(2,"0")}`));
+      const done=n.filter(i=>i.done).length;
+      return `<div onclick="cur=new Date(${cur.getFullYear()},${k},1);setView('month')"><b>${m}</b><br>${n.length} éléments<br>✅ ${done} faits</div>`}).join("")}</div>`;
+  }
+}
+
+function openForm(){document.getElementById("fDate").value=fmt(cur);document.getElementById("formModal").style.display="flex"}
+function closeM(id){document.getElementById(id).style.display="none"}
+function saveItem(){
+  const title=fTitle.value.trim();if(!title)return;
+  items.push({id:Date.now()+"",title,module:fModule.value,date:fDate.value,time:fTime.value,place:fPlace.value,lat:null,lng:null,done:false});
+  save();closeM("formModal");fTitle.value=fPlace.value=fTime.value="";render();
+}
+function showDetail(id){
+  const i=items.find(x=>x.id==id);
+  detailBox.innerHTML=`<h3 style="color:${MODULES[i.module].c}">${i.title}</h3>
+   <p>${MODULES[i.module].nom} · ${i.date} ${i.time||""}</p>${i.place?`<p>📍 ${i.place}</p>`:""}
+   <button onclick="toggleDone('${id}')">${i.done?"Marquer non fait":"✅ Marquer comme fait"}</button>
+   <button onclick="delItem('${id}')">Supprimer</button> <button onclick="closeM('detailModal')">Fermer</button>`;
+  detailModal.style.display="flex";
+}
+function toggleDone(id){const i=items.find(x=>x.id==id);i.done=!i.done;save();closeM("detailModal");render()}
+function delItem(id){items=items.filter(x=>x.id!=id);save();closeM("detailModal");render()}
+render();
+</script>
+</body>
+</html>

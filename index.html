@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f5f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="LifeCal">
+  <title>LifeCal – Ma vie, un jour à la fois</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="nav">
+      <button type="button" class="icon-btn" data-action="prev" aria-label="Précédent">‹</button>
+      <h1 id="title" aria-live="polite"></h1>
+      <button type="button" class="icon-btn" data-action="next" aria-label="Suivant">›</button>
+      <button type="button" class="btn soft" data-action="today">Aujourd'hui</button>
+    </div>
+    <div class="nav">
+      <nav id="view-switch" class="segmented" aria-label="Choix de la vue"></nav>
+      <button type="button" class="icon-btn" data-action="settings" aria-label="Réglages">⚙︎</button>
+    </div>
+  </header>
+
+  <div id="legend" class="legend" aria-label="Modules"></div>
+  <div id="nudges" class="nudges"></div>
+
+  <main id="calendar" class="calendar"></main>
+
+  <button type="button" id="fab" class="fab" data-action="new-item" aria-label="Ajouter un élément">+</button>
+
+  <div id="modal" class="modal" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" tabindex="-1"></div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <noscript>LifeCal a besoin de JavaScript pour fonctionner.</noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "lifecal",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Application de vie centrée sur le calendrier",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test"
+  }
+}
