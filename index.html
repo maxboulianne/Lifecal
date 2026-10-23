@@ -14,25 +14,14 @@
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="nav">
-      <button type="button" class="icon-btn" data-action="prev" aria-label="Précédent">‹</button>
-      <h1 id="title" aria-live="polite"></h1>
-      <button type="button" class="icon-btn" data-action="next" aria-label="Suivant">›</button>
-      <button type="button" class="btn soft" data-action="today">Aujourd'hui</button>
-    </div>
-    <div class="nav">
-      <nav id="view-switch" class="segmented" aria-label="Choix de la vue"></nav>
-      <button type="button" class="icon-btn" data-action="settings" aria-label="Réglages">⚙︎</button>
-    </div>
-  </header>
+  <header id="topbar" class="topbar"></header>
 
-  <div id="legend" class="legend" aria-label="Modules"></div>
+  <div id="legend" class="legend"></div>
   <div id="nudges" class="nudges"></div>
 
   <main id="calendar" class="calendar"></main>
 
-  <button type="button" id="fab" class="fab" data-action="new-item" aria-label="Ajouter un élément">+</button>
+  <button type="button" id="fab" class="fab" data-action="new-item">+</button>
 
   <div id="modal" class="modal" hidden>
     <div class="sheet" role="dialog" aria-modal="true" tabindex="-1"></div>
@@ -40,7 +29,7 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <noscript>LifeCal a besoin de JavaScript pour fonctionner.</noscript>
+  <noscript>LifeCal a besoin de JavaScript. · LifeCal needs JavaScript.</noscript>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

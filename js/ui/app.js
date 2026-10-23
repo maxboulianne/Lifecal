@@ -1,22 +1,32 @@
-// Contrôleur de l'interface : état (vue + date affichée), rendu, actions.
+// Contrôleur de l'interface : état, rendu, actions.
 //
-// L'état est reflété dans l'adresse (#/semaine/2026-10-23 → #/week/2026-10-23)
-// pour que le bouton « retour » du navigateur ramène à la vue précédente.
+// Deux sortes d'écrans :
+//  - le calendrier, avec ses vues (#/week/2026-10-23) ;
+//  - des pages : « Mes habitudes » (#/habits) et « Paramètres » (#/settings).
+// L'état est reflété dans l'adresse pour que le bouton « retour » fonctionne.
 
-import { MODULES, MODULE_IDS } from "../config/modules.js";
+import { MODULES, MODULE_IDS, moduleLabel } from "../config/modules.js";
 import { isISODate, parseISODate, toISODate, todayISO } from "../core/dates.js";
 import { $, esc } from "../core/dom.js";
+import { currentStreak } from "../data/habit-stats.js";
+import { FREQ, doneInWeek } from "../data/recurrence.js";
 import { ValidationError } from "../data/repository.js";
 import { getCurrentPosition, watchPosition } from "../geo/geo.js";
+import { getLanguage, setLanguage, t } from "../i18n/index.js";
 import { itemDetail } from "./components/item-detail.js";
-import { itemForm, readItemForm } from "./components/item-form.js";
+import { itemForm, readItemForm, syncRepeatFields } from "./components/item-form.js";
 import { closeModal, openModal, setupModal } from "./components/modal.js";
 import { nudgesBar } from "./components/nudges.js";
-import { settingsPanel } from "./components/settings.js";
 import { cheer, toast } from "./components/toast.js";
+import { welcome } from "./components/welcome.js";
+import { habitsPage } from "./pages/habits.js";
+import { settingsPage } from "./pages/settings.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
 
+const PAGES = { habits: habitsPage, settings: settingsPage };
+
 export class App {
+  page = null; // null = calendrier
   view = DEFAULT_VIEW;
   cursor = parseISODate(todayISO());
   position = null;
@@ -26,11 +36,10 @@ export class App {
   constructor({ repo, triggers, storageLabel }) {
     this.repo = repo;
     this.triggers = triggers;
-    this.storageLabel = storageLabel;
+    this.storageLabel = storageLabel; // clé de traduction
   }
 
   start() {
-    this.#renderChrome();
     setupModal();
     this.#readHash();
     document.addEventListener("click", (e) => this.#onClick(e));
@@ -45,51 +54,111 @@ export class App {
     this.repo.on("change", () => this.render());
     this.#syncProximityWatch();
     this.render();
+    if (!this.repo.settings.language) openModal(welcome(), { labelledBy: "welcome-title" });
   }
 
   // ---- Navigation --------------------------------------------------------
 
   #readHash() {
-    const [, view, date] = location.hash.match(/^#\/(\w+)(?:\/([\d-]+))?/) ?? [];
-    if (VIEWS[view]) this.view = view;
+    const [, first, date] = location.hash.match(/^#\/(\w+)(?:\/([\d-]+))?/) ?? [];
+    this.page = PAGES[first] ? first : null;
+    if (VIEWS[first]) this.view = first;
     if (isISODate(date)) this.cursor = parseISODate(date);
   }
 
   navigate(view, cursor, { push = false } = {}) {
+    this.page = null;
     this.view = view;
     this.cursor = cursor;
-    const hash = `#/${view}/${toISODate(cursor)}`;
+    this.#setHash(`#/${view}/${toISODate(cursor)}`, push);
+  }
+
+  openPage(page) {
+    if (this.page === page) return;
+    this.page = page;
+    this.#setHash(`#/${page}`, true);
+  }
+
+  backToCalendar() {
+    this.navigate(this.view, this.cursor, { push: true });
+  }
+
+  #setHash(hash, push) {
     if (push) history.pushState(null, "", hash);
     else history.replaceState(null, "", hash);
+    window.scrollTo(0, 0);
     this.render();
   }
 
   // ---- Rendu -------------------------------------------------------------
 
-  #renderChrome() {
-    $("#view-switch").innerHTML = VIEW_ORDER.map(
-      (id) => `<button type="button" data-action="set-view" data-view="${id}">${VIEWS[id].label}</button>`,
-    ).join("");
+  render() {
+    const today = todayISO();
+    this.#renderTopbar();
+    $("#legend").hidden = Boolean(this.page);
     $("#legend").innerHTML = MODULE_IDS.map(
-      (id) => `<span class="legend-item"><span class="dot" style="--c:${MODULES[id].color}"></span>${esc(MODULES[id].label)}</span>`,
+      (id) => `<span class="legend-item"><span class="dot" style="--c:${MODULES[id].color}"></span>${esc(moduleLabel(id))}</span>`,
     ).join("");
+    $("#legend").setAttribute("aria-label", t("nav.modules"));
+    $("#fab").setAttribute("aria-label", t(this.page === "habits" ? "habits.add" : "nav.add"));
+    $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
+    $("#fab").hidden = this.page === "settings";
+
+    const main = $("#calendar");
+    main.dataset.view = this.page ?? this.view;
+    if (this.page) {
+      main.innerHTML = PAGES[this.page].render({
+        repo: this.repo,
+        today,
+        settings: this.repo.settings,
+        storageLabel: this.storageLabel,
+        count: this.repo.all().length,
+      });
+      $("#nudges").innerHTML = "";
+    } else {
+      main.innerHTML = VIEWS[this.view].render({ cursor: this.cursor, repo: this.repo, today });
+      this.#renderNudges(today);
+    }
   }
 
-  render() {
-    const view = VIEWS[this.view];
-    const today = todayISO();
-    $("#title").textContent = view.title(this.cursor);
-    document.querySelectorAll("#view-switch button").forEach((b) => {
-      const active = b.dataset.view === this.view;
-      b.classList.toggle("active", active);
-      b.setAttribute("aria-pressed", String(active));
-    });
-    $("#calendar").dataset.view = this.view;
-    $("#calendar").innerHTML = view.render({ cursor: this.cursor, repo: this.repo, today });
-    this.#renderNudges(today);
+  #renderTopbar() {
+    const pageButtons = `
+      <button type="button" class="icon-btn ${this.page === "habits" ? "active" : ""}" data-action="open-habits"
+        aria-label="${esc(t("nav.habits"))}" title="${esc(t("nav.habits"))}">🌱</button>
+      <button type="button" class="icon-btn ${this.page === "settings" ? "active" : ""}" data-action="open-settings"
+        aria-label="${esc(t("nav.settings"))}" title="${esc(t("nav.settings"))}">⚙︎</button>`;
+
+    if (this.page) {
+      $("#topbar").innerHTML = `
+        <div class="nav">
+          <button type="button" class="btn soft" data-action="back">‹ ${t("nav.calendar")}</button>
+          <h1 id="title">${esc(PAGES[this.page].title())}</h1>
+        </div>
+        <div class="nav">${pageButtons}</div>`;
+      document.title = `${PAGES[this.page].title()} – LifeCal`;
+      return;
+    }
+
+    const title = VIEWS[this.view].title(this.cursor);
+    $("#topbar").innerHTML = `
+      <div class="nav">
+        <button type="button" class="icon-btn" data-action="prev" aria-label="${esc(t("nav.prev"))}">‹</button>
+        <h1 id="title" aria-live="polite">${esc(title)}</h1>
+        <button type="button" class="icon-btn" data-action="next" aria-label="${esc(t("nav.next"))}">›</button>
+        <button type="button" class="btn soft" data-action="today">${t("nav.today")}</button>
+      </div>
+      <div class="nav">
+        <nav class="segmented" aria-label="${esc(t("nav.views"))}">
+          ${VIEW_ORDER.map((id) => `<button type="button" data-action="set-view" data-view="${id}"
+            class="${id === this.view ? "active" : ""}" aria-pressed="${id === this.view}">${t(`view.${id}`)}</button>`).join("")}
+        </nav>
+        ${pageButtons}
+      </div>`;
+    document.title = "LifeCal";
   }
 
   #renderNudges(today = todayISO()) {
+    if (this.page) return;
     const nudges = this.triggers.evaluate({
       items: this.repo.all(),
       today,
@@ -102,24 +171,18 @@ export class App {
 
   // ---- Fenêtres ----------------------------------------------------------
 
-  openNewItem(date) {
-    openModal(itemForm(null, { date: date ?? toISODate(this.cursor) }), { labelledBy: "form-title" });
+  openNewItem(options = {}) {
+    openModal(itemForm(null, { date: toISODate(this.cursor), ...options }), { labelledBy: "form-title" });
   }
 
-  openItem(id) {
-    const item = this.repo.get(id);
+  openItem(id, date) {
+    const item = this.repo.getOn(id, date);
     if (!item) return;
-    openModal(itemDetail(item), { labelledBy: "detail-title" });
+    openModal(itemDetail(item, { today: todayISO() }), { labelledBy: "detail-title" });
   }
 
   openEdit(id) {
     openModal(itemForm(this.repo.get(id)), { labelledBy: "form-title" });
-  }
-
-  openSettings() {
-    openModal(settingsPanel(this.repo.settings, { storageLabel: this.storageLabel, count: this.repo.all().length }), {
-      labelledBy: "settings-title",
-    });
   }
 
   // ---- Actions -----------------------------------------------------------
@@ -129,30 +192,45 @@ export class App {
     prev: () => this.navigate(this.view, VIEWS[this.view].step(this.cursor, -1)),
     next: () => this.navigate(this.view, VIEWS[this.view].step(this.cursor, 1)),
     today: () => this.navigate(this.view, parseISODate(todayISO())),
+    back: () => this.backToCalendar(),
     "open-day": (el) => this.navigate("day", parseISODate(el.dataset.date), { push: true }),
     "open-month": (el) => this.navigate("month", parseISODate(el.dataset.date), { push: true }),
-    "new-item": (el) => this.openNewItem(el.dataset.date),
-    "open-item": (el) => this.openItem(el.dataset.id),
-    "edit-item": (el) => this.openEdit(el.dataset.id),
-    "toggle-done": async (el) => {
-      const item = await this.repo.toggleDone(el.dataset.id);
+    "open-habits": () => {
       closeModal();
-      if (item.done) toast(cheer());
+      this.openPage("habits");
+    },
+    "open-settings": () => this.openPage("settings"),
+    "new-item": (el) => this.openNewItem(el.dataset.date ? { date: el.dataset.date } : {}),
+    "new-habit": () => this.openNewItem({ date: todayISO(), module: "habitude", repeat: FREQ.DAILY }),
+    "open-item": (el) => this.openItem(el.dataset.id, el.dataset.date),
+    "edit-item": (el) => this.openEdit(el.dataset.id),
+    "toggle-done": (el) => this.#toggleDone(el.dataset.id, el.dataset.date),
+    "toggle-skip": async (el) => {
+      const item = await this.repo.toggleSkip(el.dataset.id, el.dataset.date);
+      closeModal();
+      if (item.data.skipped?.[el.dataset.date]) toast(t("toast.skipped"));
+    },
+    "stop-habit": async (el) => {
+      if (!confirm(t("confirm.stopHabit"))) return;
+      await this.repo.stopRecurrence(el.dataset.id, el.dataset.date);
+      closeModal();
+      toast(t("toast.stopped"));
     },
     "cancel-item": async (el) => {
       await this.repo.cancel(el.dataset.id);
       closeModal();
-      toast("Élément annulé. Pas de souci 🌿");
+      toast(t("toast.cancelled"));
     },
     "restore-item": async (el) => {
       await this.repo.restore(el.dataset.id);
       closeModal();
     },
     "delete-item": async (el) => {
-      if (!confirm("Supprimer cet élément pour de bon ?")) return;
+      const recurring = Boolean(this.repo.get(el.dataset.id)?.recurrence);
+      if (!confirm(t(recurring ? "confirm.deleteHabit" : "confirm.delete"))) return;
       await this.repo.remove(el.dataset.id);
       closeModal();
-      toast("Élément supprimé");
+      toast(t("toast.deleted"));
     },
     "dismiss-nudge": async (el) => {
       const dismissed = { ...this.repo.settings.dismissedNudges, [el.dataset.id]: todayISO() };
@@ -160,25 +238,45 @@ export class App {
       for (const [k, v] of Object.entries(dismissed)) if (v !== todayISO()) delete dismissed[k];
       await this.repo.updateSettings({ dismissedNudges: dismissed });
     },
+    "pick-language": async (el) => {
+      setLanguage(el.dataset.lang);
+      await this.repo.updateSettings({ language: el.dataset.lang });
+      // L'accueil se redessine dans la nouvelle langue.
+      if ($("#modal .welcome")) openModal(welcome(), { labelledBy: "welcome-title" });
+    },
+    "finish-welcome": async () => {
+      if (!this.repo.settings.language) await this.repo.updateSettings({ language: getLanguage() });
+      closeModal();
+    },
     "use-position": async (el) => {
       const form = el.closest("form");
       el.disabled = true;
-      el.textContent = "Recherche…";
+      el.textContent = t("form.locating");
       try {
-        const pos = await getCurrentPosition();
-        this.#setFormCoords(form, pos);
+        this.#setFormCoords(form, await getCurrentPosition());
       } catch {
-        toast("Position introuvable. Tu peux simplement écrire le lieu.");
+        toast(t("toast.noPosition"));
       } finally {
         el.disabled = false;
-        el.textContent = "Utiliser ma position";
+        el.textContent = t("form.usePosition");
       }
     },
     "clear-position": (el) => this.#setFormCoords(el.closest("form"), null),
-    settings: () => this.openSettings(),
     export: () => this.#exportData(),
     close: () => closeModal(),
   };
+
+  async #toggleDone(id, date) {
+    const item = await this.repo.toggleDone(id, date);
+    closeModal();
+    const done = item.recurrence ? Boolean(item.data.completions?.[date]) : item.done;
+    if (!done) return;
+    if (item.recurrence?.freq === FREQ.FLEXIBLE && doneInWeek(item, date) === item.recurrence.timesPerWeek) {
+      return toast(t("toast.weekGoal"));
+    }
+    const streak = item.recurrence && date === todayISO() ? currentStreak(item, date) : 0;
+    toast(streak >= 2 ? t("toast.streak", { count: streak }) : cheer());
+  }
 
   async #onClick(e) {
     const el = e.target.closest("[data-action]");
@@ -190,23 +288,32 @@ export class App {
       await action(el);
     } catch (err) {
       console.error(err);
-      toast("Oups, quelque chose n'a pas fonctionné.");
+      toast(t("toast.error"));
     }
   }
 
   async #onChange(e) {
     const el = e.target;
+    const form = el.closest("#item-form");
+    if (form && (el.name === "module" || el.name === "repeat")) {
+      // Choisir « Habitude » pour un nouvel élément propose « Tous les jours ».
+      if (el.name === "module" && el.value === "habitude" && !form.dataset.id && form.elements.repeat.value === "none") {
+        form.querySelector(`[name=repeat][value=${FREQ.DAILY}]`).checked = true;
+      }
+      syncRepeatFields(form);
+    }
     if (el.dataset.action === "toggle-proximity") {
       try {
         await this.repo.updateSettings({ proximityEnabled: el.checked });
         this.#syncProximityWatch();
       } catch {
         el.checked = !el.checked;
-        toast("Oups, le réglage n'a pas pu être enregistré.");
+        toast(t("toast.settingFailed"));
       }
     }
     if (el.dataset.action === "import" && el.files?.[0]) {
       await this.#importData(el.files[0]);
+      el.value = "";
     }
   }
 
@@ -214,18 +321,17 @@ export class App {
     if (e.target.id !== "item-form") return;
     e.preventDefault();
     const form = e.target;
-    const data = readItemForm(form);
+    const existing = form.dataset.id ? this.repo.get(form.dataset.id) : null;
+    const data = readItemForm(form, existing);
     try {
-      if (form.dataset.id) await this.repo.update(form.dataset.id, data);
+      if (existing) await this.repo.update(existing.id, data);
       else await this.repo.add(data);
       closeModal();
-      // Montrer l'élément là où il a été placé.
-      const date = parseISODate(data.date);
-      if (this.view === "year" || this.view === "month") this.render();
-      else this.navigate(this.view, date);
+      // Montrer l'élément là où il a été placé (sauf depuis une page ou une vue large).
+      if (!this.page && (this.view === "day" || this.view === "week")) this.navigate(this.view, parseISODate(data.date));
     } catch (err) {
       $("[data-role=errors]", form).textContent =
-        err instanceof ValidationError ? err.errors.join(" ") : "Impossible d'enregistrer pour l'instant.";
+        err instanceof ValidationError ? err.errors.map((k) => t(k)).join(" ") : t("form.saveError");
     }
   }
 
@@ -250,7 +356,7 @@ export class App {
             navigator.vibrate?.(80);
           }
         },
-        () => toast("Je n'arrive pas à connaître ta position. Les rappels de proximité sont en pause."),
+        () => toast(t("toast.proximityPaused")),
       );
     } else if (!enabled && this.#stopWatch) {
       this.#stopWatch();
@@ -274,14 +380,15 @@ export class App {
   }
 
   async #importData(file) {
-    if (!confirm("Remplacer toutes tes données par celles de ce fichier ?")) return;
+    if (!confirm(t("confirm.import"))) return;
     try {
       const n = await this.repo.importJSON(await file.text());
-      closeModal();
-      toast(`${n} élément${n > 1 ? "s" : ""} importé${n > 1 ? "s" : ""} ✨`);
+      setLanguage(this.repo.settings.language ?? getLanguage());
+      this.render();
+      toast(t("toast.imported", { count: n }));
     } catch (err) {
       console.error(err);
-      toast("Ce fichier ne semble pas être une copie LifeCal.");
+      toast(t("toast.importFailed"));
     }
   }
 }

@@ -3,6 +3,7 @@
 import { getModule, hasFeature } from "../config/modules.js";
 import { distanceMeters } from "../geo/geo.js";
 import { hasCoordinates, isCancelled } from "../data/item.js";
+import { fmt } from "../i18n/index.js";
 
 // Regroupe les commissions à faire (aujourd'hui ou en retard) situées près
 // de la position actuelle, par lieu.
@@ -14,6 +15,7 @@ export const nearbyErrands = {
     const nearby = items.filter(
       (i) =>
         hasFeature(i.module, "proximity") &&
+        !i.recurrence &&
         hasCoordinates(i) &&
         !i.done &&
         !isCancelled(i) &&
@@ -32,7 +34,8 @@ export const nearbyErrands = {
       id: `commissions-proximite:${place}`,
       tone: "info",
       icon: getModule("commission").icon,
-      message: `Tu passes près de ${place}. Voici ta liste : ${list.map((i) => i.title).join(", ")}.`,
+      messageKey: "nudge.nearby",
+      params: { place, list: fmt.list(list.map((i) => i.title)) },
       itemIds: list.map((i) => i.id),
     }));
   },

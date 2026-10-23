@@ -2,7 +2,8 @@
 //
 // Un déclencheur est un objet { id, kind, evaluate(context) } où evaluate
 // retourne une liste de « petits coups de pouce » (nudges) :
-//   { id, triggerId, tone, icon, message, itemIds, actionLabel?, actionItemId? }
+//   { id, triggerId, tone, icon, messageKey, params, itemIds, actionKey?, actionItemId? }
+// messageKey et actionKey sont des clés de traduction (voir js/i18n).
 //
 // kind = "calendar"  : se base sur les dates (voyage dans 3 semaines…)
 // kind = "proximity" : se base sur la position actuelle (près de l'épicerie…)

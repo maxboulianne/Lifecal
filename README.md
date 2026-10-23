@@ -2,7 +2,7 @@
 
 Application de vie centrée sur le calendrier. Elle aide à structurer ses journées avec douceur : chaque élément appartient à un module (code couleur), et des déclencheurs donnent de petits coups de pouce, jamais culpabilisants.
 
-Version web : elle fonctionne dans le navigateur d'un téléphone ou d'un iPad, et l'interface est en français.
+Version web : elle fonctionne dans le navigateur d'un téléphone ou d'un iPad. L'interface est disponible en français, anglais, espagnol, portugais, allemand, vietnamien et coréen.
 
 ## Lancer l'application
 
@@ -25,7 +25,7 @@ Aucune dépendance et aucune étape de compilation.
 npm test             # node --test (Node 18+)
 ```
 
-Ils couvrent les dates, le dépôt de données, la migration du prototype, les déclencheurs et la fusion de la synchronisation.
+Ils couvrent les dates, le dépôt de données, la migration du prototype, les habitudes (répétition, séries, bilans), les déclencheurs, la synchronisation et la complétude des 7 langues.
 
 ## Ce qui fonctionne
 
@@ -39,7 +39,12 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les d
   - un événement spécial dans la semaine fait penser à un mot ou à un cadeau ;
   - une habitude manquée la veille donne lieu à un encouragement ;
   - les rappels de proximité (bêta, à activer dans ⚙︎ Réglages) : « tu passes près de l'IGA, voici ta liste ».
-- Réglages : exporter et importer une copie des données (JSON).
+- **Habitudes** : répétition « tous les jours », « certains jours » ou « X fois par semaine ».
+  - Chaque jour, on coche l'habitude, ou on saute le jour (un jour sauté ne casse pas la série).
+  - Page 🌱 **Mes habitudes** : série en cours, meilleure série, bilans de la semaine, du mois et de l'année, grille des 12 dernières semaines et un mot d'encouragement.
+  - Une habitude arrêtée garde tout son historique.
+- **Langues** : choix à l'accueil au premier lancement, puis dans ⚙︎ **Paramètres**. Les dates et les heures suivent la langue choisie.
+- Paramètres : langue, rappels de proximité, calendriers externes, exporter et importer une copie des données (JSON).
 - **Les données du prototype `calendrier.html` sont récupérées automatiquement** à la première ouverture, si l'application est servie depuis la même adresse. La copie d'origine sous la clé `items` est conservée.
 
 ## Architecture
@@ -51,13 +56,16 @@ js/main.js                 Assemblage : stockage → dépôt → déclencheurs �
 js/config/modules.js       Registre des modules (couleur, icône, fonctions futures)
 js/core/                   Dates (heure locale), DOM, bus d'événements
 js/data/item.js            Modèle d'un élément, normalisation, validation
+js/data/recurrence.js      Règles de répétition et occurrences calculées
+js/data/habit-stats.js     Séries, bilans par période, grille d'historique
 js/data/repository.js      Dépôt : seule porte d'entrée vers les données
 js/data/migrations.js      Versions du schéma et migrations
 js/data/storage/           Adaptateurs de stockage (localStorage, mémoire)
 js/triggers/               Moteur de déclencheurs + déclencheurs calendrier et proximité
 js/geo/geo.js              Position, distances, lien vers la carte
 js/sync/                   Fournisseurs externes (Google, Outlook, Yahoo) + fusion
-js/ui/                     Contrôleur, vues (jour/semaine/mois/année), composants
+js/i18n/                   Traductions (7 langues) et formatage des dates via Intl
+js/ui/                     Contrôleur, vues (jour/semaine/mois/année), pages (habitudes, paramètres), composants
 prototype/calendrier.html  Prototype d'origine, gardé pour référence
 tests/                     Tests node:test
 ```
@@ -70,8 +78,9 @@ tests/                     Tests node:test
   place, lat, lng, done,             // champs du cahier des charges
   status: "active" | "cancelled",    // annulé ≠ supprimé
   notes,
-  recurrence: null,                  // règle de répétition des habitudes (à venir)
-  data: {},                          // contenu propre au module (liste de courses, lieux d'un voyage…)
+  recurrence: null | { freq: "daily" | "weekly" | "flexible", days, timesPerWeek, until },
+  data: {},                          // contenu propre au module ; pour une habitude :
+                                     //   completions { "AAAA-MM-JJ": true }, skipped { … }
   source: { provider: "local" | "google" | "outlook" | "yahoo", externalId, etag },
   createdAt, updatedAt
 }
@@ -83,7 +92,10 @@ Les données sont stockées dans un document versionné, `{ schemaVersion, items
 
 | Besoin futur | Où intervenir |
 |---|---|
-| Nouveau module | Ajouter une entrée dans `js/config/modules.js` |
+| Nouveau module | Ajouter une entrée dans `js/config/modules.js` et son nom `module.xxx` dans chaque langue |
+| Nouveau texte à l'écran | Une clé dans `js/i18n/locales/fr.js` puis dans les 6 autres langues (`npm test` signale les oublis) |
+| Nouvelle langue | Copier `fr.js`, traduire, l'ajouter à `LANGUAGES` dans `js/i18n/index.js` |
+| Nouveau paramètre | Une section dans `js/ui/pages/settings.js` et une valeur par défaut dans `DEFAULT_SETTINGS` |
 | Contenu propre à un module (liste à cocher, journal…) | Champ `item.data`, et un composant dans `js/ui/components/` activé selon `module.features` |
 | Changer le format des données | Incrémenter `SCHEMA_VERSION` et ajouter une migration dans `js/data/migrations.js` |
 | IndexedDB, serveur, compte en ligne | Nouvel adaptateur avec `load()`, `save()` et `clear()` dans `js/data/storage/` |
@@ -93,4 +105,4 @@ Les données sont stockées dans un document versionné, `{ schemaVersion, items
 
 ## Prochaines étapes (après le pilote)
 
-Journal d'écriture, habitudes récurrentes avec séries et statistiques, listes à cocher pour les commissions, préparation des voyages (lieux, carte, choses à emporter), notifications en arrière-plan (cela demandera un service worker ou l'app native).
+Journal d'écriture, listes à cocher pour les commissions, préparation des voyages (lieux, carte, choses à emporter), notifications en arrière-plan (cela demandera un service worker ou l'app native).
