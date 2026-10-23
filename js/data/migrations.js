@@ -38,6 +38,11 @@ const MIGRATIONS = {
 };
 
 export function migrate(input) {
+  // Refuser tout ce qui n'a pas la forme attendue, plutôt que de le traiter
+  // comme un document vide (ce qui effacerait les données à l'import).
+  if (!Array.isArray(input) && !(input && typeof input === "object" && Array.isArray(input.items))) {
+    throw new Error("Ce ne sont pas des données LifeCal.");
+  }
   let doc = Array.isArray(input) ? { schemaVersion: 1, items: input } : { ...input };
   doc.schemaVersion ??= 1;
   if (doc.schemaVersion > SCHEMA_VERSION) {

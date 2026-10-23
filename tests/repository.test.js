@@ -65,3 +65,23 @@ test("export / import", async () => {
 test("refuse des données d'une version future", () => {
   assert.throws(() => migrate({ schemaVersion: SCHEMA_VERSION + 1, items: [] }));
 });
+
+test("un fichier qui n'est pas une copie LifeCal n'efface rien", async () => {
+  const repo = new Repository(new MemoryAdapter());
+  await repo.init();
+  await repo.add({ title: "Garder", date: "2026-10-23" });
+  for (const bad of ['{"foo":1}', "null", "42"]) {
+    await assert.rejects(repo.importJSON(bad));
+  }
+  assert.equal(repo.all().length, 1);
+});
+
+test("si l'enregistrement échoue, l'écran revient à l'état sauvegardé", async () => {
+  const adapter = new MemoryAdapter();
+  const repo = new Repository(adapter);
+  await repo.init();
+  await repo.add({ title: "Avant", date: "2026-10-23" });
+  adapter.save = async () => { throw new Error("QuotaExceeded"); };
+  await assert.rejects(repo.add({ title: "Perdu", date: "2026-10-23" }));
+  assert.deepEqual(repo.all().map((i) => i.title), ["Avant"]);
+});

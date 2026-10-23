@@ -197,8 +197,13 @@ export class App {
   async #onChange(e) {
     const el = e.target;
     if (el.dataset.action === "toggle-proximity") {
-      await this.repo.updateSettings({ proximityEnabled: el.checked });
-      this.#syncProximityWatch();
+      try {
+        await this.repo.updateSettings({ proximityEnabled: el.checked });
+        this.#syncProximityWatch();
+      } catch {
+        el.checked = !el.checked;
+        toast("Oups, le réglage n'a pas pu être enregistré.");
+      }
     }
     if (el.dataset.action === "import" && el.files?.[0]) {
       await this.#importData(el.files[0]);

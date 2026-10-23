@@ -158,7 +158,17 @@ export class Repository extends Emitter {
   }
 
   async #commit(type, payload) {
-    await this.#persist();
+    try {
+      await this.#persist();
+    } catch (err) {
+      // L'écriture a échoué (stockage plein…) : on revient à l'état enregistré
+      // pour que l'écran ne montre jamais quelque chose qui serait perdu.
+      const stored = await this.adapter.load();
+      this.#doc = stored ? migrate(stored) : emptyDocument();
+      this.#reindex();
+      this.emit("change", { type: "rollback", payload: null });
+      throw err;
+    }
     this.emit("change", { type, payload });
   }
 }
