@@ -5,7 +5,9 @@
 
 import { newId } from "./item.js";
 
-export const getChecklist = (item) => (Array.isArray(item?.data?.checklist) ? item.data.checklist : []);
+// `field` : la liste « À préparer » (checklist) ou une autre liste du même genre
+// (idées cadeaux, invités d'un événement).
+export const getChecklist = (item, field = "checklist") => (Array.isArray(item?.data?.[field]) ? item.data[field] : []);
 
 export function addEntry(list, text) {
   const clean = String(text ?? "").trim();

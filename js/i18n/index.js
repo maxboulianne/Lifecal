@@ -131,5 +131,9 @@ export const fmt = {
   decimal: (n) => memo("dec", () => new Intl.NumberFormat(lang.intl, { maximumFractionDigits: 1 })).format(n),
   // « 4,99 $ » en français, « $4.99 » en anglais (dollars canadiens)
   money: (n) => memo("money", () => new Intl.NumberFormat(lang.intl, { style: "currency", currency: "CAD" })).format(n),
+  // Montant rond sans décimales (« 50 $ »), sinon comme money (« 49,99 $ »)
+  amount: (n) => (Number.isInteger(n)
+    ? memo("amount", () => new Intl.NumberFormat(lang.intl, { style: "currency", currency: "CAD", maximumFractionDigits: 0 })).format(n)
+    : fmt.money(n)),
   percent: (ratio) => memo("pct", () => new Intl.NumberFormat(lang.intl, { style: "percent" })).format(ratio),
 };

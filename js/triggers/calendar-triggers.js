@@ -7,6 +7,7 @@ import { isCancelled } from "../data/item.js";
 import { FREQ, doneInWeek, occurrencesBetween } from "../data/recurrence.js";
 import { getChecklist, progress } from "../data/checklist.js";
 import { fmt } from "../i18n/index.js";
+import { kindIcon, reminderPhase, upcomingEvents } from "../events/events.js";
 
 const upcoming = (items, today, moduleId, maxDays) =>
   items
@@ -66,22 +67,27 @@ export const travelPreparation = {
   },
 };
 
-// Un événement spécial dans la semaine : rappel de préparation.
-export const specialEventPreparation = {
-  id: "evenement-preparation",
+// Fêtes, anniversaires et événements : un rappel doux 2 semaines avant
+// (idée cadeau), 2 jours avant, puis le jour même.
+export const eventReminders = {
+  id: "evenement-rappel",
   kind: "calendar",
-  windowDays: 7,
   evaluate({ items, today }) {
-    return upcoming(items, today, "evenement", this.windowDays).map(({ item, days }) => ({
-      id: `evenement-preparation:${item.id}`,
-      tone: "info",
-      icon: getModule("evenement").icon,
-      messageKey: "nudge.event",
-      params: { title: item.title, when: fmt.inDays(days) },
-      itemIds: [item.id],
-      actionKey: "nudge.eventAction",
-      actionItemId: item.id,
-    }));
+    return upcomingEvents(items, today, 14)
+      .map((e) => ({ ...e, phase: reminderPhase(e.days) }))
+      .filter((e) => e.phase && !e.item.done)
+      .map(({ item, date, days, age, phase }) => ({
+        id: `evenement-rappel:${item.id}:${date}:${phase}`,
+        tone: phase === "ahead" ? "info" : "soft",
+        icon: kindIcon(item),
+        messageKey: `nudge.event.${phase}${age ? "Age" : ""}`,
+        params: { title: item.title, when: fmt.inDays(days), ...(age ? { count: age } : {}) },
+        itemIds: [item.id],
+        actionKey: "nudge.eventAction",
+        action: "open-item",
+        actionId: item.id,
+        actionDate: date,
+      }));
   },
 };
 
@@ -185,5 +191,5 @@ export const backupReminder = {
 };
 
 export const calendarTriggers = [
-  packingReminder, travelPreparation, specialEventPreparation, missedHabitEncouragement, flexibleWeekReview, eveningJournal, backupReminder,
+  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, backupReminder,
 ];

@@ -5,6 +5,7 @@
 //   { freq: "daily" }                          tous les jours
 //   { freq: "weekly", days: [1, 3, 5] }         certains jours (0 = dimanche)
 //   { freq: "flexible", timesPerWeek: 3 }       X fois par semaine, n'importe quel jour
+//   { freq: "yearly" }                          chaque année à la même date (fêtes, anniversaires)
 //   + until: "AAAA-MM-JJ" | null                dernier jour (habitude arrêtée)
 //
 // Le suivi jour par jour vit dans `data` :
@@ -17,12 +18,13 @@
 import { addDays, diffDays as diffDaysISO, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
 import { STATUS } from "./item.js";
 
-export const FREQ = Object.freeze({ DAILY: "daily", WEEKLY: "weekly", FLEXIBLE: "flexible" });
+export const FREQ = Object.freeze({ DAILY: "daily", WEEKLY: "weekly", FLEXIBLE: "flexible", YEARLY: "yearly" });
 
 export function normalizeRecurrence(raw) {
   if (!raw || typeof raw !== "object") return null;
   const until = typeof raw.until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.until) ? raw.until : null;
   if (raw.freq === FREQ.DAILY) return { freq: FREQ.DAILY, until };
+  if (raw.freq === FREQ.YEARLY) return { freq: FREQ.YEARLY, until };
   if (raw.freq === FREQ.WEEKLY) {
     const days = [...new Set((raw.days ?? []).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
     return { freq: FREQ.WEEKLY, days, until };
@@ -35,6 +37,15 @@ export function normalizeRecurrence(raw) {
 }
 
 export const isRecurring = (item) => Boolean(item.recurrence);
+export const isYearly = (item) => item.recurrence?.freq === FREQ.YEARLY;
+
+// Date d'un élément annuel pour une année donnée. Le 29 février tombe le
+// 28 les années non bissextiles.
+export function yearlyDate(startISO, year) {
+  const [, m, d] = startISO.split("-").map(Number);
+  const last = new Date(year, m, 0).getDate(); // dernier jour du mois
+  return `${year}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
 
 // L'élément est-il prévu ce jour-là ?
 export function isScheduledOn(item, iso) {
@@ -42,6 +53,7 @@ export function isScheduledOn(item, iso) {
   if (!r) return item.date === iso;
   if (iso < item.date || (r.until && iso > r.until)) return false;
   if (r.freq === FREQ.WEEKLY) return r.days.includes(parseISODate(iso).getDay());
+  if (r.freq === FREQ.YEARLY) return yearlyDate(item.date, Number(iso.slice(0, 4))) === iso;
   return true; // daily et flexible : visibles chaque jour
 }
 
@@ -96,6 +108,14 @@ export function occurrencesBetween(items, fromISO, toISO) {
     }
     const first = item.date > fromISO ? item.date : fromISO;
     const last = item.recurrence.until && item.recurrence.until < toISO ? item.recurrence.until : toISO;
+    if (item.recurrence.freq === FREQ.YEARLY) {
+      // Une date par année : inutile de parcourir chaque jour.
+      for (let y = Number(first.slice(0, 4)); y <= Number(last.slice(0, 4)); y++) {
+        const iso = yearlyDate(item.date, y);
+        if (iso >= first && iso <= last) out.push(toOccurrence(item, iso));
+      }
+      continue;
+    }
     for (let d = parseISODate(first); toISODate(d) <= last; d = addDays(d, 1)) {
       const iso = toISODate(d);
       if (isScheduledOn(item, iso)) out.push(toOccurrence(item, iso));

@@ -43,7 +43,7 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
 - Petits coups de pouce (déclencheurs) :
   - un voyage dans 3 semaines ou moins propose de commencer à préparer ;
   - à 3 jours du départ, si la valise n'est pas prête, un rappel doux avec le pourcentage déjà prêt ;
-  - un événement spécial dans la semaine fait penser à un mot ou à un cadeau ;
+  - une fête, un anniversaire ou un événement : un rappel 2 semaines avant (idée cadeau), 2 jours avant, puis le jour même ;
   - une habitude manquée la veille donne lieu à un encouragement ;
   - les rappels de proximité (bêta, à activer dans ⚙︎ Réglages) : « tu passes près de l'IGA, voici ta liste ».
 - **Habitudes** : répétition « tous les jours », « certains jours » ou « X fois par semaine ».
@@ -83,6 +83,11 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Préparation : la liste « À emporter ».
   - **Lieux à visiter** : on les ajoute, on les coche une fois visités, 📍 les place sur la carte (recherche par nom avec OpenStreetMap), ↗ les ouvre dans une carte.
   - **Carte** des lieux (Leaflet et OpenStreetMap, chargés seulement à l'ouverture). Sans Internet, un petit message remplace la carte ; les lieux restent enregistrés.
+- **Événements et anniversaires** (bouton 🎂) :
+  - Trois types : 🎂 Fête, 💍 Anniversaire (mariage, rencontre…) et 🎉 Événement.
+  - Une fête ou un anniversaire revient chaque année ; avec l'année de naissance (ou du mariage), l'âge s'affiche (« 62 ans »). Le 29 février tombe le 28 les autres années.
+  - Dans la fiche : 🎁 idées cadeaux (cochées une fois achetées), budget cadeau, 👥 invités (cochés quand ils confirment) et ✅ à préparer.
+  - Page « À venir » : les 12 prochains mois, mois par mois, avec le compte à rebours.
 - **Langues** : choix à l'accueil au premier lancement, puis dans ⚙︎ **Paramètres**. Les dates et les heures suivent la langue choisie.
 - Paramètres : langue, rappels de proximité, calendriers externes, exporter et importer une copie des données (JSON).
 - **Les données du prototype `calendrier.html` sont récupérées automatiquement** à la première ouverture, si l'application est servie depuis la même adresse. La copie d'origine sous la clé `items` est conservée.
@@ -106,6 +111,7 @@ js/triggers/               Moteur de déclencheurs + déclencheurs calendrier et
 js/geo/geo.js              Position, distances, lien vers la carte
 js/sync/                   Fournisseurs externes (Google, Outlook, Yahoo) + fusion
 js/grocery/                Épicerie : épiceries suivies, catalogue d'articles (7 langues), prix unitaires, comparaison, liste par épicerie
+js/events/                 Événements : types, âge, prochains événements, moments de rappel
 js/travel/                 Voyages : dates, lieux à visiter, recherche d'un lieu, carte
 js/journal/                Journal : entrée du jour, question du jour, humeur et tendance
 js/meditation/             Catalogue, scripts des séances (7 langues), lecteur, voix, sons, progrès

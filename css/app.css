@@ -908,3 +908,18 @@ body.player-open { overflow: hidden; }
 .catalog-cat { padding-top: 8px; padding-bottom: 8px; }
 .card .catalog-head { margin: 0; }
 .catalog-fold .catalog-count { margin: 0 0 0 auto; padding-left: 8px; white-space: nowrap; }
+
+/* ---- Événements et anniversaires ------------------------------------------ */
+.events { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.events-intro { margin: 0 4px; }
+.event-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; border: none; border-left: 5px solid var(--c);
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.event-card.is-today { background: color-mix(in srgb, var(--c) 12%, var(--surface)); }
+.event-icon { font-size: 1.8rem; flex: none; }
+.event-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.event-text strong { font-size: 1.1rem; }
+.event-meta { color: var(--muted); font-size: 0.85rem; }
+.event-when { flex: none; max-width: 40%; text-align: right; font-weight: 600; color: var(--c); }
+.card .event-text .hint { margin: 0; }

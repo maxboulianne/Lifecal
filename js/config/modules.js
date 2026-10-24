@@ -31,7 +31,7 @@ export const MODULES = {
     id: "evenement",
     color: "#ec4899", // rose
     icon: "🎉",
-    features: ["preparation"],
+    features: ["preparation", "yearly", "checklist", "gifts", "guests"],
   },
   voyage: {
     id: "voyage",

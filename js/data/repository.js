@@ -77,7 +77,8 @@ export class Repository extends Emitter {
   }
 
   habits() {
-    return this.#doc.items.filter((i) => i.recurrence).sort((a, b) => a.title.localeCompare(b.title));
+    // Les fêtes et anniversaires (chaque année) ne sont pas des habitudes.
+    return this.#doc.items.filter((i) => i.recurrence && i.recurrence.freq !== "yearly").sort((a, b) => a.title.localeCompare(b.title));
   }
 
   findBySource(provider, externalId) {
