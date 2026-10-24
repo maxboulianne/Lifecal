@@ -49,6 +49,10 @@ test("formatage selon la langue", () => {
   setLanguage("es");
   assert.equal(fmt.list(["A", "B", "C"]), "A, B y C");
   setLanguage("fr");
+  assert.equal(fmt.decimal(3.5), "3,5");
+  setLanguage("en");
+  assert.equal(fmt.decimal(3.5), "3.5");
+  setLanguage("fr");
 });
 
 test("détection de la langue de l'appareil", () => {

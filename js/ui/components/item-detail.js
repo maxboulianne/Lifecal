@@ -108,6 +108,7 @@ function meditationSummary(item) {
   const d = item.data ?? {};
   const lines = [];
   if (d.minutes) lines.push(`🧘 ${t("med.minutes", { count: d.minutes })}`);
+  if (d.kind === "session") lines.push(t(d.completed === false ? "med.partial" : "med.completed"));
   if (Number.isInteger(d.moodBefore) || Number.isInteger(d.moodAfter)) {
     lines.push(`${MOOD_FACES[d.moodBefore] ?? "·"} → ${MOOD_FACES[d.moodAfter] ?? "·"}`);
   }

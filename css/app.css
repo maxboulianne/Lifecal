@@ -568,8 +568,25 @@ body.player-open { overflow: hidden; }
 .player-line { min-height: 4.5em; margin: 0; font-size: 1.15rem; line-height: 1.5; opacity: 0; transition: opacity 0.8s; max-width: 30ch; }
 .player-line.show { opacity: 1; }
 .player-progress { width: 100%; display: flex; align-items: center; gap: 10px; }
-.player-bar { flex: 1; height: 4px; border-radius: 2px; background: rgb(255 255 255 / 0.15); overflow: hidden; }
-.player-bar span { display: block; height: 100%; width: 0; background: rgb(255 255 255 / 0.8); transition: width 0.5s linear; }
+/* Barre d'avancement : on la fait glisser avec le doigt pour reculer ou avancer. */
+.player-seek {
+  flex: 1; min-width: 0; height: var(--tap); margin: 0; background: transparent; cursor: pointer;
+  -webkit-appearance: none; appearance: none; touch-action: none;
+}
+.player-seek::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(to right, rgb(255 255 255 / 0.85) var(--pct), rgb(255 255 255 / 0.18) var(--pct));
+}
+.player-seek::-moz-range-track { height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.18); }
+.player-seek::-moz-range-progress { height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.85); }
+.player-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 6px rgb(0 0 0 / 0.4);
+}
+.player-seek::-moz-range-thumb { width: 22px; height: 22px; border: none; border-radius: 50%; background: #fff; }
+.player-seek:focus-visible { outline: 2px solid rgb(255 255 255 / 0.7); outline-offset: 2px; border-radius: 8px; }
+.player-badge { margin: 0; padding: 4px 12px; border-radius: 999px; background: rgb(255 255 255 / 0.12); font-size: 0.9rem; }
+.player-badge.complete { background: rgb(45 212 191 / 0.25); }
 .player-time { font-variant-numeric: tabular-nums; opacity: 0.8; font-size: 0.9rem; }
 .player-controls { display: flex; gap: 16px; align-items: center; }
 .player-btn {
@@ -652,6 +669,56 @@ body.player-open { overflow: hidden; }
   flex: 1; min-width: 0; min-height: var(--tap); padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--bg); color: var(--ink); font: inherit; font-size: 16px;
 }
+
+/* ---- Statistiques de méditation ------------------------------------- */
+
+:root { --med: #0d9488; --med-strong: #0f766e; }
+@media (prefers-color-scheme: dark) { :root { --med: #2dd4bf; --med-strong: #5eead4; } }
+
+.med-stats-link { margin: -6px 0 6px -4px; color: #ccfbf1; }
+.stats-card { display: grid; gap: 10px; }
+.stats-periods { justify-self: center; }
+.stats-nav { display: grid; grid-template-columns: var(--tap) 1fr var(--tap); align-items: center; text-align: center; }
+.stats-nav h2 { margin: 0; font-size: 1.05rem; }
+.icon-btn:disabled { opacity: 0.3; cursor: default; }
+.stats-hero { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; align-items: end; }
+.stats-hero > div { display: flex; flex-direction: column; }
+.hero-number { font-size: 1.9rem; font-weight: 700; line-height: 1.1; }
+.hero-small { font-size: 1.3rem; font-weight: 700; }
+.stats-hero .hint { margin: 0; }
+
+.stats-chart { width: 100%; height: auto; display: block; overflow: visible; }
+.stats-chart .baseline { stroke: var(--line); stroke-width: 1; }
+.stats-chart .bar { fill: var(--med); }
+.stats-chart .hit { fill: transparent; }
+.stats-chart .bar-group { cursor: pointer; outline: none; }
+.stats-chart .bar-group:hover .bar, .stats-chart .bar-group:focus-visible .bar, .stats-chart .bar-group.selected .bar { fill: var(--med-strong); }
+.stats-chart .value { font-size: 9px; font-weight: 600; fill: var(--ink); text-anchor: middle; }
+.stats-chart .axis { font-size: 9px; fill: var(--muted); text-anchor: middle; }
+.stats-readout { margin: 0; min-height: 1.4em; font-weight: 600; }
+.empty-msg.small { margin: 16px 0; font-size: 0.95rem; }
+
+.kind-row { display: grid; grid-template-columns: minmax(110px, 1fr) 2fr auto; gap: 10px; align-items: center; min-height: 36px; }
+.kind-label { font-size: 0.9rem; }
+.kind-bar { height: 10px; border-radius: 5px; background: var(--soft); overflow: hidden; }
+.kind-bar span { display: block; height: 100%; border-radius: 5px; background: var(--med); }
+.kind-value { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; min-width: 64px; text-align: right; }
+
+.program-progress { border-top: 5px solid var(--pc); display: grid; gap: 8px; }
+.program-progress header { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
+.program-progress h3 { margin: 0; font-size: 1.05rem; }
+.program-progress .hint { margin: 0; }
+.program-pct { font-size: 1.4rem; }
+.progress-track { height: 12px; border-radius: 6px; background: var(--soft); overflow: hidden; }
+.progress-track span { display: block; height: 100%; border-radius: 6px; background: var(--pc); }
+.session-steps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.session-steps li { display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: 0.92rem; }
+.step-dot {
+  flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700;
+  border: 2px solid var(--pc); color: var(--pc);
+}
+.session-steps li.is-done .step-dot { background: var(--pc); color: #fff; }
+.session-steps li:not(.is-done) .step-title { color: var(--muted); }
 
 /* ---- Message éphémère ------------------------------------------------- */
 

@@ -25,6 +25,7 @@ import { habitsPage } from "./pages/habits.js";
 import { journalPage, readJournal } from "./pages/journal.js";
 import { JOURNAL_MODULE, entryFor, entryTitle, isEmptyContent } from "../journal/journal.js";
 import { meditationPage, setupContent, setupSheet } from "./pages/meditation.js";
+import { meditationStatsPage } from "./pages/meditation-stats.js";
 import { settingsPage } from "./pages/settings.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
 import { MeditationAudio } from "../meditation/audio.js";
@@ -33,7 +34,13 @@ import { breathingScript, timerScript } from "../meditation/runner.js";
 import { sessionContent } from "../meditation/scripts/index.js";
 import { loadVoices, pickVoice, SpeechVoice } from "../meditation/voice.js";
 
-const PAGES = { journal: journalPage, meditation: meditationPage, habits: habitsPage, settings: settingsPage };
+const PAGES = {
+  journal: journalPage,
+  meditation: meditationPage,
+  medstats: meditationStatsPage,
+  habits: habitsPage,
+  settings: settingsPage,
+};
 const JOURNAL_SAVE_DELAY = 700;
 
 export class App {
@@ -46,6 +53,8 @@ export class App {
   #quiet = false; // enregistrement du journal en cours : ne pas redessiner sous les doigts
   #journalTimer = null;
   promptShift = 0;
+  statsPeriod = "week";
+  statsOffset = 0;
 
   constructor({ repo, triggers, storageLabel }) {
     this.repo = repo;
@@ -137,7 +146,7 @@ export class App {
     $("#legend").setAttribute("aria-label", t("nav.modules"));
     $("#fab").setAttribute("aria-label", t(this.page === "habits" ? "habits.add" : "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
-    $("#fab").hidden = ["settings", "meditation", "journal"].includes(this.page);
+    $("#fab").hidden = ["settings", "meditation", "medstats", "journal"].includes(this.page);
 
     const main = $("#calendar");
     main.dataset.view = this.page ?? this.view;
@@ -150,6 +159,8 @@ export class App {
         storageProtected: this.storageProtected,
         cursor: this.cursor,
         promptShift: this.promptShift,
+        statsPeriod: this.statsPeriod,
+        statsOffset: this.statsOffset,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -174,7 +185,7 @@ export class App {
     if (this.page) {
       $("#topbar").innerHTML = `
         <div class="nav">
-          <button type="button" class="btn soft" data-action="back">‹ ${t("nav.calendar")}</button>
+          <button type="button" class="btn soft" data-action="back">‹ ${t(PAGES[this.page].parent ? `nav.${PAGES[this.page].parent}` : "nav.calendar")}</button>
           <h1 id="title">${esc(PAGES[this.page].title())}</h1>
         </div>
         <div class="nav">${pageButtons}</div>`;
@@ -254,7 +265,29 @@ export class App {
     prev: () => this.navigate(this.view, VIEWS[this.view].step(this.cursor, -1)),
     next: () => this.navigate(this.view, VIEWS[this.view].step(this.cursor, 1)),
     today: () => this.navigate(this.view, parseISODate(todayISO())),
-    back: () => this.backToCalendar(),
+    back: () => {
+      const parent = PAGES[this.page]?.parent;
+      if (parent) this.openPage(parent);
+      else this.backToCalendar();
+    },
+    "open-medstats": () => {
+      this.statsOffset = 0;
+      this.openPage("medstats");
+    },
+    "stats-period": (el) => {
+      this.statsPeriod = el.dataset.period;
+      this.statsOffset = 0;
+      this.render();
+    },
+    "stats-shift": (el) => {
+      this.statsOffset = Math.max(0, this.statsOffset + Number(el.dataset.step));
+      this.render();
+    },
+    "stats-bar": (el) => {
+      $("[data-role=readout]").textContent = el.dataset.readout;
+      document.querySelectorAll(".bar-group.selected").forEach((g) => g.classList.remove("selected"));
+      el.classList.add("selected");
+    },
     "open-day": (el) => this.navigate("day", parseISODate(el.dataset.date), { push: true }),
     "open-month": (el) => this.navigate("month", parseISODate(el.dataset.date), { push: true }),
     "open-habits": () => {

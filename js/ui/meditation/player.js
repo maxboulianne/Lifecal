@@ -14,6 +14,10 @@ import { SessionRunner } from "../../meditation/runner.js";
 import { SpeechVoice, TextVoice, isSpeechSupported, loadVoices, pickVoice, unlockSpeech } from "../../meditation/voice.js";
 
 const MIN_SECONDS_TO_LOG = 60;
+// Une séance compte comme « terminée au complet » si elle est allée jusqu'au
+// bout et qu'au moins 80 % de sa durée a vraiment été écoutée (sauter à la fin
+// avec la barre d'avancement ne suffit pas).
+const COMPLETE_RATIO = 0.8;
 
 const clock = (seconds) => {
   const s = Math.max(0, Math.round(seconds));
@@ -58,12 +62,31 @@ export class MeditationPlayer {
   #moodBefore = null;
   #itemId = null;
   #startTime = "";
+  #scrubbing = false;
 
   constructor({ repo, audio }) {
     this.repo = repo;
     this.audio = audio;
     this.root = $("#player");
     this.root.addEventListener("click", (e) => this.#onClick(e));
+    // Barre d'avancement : on suit le doigt, puis on saute au relâchement.
+    this.root.addEventListener("input", (e) => {
+      if (!e.target.matches(".player-seek")) return;
+      this.#scrubbing = true;
+      this.#showPosition(Number(e.target.value));
+    });
+    this.root.addEventListener("change", (e) => {
+      if (!e.target.matches(".player-seek")) return;
+      this.#runner?.seek(Number(e.target.value));
+      this.#scrubbing = false;
+    });
+    this.root.addEventListener("pointerdown", (e) => {
+      if (e.target.matches(".player-seek")) this.#scrubbing = true;
+    });
+    // Un simple toucher sans glisser ne déclenche pas « change » : on libère la barre.
+    const release = () => setTimeout(() => (this.#scrubbing = false), 50);
+    this.root.addEventListener("pointerup", release);
+    this.root.addEventListener("pointercancel", release);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && this.#runner?.state === "running") this.#keepAwake();
     });
@@ -129,7 +152,12 @@ export class MeditationPlayer {
       ${this.#header("stop")}
       <div class="breath idle" aria-hidden="true"><div class="breath-circle"></div><span class="breath-label"></span></div>
       <p class="player-line" aria-live="polite"></p>
-      <div class="player-progress"><div class="player-bar"><span></span></div><span class="player-time">${clock(this.#config.minutes * 60)}</span></div>
+      <div class="player-progress">
+        <span class="player-time" data-role="elapsed">0:00</span>
+        <input type="range" class="player-seek" min="0" max="${this.#config.minutes * 60}" step="1" value="0"
+          aria-label="${esc(t("med.seek"))}" style="--pct:0%">
+        <span class="player-time" data-role="remaining">-${clock(this.#config.minutes * 60)}</span>
+      </div>
       <div class="player-controls">
         <button type="button" class="player-btn" data-player="pause" aria-label="${esc(t("med.pause"))}">❚❚</button>
         ${this.#voice.speech ? `<button type="button" class="player-btn small" data-player="voice" aria-label="${esc(t("med.voiceOn"))}">${this.#voice.on ? "🔊" : "🔇"}</button>` : ""}
@@ -137,7 +165,7 @@ export class MeditationPlayer {
     </div>`;
   }
 
-  async #renderEnd(minutes) {
+  async #renderEnd(minutes, completed) {
     const today = todayISO();
     const habits = this.repo
       .onDate(today)
@@ -147,6 +175,7 @@ export class MeditationPlayer {
       <p class="player-end-icon" aria-hidden="true">🌿</p>
       <h2 class="player-title">${t("med.end.title")}</h2>
       <p>${t("med.end.minutes", { count: minutes })}</p>
+      <p class="player-badge ${completed ? "complete" : ""}">${t(completed ? "med.end.complete" : "med.end.partial")}</p>
       <p class="player-question">${t("med.moodAfter")}</p>
       ${this.#moods("mood-after")}
       ${habits.length ? `<p class="player-question small">${t("med.end.habits")}</p>
@@ -185,18 +214,37 @@ export class MeditationPlayer {
       requestAnimationFrame(() => line.classList.add("show"));
     }
     if (e.type === "breathe") this.#breathe(e.pattern);
+    if (e.type === "seek") {
+      const line = this.root.querySelector(".player-line");
+      if (line) line.textContent = e.line ?? "";
+      if (e.breathe) {
+        this.#breathe(e.breathe);
+        if (this.#runner?.state === "paused") this.#stopBreath();
+      } else {
+        this.#stopBreath();
+        this.#breathPattern = null;
+        this.root.querySelector(".breath")?.classList.add("idle");
+      }
+      this.#showPosition(e.position);
+    }
     if (e.type === "state" && e.state === "paused") this.#stopBreath();
     if (e.type === "state" && e.state === "running" && this.#breathPattern) this.#breathe(this.#breathPattern);
   }
 
   #tick() {
-    const r = this.#runner;
-    if (!r) return;
+    if (this.#runner && !this.#scrubbing) this.#showPosition(this.#runner.elapsed);
+  }
+
+  #showPosition(seconds) {
     const total = this.#config.minutes * 60;
-    const bar = this.root.querySelector(".player-bar span");
-    if (bar) bar.style.width = `${Math.min(100, (r.elapsed / total) * 100)}%`;
-    const time = this.root.querySelector(".player-time");
-    if (time) time.textContent = clock(total - r.elapsed);
+    const pos = Math.min(total, Math.max(0, seconds));
+    const range = this.root.querySelector(".player-seek");
+    if (!range) return;
+    if (!this.#scrubbing) range.value = String(Math.round(pos));
+    range.style.setProperty("--pct", `${(pos / total) * 100}%`);
+    range.setAttribute("aria-valuetext", `${clock(pos)} / ${clock(total)}`);
+    this.root.querySelector("[data-role=elapsed]").textContent = clock(pos);
+    this.root.querySelector("[data-role=remaining]").textContent = `-${clock(total - pos)}`;
   }
 
   // Cercle de respiration : grandit à l'inspiration, rétrécit à l'expiration.
@@ -235,18 +283,29 @@ export class MeditationPlayer {
 
   async #finish() {
     const r = this.#runner;
-    const minutes = Math.max(1, Math.round(r.elapsed / 60));
+    const seconds = r.listened;
+    const minutes = Math.max(1, Math.round(seconds / 60));
+    const completed = r.state === "done" && seconds >= COMPLETE_RATIO * this.#config.minutes * 60;
     this.#cleanup();
-    if (r.elapsed < MIN_SECONDS_TO_LOG) return this.close();
-    await this.#log(minutes);
-    this.#renderEnd(minutes);
+    if (seconds < MIN_SECONDS_TO_LOG) return this.close();
+    await this.#log(Math.round(seconds), completed);
+    this.#renderEnd(minutes, completed);
   }
 
   // Enregistre la séance ; réutilise une méditation planifiée aujourd'hui si elle existe.
-  async #log(minutes) {
+  async #log(seconds, completed) {
     const c = this.#config;
     const today = todayISO();
-    const data = { kind: c.kind, sessionId: c.kind === "session" ? c.id : null, exercise: c.id, minutes, moodBefore: this.#moodBefore };
+    const data = {
+      kind: c.kind,
+      sessionId: c.kind === "session" ? c.id : null,
+      exercise: c.id,
+      seconds,
+      minutes: Math.max(1, Math.round(seconds / 60)),
+      planned: c.minutes,
+      completed,
+      moodBefore: this.#moodBefore,
+    };
     const planned = this.repo.onDate(today).find((i) => i.module === MEDITATION_MODULE && !i.done && !i.data?.kind && !i.recurrence);
     const fields = { done: true, data: { ...(planned?.data ?? {}), ...data } };
     const item = planned
