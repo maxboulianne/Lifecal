@@ -8,7 +8,7 @@
 // kind = "calendar"  : se base sur les dates (voyage dans 3 semaines…)
 // kind = "proximity" : se base sur la position actuelle (près de l'épicerie…)
 //
-// Le contexte contient : { items, today, position, settings }.
+// Le contexte contient : { items, today, hour, position, settings }.
 // Ajouter un déclencheur = écrire un objet et l'enregistrer avec register().
 
 export class TriggerEngine {

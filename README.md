@@ -43,6 +43,12 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Chaque jour, on coche l'habitude, ou on saute le jour (un jour sauté ne casse pas la série).
   - Page 🌱 **Mes habitudes** : série en cours, meilleure série, bilans de la semaine, du mois et de l'année, grille des 12 dernières semaines et un mot d'encouragement.
   - Une habitude arrêtée garde tout son historique.
+- **Journal** (bouton 📓) :
+  - Une page d'écriture par jour, enregistrée automatiquement, qui apparaît dans le calendrier.
+  - L'humeur du jour (5 visages), une question pour s'inspirer (12 questions, une différente chaque jour) et « trois petites choses qui ont fait du bien ».
+  - **Mon humeur** : courbe des 30 derniers jours, qui réunit le journal et les méditations, et un mot doux sur la tendance de la semaine. Si la semaine semble plus difficile, l'app propose une séance « Moments difficiles ».
+  - Le soir, s'il n'y a encore rien d'écrit, une petite invitation à écrire.
+  - Le journal reste sur l'appareil.
 - **Méditation** (bouton 🧘) :
   - Parcours **Premiers pas** (7 séances : arriver, le souffle, l'esprit qui vagabonde, les sons, le corps, les émotions, la bienveillance) et **Moments difficiles** (ancrage 5-4-3-2-1, respiration apaisante, accueillir une émotion forte).
   - Durée au choix : la séance s'adapte, les silences s'allongent ou raccourcissent.
@@ -72,6 +78,7 @@ js/data/storage/           Adaptateurs de stockage (localStorage, mémoire)
 js/triggers/               Moteur de déclencheurs + déclencheurs calendrier et proximité
 js/geo/geo.js              Position, distances, lien vers la carte
 js/sync/                   Fournisseurs externes (Google, Outlook, Yahoo) + fusion
+js/journal/                Journal : entrée du jour, question du jour, humeur et tendance
 js/meditation/             Catalogue, scripts des séances (7 langues), lecteur, voix, sons, progrès
 js/i18n/                   Traductions (7 langues) et formatage des dates via Intl
 js/ui/                     Contrôleur, vues (jour/semaine/mois/année), pages (habitudes, paramètres), composants
@@ -116,4 +123,4 @@ Les données sont stockées dans un document versionné, `{ schemaVersion, items
 
 ## Prochaines étapes (après le pilote)
 
-Journal d'écriture, listes à cocher pour les commissions, préparation des voyages (lieux, carte, choses à emporter), notifications en arrière-plan (cela demandera un service worker ou l'app native).
+Listes à cocher pour les commissions, préparation des voyages (lieux, carte, choses à emporter), notifications en arrière-plan (cela demandera un service worker ou l'app native).

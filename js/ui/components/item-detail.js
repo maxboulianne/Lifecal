@@ -8,6 +8,8 @@ import { fmt, t } from "../../i18n/index.js";
 import { getProvider } from "../../sync/providers.js";
 import { describeRule, streakText } from "./habit-text.js";
 import { stateLabel } from "./item-chip.js";
+import { entryContent } from "../../journal/journal.js";
+import { MOODS } from "../../meditation/catalog.js";
 
 const btn = (cls, action, item, label) =>
   `<button type="button" class="btn ${cls}" data-action="${action}" data-id="${esc(item.id)}" data-date="${esc(item.date)}">${label}</button>`;
@@ -33,8 +35,9 @@ export function itemDetail(item, { today }) {
     <p class="detail-line">🕒 ${when}</p>
     ${item.occurrence ? habitSummary(item, today) : ""}
     ${item.module === "meditation" ? meditationSummary(item) : ""}
+    ${item.module === "journal" && !item.recurrence ? journalSummary(item) : ""}
     ${place}
-    ${item.notes ? `<p class="detail-notes">${esc(item.notes)}</p>` : ""}
+    ${item.notes && item.module !== "journal" ? `<p class="detail-notes">${esc(item.notes)}</p>` : ""}
     ${source}
     <div class="actions stack">${item.occurrence ? habitActions(item) : itemActions(item)}</div>
   </article>`;
@@ -63,7 +66,17 @@ function habitActions(occ) {
   ].join("");
 }
 
-const MOOD_FACES = ["😣", "😕", "😐", "🙂", "😌"];
+const MOOD_FACES = MOODS;
+
+function journalSummary(item) {
+  const c = entryContent(item);
+  const grateful = c.gratitude.filter((g) => g.trim());
+  return [
+    c.mood !== null ? `<p class="detail-line">${MOODS[c.mood]} ${esc(t(`mood.level.${c.mood}`))}</p>` : "",
+    c.text.trim() ? `<p class="detail-notes">${esc(c.text.length > 400 ? `${c.text.slice(0, 400)}…` : c.text)}</p>` : "",
+    grateful.length ? `<p class="detail-line">💛 ${esc(grateful.join(" · "))}</p>` : "",
+  ].join("");
+}
 
 function meditationSummary(item) {
   const d = item.data ?? {};
@@ -79,6 +92,8 @@ function itemActions(item) {
   return [
     item.module === "meditation" && !item.done
       ? `<button type="button" class="btn primary" data-action="open-meditation">${t("med.startNow")}</button>` : "",
+    item.module === "journal"
+      ? `<button type="button" class="btn primary" data-action="open-journal" data-date="${esc(item.date)}">${t("journal.open")}</button>` : "",
     isCancelled(item) ? "" : btn("primary", "toggle-done", item, t(item.done ? "detail.markUndone" : "detail.markDone")),
     btn("soft", "edit-item", item, t("detail.edit")),
     btn("soft", isCancelled(item) ? "restore-item" : "cancel-item", item, t(isCancelled(item) ? "detail.restore" : "detail.cancel")),

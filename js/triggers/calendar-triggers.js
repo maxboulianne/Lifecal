@@ -100,4 +100,27 @@ export const flexibleWeekReview = {
   },
 };
 
-export const calendarTriggers = [travelPreparation, specialEventPreparation, missedHabitEncouragement, flexibleWeekReview];
+// Le soir, si rien n'est encore écrit aujourd'hui : une invitation au journal.
+export const eveningJournal = {
+  id: "journal-soir",
+  kind: "calendar",
+  fromHour: 19,
+  evaluate({ items, today, hour }) {
+    if (hour === undefined || hour < this.fromHour) return [];
+    if (items.some((i) => i.module === "journal" && i.date === today && !i.recurrence)) return [];
+    return [
+      {
+        id: `journal-soir:${today}`,
+        tone: "soft",
+        icon: getModule("journal").icon,
+        messageKey: "nudge.journal",
+        params: {},
+        itemIds: [],
+        actionKey: "nudge.journalAction",
+        action: "open-journal",
+      },
+    ];
+  },
+};
+
+export const calendarTriggers = [travelPreparation, specialEventPreparation, missedHabitEncouragement, flexibleWeekReview, eveningJournal];
