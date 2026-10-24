@@ -12,7 +12,7 @@ import { currentStreak } from "../data/habit-stats.js";
 import { FREQ, doneInWeek } from "../data/recurrence.js";
 import { ValidationError } from "../data/repository.js";
 import { getCurrentPosition, watchPosition } from "../geo/geo.js";
-import { getLanguage, setLanguage, t } from "../i18n/index.js";
+import { getLanguage, setLanguage, t, tList } from "../i18n/index.js";
 import { itemDetail } from "./components/item-detail.js";
 import { itemForm, readItemForm, syncRepeatFields } from "./components/item-form.js";
 import { closeModal, openModal, setupModal } from "./components/modal.js";
@@ -21,6 +21,8 @@ import { cheer, toast } from "./components/toast.js";
 import { welcome } from "./components/welcome.js";
 import { MeditationPlayer } from "./meditation/player.js";
 import { habitsPage } from "./pages/habits.js";
+import { journalPage, readJournal } from "./pages/journal.js";
+import { JOURNAL_MODULE, entryFor, entryTitle, isEmptyContent } from "../journal/journal.js";
 import { meditationPage, setupContent, setupSheet } from "./pages/meditation.js";
 import { settingsPage } from "./pages/settings.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
@@ -30,7 +32,8 @@ import { breathingScript, timerScript } from "../meditation/runner.js";
 import { sessionContent } from "../meditation/scripts/index.js";
 import { loadVoices, pickVoice, SpeechVoice } from "../meditation/voice.js";
 
-const PAGES = { meditation: meditationPage, habits: habitsPage, settings: settingsPage };
+const PAGES = { journal: journalPage, meditation: meditationPage, habits: habitsPage, settings: settingsPage };
+const JOURNAL_SAVE_DELAY = 700;
 
 export class App {
   page = null; // null = calendrier
@@ -39,6 +42,9 @@ export class App {
   position = null;
   #stopWatch = null;
   #lastNudgeKey = "";
+  #quiet = false; // enregistrement du journal en cours : ne pas redessiner sous les doigts
+  #journalTimer = null;
+  promptShift = 0;
 
   constructor({ repo, triggers, storageLabel }) {
     this.repo = repo;
@@ -59,13 +65,20 @@ export class App {
     document.addEventListener("click", (e) => this.#onClick(e));
     document.addEventListener("change", (e) => this.#onChange(e));
     document.addEventListener("submit", (e) => this.#onSubmit(e));
+    document.addEventListener("input", (e) => {
+      if (e.target.dataset.journal) this.#scheduleJournalSave();
+    });
     window.addEventListener("hashchange", () => {
+      this.#flushJournal();
       this.#readHash();
       this.render();
     });
     // Revenir sur l'app le lendemain : « aujourd'hui » doit suivre.
-    document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && this.render());
-    this.repo.on("change", () => this.render());
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") this.#flushJournal();
+      else this.render();
+    });
+    this.repo.on("change", () => this.#quiet || this.render());
     this.#syncProximityWatch();
     this.render();
     if (!this.repo.settings.language) openModal(welcome(), { labelledBy: "welcome-title" });
@@ -90,7 +103,7 @@ export class App {
   openPage(page) {
     if (this.page === page) return;
     this.page = page;
-    this.#setHash(`#/${page}`, true);
+    this.#setHash(page === "journal" ? `#/journal/${toISODate(this.cursor)}` : `#/${page}`, true);
   }
 
   backToCalendar() {
@@ -98,6 +111,7 @@ export class App {
   }
 
   #setHash(hash, push) {
+    this.#flushJournal();
     if (push) history.pushState(null, "", hash);
     else history.replaceState(null, "", hash);
     window.scrollTo(0, 0);
@@ -116,7 +130,7 @@ export class App {
     $("#legend").setAttribute("aria-label", t("nav.modules"));
     $("#fab").setAttribute("aria-label", t(this.page === "habits" ? "habits.add" : "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
-    $("#fab").hidden = this.page === "settings" || this.page === "meditation";
+    $("#fab").hidden = ["settings", "meditation", "journal"].includes(this.page);
 
     const main = $("#calendar");
     main.dataset.view = this.page ?? this.view;
@@ -126,6 +140,8 @@ export class App {
         today,
         settings: this.repo.settings,
         voices: this.voices ?? [],
+        cursor: this.cursor,
+        promptShift: this.promptShift,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -138,6 +154,8 @@ export class App {
 
   #renderTopbar() {
     const pageButtons = `
+      <button type="button" class="icon-btn ${this.page === "journal" ? "active" : ""}" data-action="open-journal"
+        aria-label="${esc(t("nav.journal"))}" title="${esc(t("nav.journal"))}">📓</button>
       <button type="button" class="icon-btn ${this.page === "meditation" ? "active" : ""}" data-action="open-meditation"
         aria-label="${esc(t("nav.meditation"))}" title="${esc(t("nav.meditation"))}">🧘</button>
       <button type="button" class="icon-btn ${this.page === "habits" ? "active" : ""}" data-action="open-habits"
@@ -181,6 +199,7 @@ export class App {
       today,
       position: this.position,
       settings: this.repo.settings,
+      hour: new Date().getHours(),
     });
     this.#lastNudgeKey = nudges.map((n) => n.id).join("|");
     $("#nudges").innerHTML = nudgesBar(nudges);
@@ -217,6 +236,42 @@ export class App {
       this.openPage("habits");
     },
     "open-settings": () => this.openPage("settings"),
+    "open-journal": (el) => {
+      closeModal();
+      const today = todayISO();
+      const date = el.dataset.date && el.dataset.date <= today ? el.dataset.date : today;
+      this.cursor = parseISODate(date);
+      this.promptShift = 0;
+      if (this.page === "journal") this.#setHash(`#/journal/${date}`, false);
+      else this.openPage("journal");
+    },
+    "journal-day": (el) => {
+      this.cursor = parseISODate(el.dataset.date);
+      this.promptShift = 0;
+      this.#setHash(`#/journal/${el.dataset.date}`, false);
+    },
+    "journal-mood": (el) => {
+      const wasSelected = el.classList.contains("selected");
+      el.parentElement.querySelectorAll(".mood").forEach((b) => {
+        const on = b === el && !wasSelected; // toucher à nouveau = effacer
+        b.classList.toggle("selected", on);
+        b.setAttribute("aria-checked", String(on));
+      });
+      return this.#saveJournal();
+    },
+    "journal-next-prompt": () => {
+      this.#flushJournal();
+      this.promptShift++;
+      this.render();
+    },
+    "journal-use-prompt": (el) => {
+      const area = $("[data-journal=text]");
+      const prefix = `${el.dataset.prompt}\n`;
+      if (!area.value.startsWith(prefix)) area.value = prefix + area.value;
+      area.focus();
+      area.setSelectionRange(area.value.length, area.value.length);
+      return this.#saveJournal();
+    },
     "open-meditation": () => {
       closeModal();
       this.openPage("meditation");
@@ -367,6 +422,53 @@ export class App {
     } catch (err) {
       $("[data-role=errors]", form).textContent =
         err instanceof ValidationError ? err.errors.map((k) => t(k)).join(" ") : t("form.saveError");
+    }
+  }
+
+  // ---- Journal -----------------------------------------------------------
+
+  #scheduleJournalSave() {
+    clearTimeout(this.#journalTimer);
+    const status = $("[data-role=save-status]");
+    if (status) status.textContent = t("journal.saving");
+    this.#journalTimer = setTimeout(() => this.#saveJournal(), JOURNAL_SAVE_DELAY);
+  }
+
+  // Enregistre tout de suite ce qui attend (avant de quitter la page).
+  #flushJournal() {
+    if (this.#journalTimer) this.#saveJournal();
+  }
+
+  async #saveJournal() {
+    clearTimeout(this.#journalTimer);
+    this.#journalTimer = null;
+    const root = $(".journal-entry");
+    if (!root) return;
+    const iso = root.dataset.date;
+    const content = readJournal(root); // lu tout de suite, avant tout changement d'écran
+    const status = $("[data-role=save-status]");
+    const existing = entryFor(this.repo.all(), iso);
+    this.#quiet = true;
+    try {
+      if (isEmptyContent(content)) {
+        if (existing) await this.repo.remove(existing.id);
+      } else {
+        const fields = {
+          title: entryTitle(content, t("journal.untitled"), tList("journal.prompts")),
+          module: JOURNAL_MODULE,
+          date: iso,
+          notes: "",
+          data: { ...(existing?.data ?? {}), ...content },
+        };
+        if (existing) await this.repo.update(existing.id, fields);
+        else await this.repo.add(fields);
+      }
+      if (status?.isConnected) status.textContent = t("journal.saved");
+    } catch (err) {
+      console.error(err);
+      if (status?.isConnected) status.textContent = t("toast.error");
+    } finally {
+      this.#quiet = false;
     }
   }
 
