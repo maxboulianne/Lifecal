@@ -3,8 +3,10 @@
 // navigateur (sans clé ni serveur) :
 //  - Wikipédia : articles géolocalisés autour de la destination, classés selon
 //    leur nombre de lectures des 30 derniers jours (les lieux les plus connus) ;
-//  - OpenStreetMap (Overpass) : hôtels dont le nom ou la marque correspond à la
-//    chaîne choisie, dans un rayon de 25 km.
+//  - OpenStreetMap (Overpass) : tous les hôtels dans un rayon de 25 km ; ceux
+//    des chaînes choisies sont reconnus ici, d'après leur marque ou leur nom
+//    (une requête simple est rapide ; comparer les noms côté serveur dépassait
+//    son temps limite, et il répondait alors une liste vide).
 // Les fonctions « parse » sont pures (testées sans Internet).
 
 import { distanceMeters } from "../geo/geo.js";
@@ -88,18 +90,13 @@ export async function fetchSuggestions(center, lang, { exclude = [], fetchImpl =
 
 // ---- Hôtels (OpenStreetMap) ------------------------------------------------------
 
-const pattern = (chains) => chains.map((c) => c.brands).join("|").replace(/"/g, "");
+export const OVERPASS_SERVERS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
 
-export function hotelsQuery(chainIds, { lat, lng }, radiusKm = HOTEL_RADIUS_KM) {
-  const chains = chainIds.map(getChain).filter(Boolean);
-  const around = `around:${radiusKm * 1000},${lat},${lng}`;
-  const re = pattern(chains);
-  return `[out:json][timeout:25];
-(
-  nwr["tourism"="hotel"]["brand"~"${re}",i](${around});
-  nwr["tourism"="hotel"]["name"~"${re}",i](${around});
-);
-out center tags 300;`;
+// Tous les hôtels autour de la destination (le tri par chaîne se fait ici).
+export function hotelsQuery({ lat, lng }, radiusKm = HOTEL_RADIUS_KM) {
+  return `[out:json][timeout:60];
+nwr["tourism"="hotel"](around:${radiusKm * 1000},${lat},${lng});
+out center tags;`;
 }
 
 // La chaîne d'un hôtel, d'après sa marque (plus sûre), sinon son nom.
@@ -135,12 +132,24 @@ export function parseHotels(json, chainIds, center, radiusKm = HOTEL_RADIUS_KM) 
   return hotels.sort((a, b) => a.km - b.km);
 }
 
-export async function fetchHotels(chainIds, center, { fetchImpl = globalThis.fetch } = {}) {
-  const response = await fetchImpl("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `data=${encodeURIComponent(hotelsQuery(chainIds, center))}`,
-  });
-  if (!response.ok) throw new Error(`Overpass ${response.status}`);
-  return parseHotels(await response.json(), chainIds, center);
+// Essaie chaque serveur Overpass : un serveur occupé ou qui dépasse son temps
+// limite répond parfois « 200 » avec une remarque et aucune donnée.
+export async function fetchHotels(chainIds, center, { fetchImpl = globalThis.fetch, servers = OVERPASS_SERVERS } = {}) {
+  let lastError = null;
+  for (const server of servers) {
+    try {
+      const response = await fetchImpl(server, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `data=${encodeURIComponent(hotelsQuery(center))}`,
+      });
+      if (!response.ok) throw new Error(`Overpass ${response.status}`);
+      const json = await response.json();
+      if (json.remark && /error|timed out|out of memory/i.test(json.remark)) throw new Error(`Overpass : ${json.remark}`);
+      return parseHotels(json, chainIds, center);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
 }

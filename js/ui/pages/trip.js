@@ -9,6 +9,9 @@ import {
   cachedHotels, cachedSuggestions, destQuery, getDest, getHotelChains, getPlaces, located, placeMapUrl, tripStatus,
 } from "../../travel/trip.js";
 import { productKey } from "../../grocery/grocery.js";
+import { packingCatalog } from "../../travel/packing.js";
+import { getChecklist, progress } from "../../data/checklist.js";
+import { foldSection, isFoldOpen } from "../components/fold.js";
 import { checklistSection } from "../components/item-detail.js";
 import { tripDates, tripStatusText } from "../components/trip-text.js";
 
@@ -32,6 +35,7 @@ function placeRow(trip, place) {
 // État des recherches en cours (fourni par l'application) :
 // { dest, suggestions, hotels } -> "loading" | "offline" | "notfound" | undefined
 const statusLine = (key, params = {}) => `<p class="hint trip-status-line">${esc(t(key, params))}</p>`;
+const retryButton = (trip) => `<button type="button" class="btn link" data-action="trip-retry" data-id="${esc(trip.id)}">${t("trip.retry")}</button>`;
 // Sans Internet : le message et un bouton pour réessayer.
 const offlineLine = (trip) => `<p class="hint trip-status-line">${esc(t("trip.needInternet"))}
   <button type="button" class="btn link" data-action="trip-retry" data-id="${esc(trip.id)}">${t("trip.retry")}</button></p>`;
@@ -48,7 +52,7 @@ function mapCard(trip, status) {
   else if (status.dest === "notfound") body = statusLine("trip.destNotFound", { place: query });
   else if (status.dest === "offline") body = offlineLine(trip);
   else body = `<p class="hint">${t("trip.mapEmpty")}</p>`;
-  return `<article class="card"><h2>${t("trip.map")}</h2>${body}</article>`;
+  return foldSection("trip-map", { title: esc(t("trip.map")), body, open: isFoldOpen("trip-map") });
 }
 
 function suggestionsBlock(trip, status) {
@@ -73,11 +77,12 @@ function suggestionsBlock(trip, status) {
         </li>`).join("")}</ul>`
       : statusLine(items.length ? "trip.suggestionsAllAdded" : "trip.suggestionsNone");
   }
-  return `<div class="suggestions">
-    <h3>${t("trip.suggestions")}</h3>
-    <p class="hint">${t("trip.suggestionsHint")}</p>
-    ${body}
-  </div>`;
+  return foldSection("trip-suggestions", {
+    title: esc(t("trip.suggestions")),
+    extra: items?.length ? String(items.filter((s) => !new Set(getPlaces(trip).map((p) => productKey(p.name))).has(productKey(s.name))).length) : "",
+    body: `<p class="hint">${t("trip.suggestionsHint")}</p>${body}`,
+    open: isFoldOpen("trip-suggestions"),
+  });
 }
 
 function hotelsCard(trip, status) {
@@ -86,7 +91,8 @@ function hotelsCard(trip, status) {
   const hotels = cachedHotels(trip);
   let results = "";
   if (dest && chosen.length) {
-    if (hotels === null) results = status.hotels === "offline" ? offlineLine(trip) : statusLine("trip.hotelsLoading");
+    if (hotels === null && status.hotels === "none") results = `${statusLine("trip.hotelsNone", { km: 25 })}${retryButton(trip)}`;
+    else if (hotels === null) results = status.hotels === "offline" ? offlineLine(trip) : statusLine("trip.hotelsLoading");
     else if (!hotels.length) results = statusLine("trip.hotelsNone", { km: 25 });
     else results = `<ul class="hotel-list">${hotels.map((h) => `<li style="--hc:${getChain(h.chain).color}">
         <span class="hotel-dot" aria-hidden="true"></span>
@@ -96,14 +102,56 @@ function hotelsCard(trip, status) {
       </li>`).join("")}</ul>
       <p class="hint small">${t("trip.hotelsSource")}</p>`;
   }
-  return `<article class="card">
-    <h2>${t("trip.hotels")}</h2>
-    <p class="hint">${t("trip.hotelsHint", { max: MAX_CHAINS, km: 25 })}</p>
-    <div class="chain-picker">${HOTEL_CHAINS.map((c) => `<label class="chain-option" style="--hc:${c.color}">
-      <input type="checkbox" data-action="hotel-chain" data-id="${esc(trip.id)}" value="${c.id}" ${chosen.includes(c.id) ? "checked" : ""}>
-      <span>${esc(c.name)}</span></label>`).join("")}</div>
-    ${dest ? results : chosen.length ? statusLine("trip.hotelsNeedDest") : ""}
-  </article>`;
+  return foldSection("trip-hotels", {
+    title: esc(t("trip.hotels")),
+    extra: hotels?.length ? String(hotels.length) : "",
+    open: isFoldOpen("trip-hotels"),
+    body: `<p class="hint">${t("trip.hotelsHint", { max: MAX_CHAINS, km: 25 })}</p>
+      <div class="chain-picker">${HOTEL_CHAINS.map((c) => `<label class="chain-option" style="--hc:${c.color}">
+        <input type="checkbox" data-action="hotel-chain" data-id="${esc(trip.id)}" value="${c.id}" ${chosen.includes(c.id) ? "checked" : ""}>
+        <span>${esc(c.name)}</span></label>`).join("")}</div>
+      ${dest ? results : chosen.length ? statusLine("trip.hotelsNeedDest") : ""}`,
+  });
+}
+
+// Préparation : la liste « À emporter », l'impression ou le partage, et des
+// idées d'articles courants à cocher (par catégorie, repliées au départ).
+function prepSection(trip) {
+  const list = getChecklist(trip);
+  const have = new Set(list.map((e) => productKey(e.text)));
+  const p = progress(list);
+  const ideas = packingCatalog(getLanguage()).map((c) => {
+    const checked = c.items.filter((name) => have.has(productKey(name))).length;
+    return foldSection(`packing-${c.id}`, {
+      title: `<span aria-hidden="true">${c.icon}</span> ${esc(c.name)}`,
+      extra: `${checked ? `✓ ${checked} · ` : ""}${c.items.length}`,
+      tag: "h3",
+      className: "packing-cat",
+      open: isFoldOpen(`packing-${c.id}`, false),
+      body: `<ul class="catalog-grid">${c.items.map((name) => {
+        const on = have.has(productKey(name));
+        return `<li class="catalog-item ${on ? "is-on" : ""}"><label>
+          <input type="checkbox" data-action="packing-toggle" data-id="${esc(trip.id)}" data-name="${esc(name)}" ${on ? "checked" : ""}>
+          <span>${esc(name)}</span></label></li>`;
+      }).join("")}</ul>`,
+    });
+  }).join("");
+  return foldSection("trip-prep", {
+    title: esc(t("trip.prep")),
+    extra: p.total ? `${p.done}/${p.total}` : "",
+    open: isFoldOpen("trip-prep"),
+    body: `<p class="print-only print-title">🧳 ${esc(trip.title)} · ${esc(tripDates(trip))}</p>
+      ${checklistSection(trip)}
+      <div class="actions start packing-tools">
+        <button type="button" class="btn soft" data-action="packing-print" ${p.total ? "" : "disabled"}>🖨️ ${t("grocery.print")}</button>
+        <button type="button" class="btn soft" data-action="packing-share" data-id="${esc(trip.id)}" ${p.total ? "" : "disabled"}>📤 ${t("trip.share")}</button>
+      </div>
+      <div class="packing-catalog">
+        <h3 class="packing-title">${t("trip.packingIdeas")}</h3>
+        <p class="hint">${t("trip.packingHint")}</p>
+        ${ideas}
+      </div>`,
+  });
 }
 
 export const tripPage = {
@@ -132,22 +180,22 @@ export const tripPage = {
 
       ${mapCard(trip, status)}
 
-      <article class="card">
-        <h2>${t("trip.places")} ${places.length ? `<span class="hint">${t("trip.placesProgress", { done: visited, total: places.length })}</span>` : ""}</h2>
-        ${places.length ? `<ul class="check-list places">${places.map((p) => placeRow(trip, p)).join("")}</ul>` : ""}
-        <form class="check-add place-add" data-id="${esc(trip.id)}">
-          <input data-role="place-input" placeholder="${esc(t("trip.placePlaceholder"))}" aria-label="${esc(t("trip.placePlaceholder"))}" autocomplete="off">
-          <button type="submit" class="btn soft">${t("checklist.add")}</button>
-        </form>
-        ${suggestionsBlock(trip, status)}
-      </article>
+      ${foldSection("trip-places", {
+        title: esc(t("trip.places")),
+        extra: places.length ? esc(t("trip.placesProgress", { done: visited, total: places.length })) : "",
+        open: isFoldOpen("trip-places"),
+        body: `${places.length ? `<ul class="check-list places">${places.map((p) => placeRow(trip, p)).join("")}</ul>` : ""}
+          <form class="check-add place-add" data-id="${esc(trip.id)}">
+            <input data-role="place-input" placeholder="${esc(t("trip.placePlaceholder"))}" aria-label="${esc(t("trip.placePlaceholder"))}" autocomplete="off">
+            <button type="submit" class="btn soft">${t("checklist.add")}</button>
+          </form>`,
+      })}
+
+      ${suggestionsBlock(trip, status)}
 
       ${hotelsCard(trip, status)}
 
-      <article class="card">
-        <h2>${t("trip.prep")}</h2>
-        ${checklistSection(trip)}
-      </article>
+      ${prepSection(trip)}
     </section>`;
   },
 };

@@ -955,3 +955,34 @@ body.player-open { overflow: hidden; }
 @media (max-width: 760px) { .nav-arrow { width: 40px; height: 40px; } }
 .nav-arrow:disabled { opacity: 0.35; cursor: default; transform: none; }
 .nav-arrow.is-placeholder { visibility: hidden; }
+
+/* Sections repliables (flèche ▸). */
+.fold-head { margin: 0; font-size: 1.1rem; }
+.fold-head h3, h3.fold-head { font-size: 1rem; }
+.fold-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--tap); padding: 0;
+  border: none; background: none; color: var(--ink); font: inherit; font-weight: 600; text-align: left; cursor: pointer;
+}
+.fold-arrow { display: inline-block; width: 1em; flex: none; color: var(--muted); transition: transform 0.2s; }
+.fold.is-open > .fold-head .fold-arrow { transform: rotate(90deg); }
+.fold-title { min-width: 0; }
+.fold-btn .fold-extra { margin: 0 0 0 auto; padding-left: 8px; font-weight: 400; white-space: nowrap; }
+.card .fold-head { margin: 0; }
+.fold-body { margin-top: 6px; }
+.card.fold { padding-top: 8px; padding-bottom: 8px; }
+.card.fold.is-open { padding-bottom: 16px; }
+
+/* Voyage : idées d'articles à emporter, impression de la liste. */
+.packing-tools { margin: 4px 0 8px; }
+.packing-catalog { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.packing-title { margin: 0 0 2px; font-size: 1rem; }
+.packing-cat { border-top: 1px solid var(--line); }
+.packing-cat:first-of-type { border-top: none; }
+@media print {
+  body.print-packing .trip > :not([data-fold-id="trip-prep"]) { display: none !important; }
+  body.print-packing [data-fold-id="trip-prep"] > .fold-head,
+  body.print-packing .packing-catalog, body.print-packing .packing-tools,
+  body.print-packing .check-add, body.print-packing .check-remove { display: none !important; }
+  body.print-packing [data-fold-id="trip-prep"] > .fold-body[hidden] { display: block !important; }
+  body.print-packing .print-only { display: block; }
+}

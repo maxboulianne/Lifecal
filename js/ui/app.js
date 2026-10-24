@@ -9,7 +9,7 @@ import { MODULES, MODULE_IDS, moduleLabel } from "../config/modules.js";
 import { isISODate, parseISODate, toISODate, todayISO } from "../core/dates.js";
 import { $, esc } from "../core/dom.js";
 import { currentStreak } from "../data/habit-stats.js";
-import { FREQ, doneInWeek } from "../data/recurrence.js";
+import { FREQ, doneInWeek, yearlyDate } from "../data/recurrence.js";
 import { ValidationError } from "../data/repository.js";
 import { isCancelled } from "../data/item.js";
 import { addEntry, fromLines, getChecklist, progress, removeEntry, toggleEntry } from "../data/checklist.js";
@@ -21,6 +21,7 @@ import { closeModal, openModal, setupModal } from "./components/modal.js";
 import { nudgesBar } from "./components/nudges.js";
 import { cheer, toast } from "./components/toast.js";
 import { CHEVRON_LEFT, CHEVRON_RIGHT } from "./components/icons.js";
+import { setFoldOpen } from "./components/fold.js";
 import { welcome } from "./components/welcome.js";
 import { MeditationPlayer } from "./meditation/player.js";
 import { habitsPage } from "./pages/habits.js";
@@ -599,7 +600,13 @@ export class App {
       status.hotelsKey = hKey;
       try {
         const items = await fetchHotels(trip.data.hotelChains, getDest(trip));
-        if (hotelsKey(this.repo.get(id)) === hKey) await this.#updateData(id, { hotels: { key: hKey, items } });
+        if (hotelsKey(this.repo.get(id)) !== hKey) return;
+        // Aucun hôtel : rien n'est gardé (on pourra réessayer plus tard).
+        if (items.length) await this.#updateData(id, { hotels: { key: hKey, items } });
+        else {
+          status.hotels = "none";
+          this.#rerenderTrip(id);
+        }
       } catch {
         status.hotels = "offline";
         this.#rerenderTrip(id);
@@ -655,6 +662,44 @@ export class App {
       const list = addPlace(getPlaces(trip), s.name);
       toast(t("trip.located", { name: s.name }));
       return this.#updateData(trip.id, { places: setPlaceCoords(list, list.at(-1).id, s) });
+    },
+    // Ouvrir ou fermer une section (flèche ▸), sans redessiner la page.
+    fold: (el) => {
+      const section = el.closest("[data-fold-id]");
+      const open = !section.classList.contains("is-open");
+      section.classList.toggle("is-open", open);
+      el.setAttribute("aria-expanded", String(open));
+      section.querySelector(":scope > .fold-body").hidden = !open;
+      setFoldOpen(section.dataset.foldId, open);
+      // Une carte qui réapparaît doit recalculer sa taille.
+      if (open && section.querySelector("#trip-map")) this.#map?.invalidateSize();
+    },
+    // Imprimer (ou enregistrer en PDF) seulement la liste « À emporter ».
+    "packing-print": () => {
+      document.body.classList.add("print-packing");
+      const done = () => {
+        document.body.classList.remove("print-packing");
+        window.removeEventListener("afterprint", done);
+        document.removeEventListener("pointerdown", done);
+      };
+      window.addEventListener("afterprint", done);
+      document.addEventListener("pointerdown", done);
+      window.print();
+    },
+    // Partager la liste (Notes, Messages, courriel…) ou la copier.
+    "packing-share": async (el) => {
+      const trip = this.repo.get(el.dataset.id);
+      const text = [`🧳 ${trip.title} — ${t("checklist.title.voyage")}`,
+        ...getChecklist(trip).map((e) => `${e.done ? "☑" : "☐"} ${e.text}`)].join("\n");
+      try {
+        if (navigator.share) await navigator.share({ title: trip.title, text });
+        else {
+          await navigator.clipboard.writeText(text);
+          toast(t("trip.copied"));
+        }
+      } catch (err) {
+        if (err?.name !== "AbortError") toast(t("toast.error"));
+      }
     },
     "trip-retry": (el) => {
       delete this.#tripStatus[el.dataset.id];
@@ -893,6 +938,13 @@ export class App {
       el.form.querySelector("[data-role=until]").hidden = !el.checked;
       return;
     }
+    if (el.dataset.action === "packing-toggle") {
+      // Coché : ajouté à « À emporter » ; décoché : retiré de la liste.
+      const key = productKey(el.dataset.name);
+      return this.#updateChecklist(el.dataset.id, (list) => (list.some((e) => productKey(e.text) === key)
+        ? list.filter((e) => productKey(e.text) !== key)
+        : addEntry(list, el.dataset.name)));
+    }
     if (el.dataset.action === "hotel-chain") {
       const chosen = [...document.querySelectorAll("[data-action=hotel-chain]:checked")].map((c) => c.value);
       if (chosen.length > MAX_CHAINS) {
@@ -970,7 +1022,19 @@ export class App {
       data.data = { ...(existing?.data ?? {}), checklist: fromLines(checklistText, getChecklist(existing)) };
     }
     if (event) {
-      data.data = { ...(data.data ?? existing?.data ?? {}), kind: event.kind, yearUnknown: event.yearUnknown, budget: parseAmount(event.budget) };
+      // Fête ou anniversaire : le jour et le mois viennent de « Date de la fête »,
+      // l'année d'origine (pour l'âge) de son propre champ ; vide = année inconnue.
+      const yearlyKind = data.recurrence?.freq === FREQ.YEARLY && event.kind !== "event";
+      let yearUnknown = false;
+      if (yearlyKind && event.birthYear) {
+        const y = Number(event.birthYear);
+        if (!/^\d{4}$/.test(event.birthYear) || y < 1900 || y > Number(todayISO().slice(0, 4))) {
+          $("[data-role=errors]", form).textContent = t("errors.birthYear");
+          return;
+        }
+        if (isISODate(data.date)) data.date = yearlyDate(data.date, y);
+      } else if (yearlyKind) yearUnknown = true;
+      data.data = { ...(data.data ?? existing?.data ?? {}), kind: event.kind, yearUnknown, budget: parseAmount(event.budget) };
     }
     if (endDate !== null) {
       if (endDate && endDate < data.date) {

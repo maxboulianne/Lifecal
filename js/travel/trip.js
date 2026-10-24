@@ -63,7 +63,8 @@ export const getHotelChains = (trip) => (Array.isArray(trip.data?.hotelChains) ?
 export function hotelsKey(trip) {
   const dest = getDest(trip);
   const chains = [...getHotelChains(trip)].sort();
-  return dest && chains.length ? `${chains.join(",")}|${dest.lat},${dest.lng}` : null;
+  // « v2 » : les résultats de l'ancienne recherche (parfois vides à tort) sont ignorés.
+  return dest && chains.length ? `v2|${chains.join(",")}|${dest.lat},${dest.lng}` : null;
 }
 
 // Les données gardées, seulement si elles sont encore à jour.

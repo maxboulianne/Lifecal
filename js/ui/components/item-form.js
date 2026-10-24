@@ -1,6 +1,7 @@
 import { MODULES, MODULE_IDS, hasFeature, moduleLabel } from "../../config/modules.js";
 import { esc } from "../../core/dom.js";
-import { FREQ } from "../../data/recurrence.js";
+import { FREQ, yearlyDate } from "../../data/recurrence.js";
+import { todayISO } from "../../core/dates.js";
 import { isGeolocationSupported } from "../../geo/geo.js";
 import { fmt, t } from "../../i18n/index.js";
 import { MONDAY_FIRST } from "./habit-text.js";
@@ -17,6 +18,10 @@ export function itemForm(item, { date, module = "rdv", repeat } = {}) {
   // Événement : une fête par défaut (qui revient chaque année).
   const kind = item ? eventKind(item) : "birthday";
   const yearly = item ? v.recurrence?.freq === FREQ.YEARLY : kind !== "event";
+  // Fête ou anniversaire déjà enregistré : la date montrée est la prochaine
+  // (jour et mois), l'année d'origine va dans son propre champ.
+  const birthYear = item && yearly && kind !== "event" && !v.data?.yearUnknown ? v.date.slice(0, 4) : "";
+  const dateValue = item && yearly ? nextYearly(v.date) : v.date;
 
   return `<form id="item-form" class="form" data-id="${esc(item?.id ?? "")}" novalidate>
     <h2 id="form-title">${t(item ? "form.editTitle" : "form.newTitle")}</h2>
@@ -64,10 +69,12 @@ export function itemForm(item, { date, module = "rdv", repeat } = {}) {
         </label>`).join("")}
       </div>
       <label class="switch"><input type="checkbox" name="yearly" ${yearly ? "checked" : ""}><span>${t("event.yearly")}</span></label>
-      <label class="switch" data-role="year-unknown" ${kind !== "event" && yearly ? "" : "hidden"}>
-        <input type="checkbox" name="yearUnknown" ${v.data?.yearUnknown ? "checked" : ""}><span>${t("event.yearUnknown")}</span>
+      <label data-role="birth-year" ${kind !== "event" && yearly ? "" : "hidden"}>
+        <span data-role="birth-year-label">${t(`event.yearLabel.${kind === "anniversary" ? "anniversary" : "birthday"}`)}</span>
+        <span class="hint">${t("form.optional")}</span>
+        <input name="birthYear" inputmode="numeric" maxlength="4" autocomplete="off" value="${esc(birthYear)}" placeholder="1964">
       </label>
-      <p class="hint" data-role="event-date-hint">${kind === "event" ? "" : t(`event.dateHint.${kind}`)}</p>
+      <p class="hint" data-role="event-date-hint">${kind === "event" || !yearly ? "" : t(`event.dateHint.${kind}`)}</p>
       <label>${t("event.budget")} <span class="hint">${t("form.optional")}</span>
         <input name="budget" inputmode="decimal" autocomplete="off" value="${esc(v.data?.budget ?? "")}" placeholder="50">
       </label>
@@ -79,7 +86,7 @@ export function itemForm(item, { date, module = "rdv", repeat } = {}) {
     </label>
 
     <div class="row">
-      <label>${t("form.date")} <input type="date" name="date" value="${esc(v.date)}" required></label>
+      <label><span data-role="date-label">${esc(dateLabel(v.module, kind, yearly))}</span> <input type="date" name="date" value="${esc(dateValue)}" required></label>
       <label>${t("form.time")} <input type="time" name="time" value="${esc(v.time)}"></label>
     </div>
     <label data-role="end-date" ${hasFeature(v.module, "range") ? "" : "hidden"}>${t("form.endDate")} <span class="hint">${t("form.optional")}</span>
@@ -110,6 +117,19 @@ export function itemForm(item, { date, module = "rdv", repeat } = {}) {
   </form>`;
 }
 
+// « Date de la fête » pour une fête qui revient chaque année, sinon « Date ».
+function dateLabel(module, kind, yearly) {
+  return hasFeature(module, "yearly") && yearly && kind !== "event" ? t(`event.dateLabel.${kind}`) : t("form.date");
+}
+
+// Prochaine date (aujourd'hui compris) d'un élément qui revient chaque année.
+function nextYearly(startISO) {
+  const today = todayISO();
+  const year = Number(today.slice(0, 4));
+  const thisYear = yearlyDate(startISO, year);
+  return thisYear >= today ? thisYear : yearlyDate(startISO, year + 1);
+}
+
 function parseDay(iso) {
   const [y, m, d] = (iso ?? "").split("-").map(Number);
   return y ? new Date(y, m - 1, d, 12).getDay() : 1;
@@ -127,8 +147,11 @@ export function syncRepeatFields(form) {
   const event = form.querySelector("[data-role=event]");
   event.hidden = !hasFeature(module, "yearly");
   const kind = form.elements.eventKind.value;
-  form.querySelector("[data-role=year-unknown]").hidden = kind === "event" || !form.elements.yearly.checked;
-  form.querySelector("[data-role=event-date-hint]").textContent = kind === "event" ? "" : t(`event.dateHint.${kind}`);
+  const yearly = form.elements.yearly.checked;
+  form.querySelector("[data-role=birth-year]").hidden = kind === "event" || !yearly;
+  form.querySelector("[data-role=birth-year-label]").textContent = t(`event.yearLabel.${kind === "anniversary" ? "anniversary" : "birthday"}`);
+  form.querySelector("[data-role=event-date-hint]").textContent = kind === "event" || !yearly ? "" : t(`event.dateHint.${kind}`);
+  form.querySelector("[data-role=date-label]").textContent = dateLabel(module, kind, yearly);
   form.querySelector("[data-role=weekdays]").hidden = freq !== FREQ.WEEKLY;
   form.querySelector("[data-role=times]").hidden = freq !== FREQ.FLEXIBLE;
   form.querySelector("[data-role=repeat-hint]").hidden = freq === "none";
@@ -163,7 +186,7 @@ export function readItemForm(form, existing = null) {
     // Texte brut ; converti en liste par l'appelant (qui connaît la liste existante).
     checklistText: hasFeature(module, "checklist") ? f.get("checklist") ?? "" : null,
     // Événement : type, année inconnue, budget ; null pour les autres modules.
-    event: isEvent ? { kind: f.get("eventKind") ?? "event", yearUnknown: f.get("yearUnknown") === "on", budget: f.get("budget") ?? "" } : null,
+    event: isEvent ? { kind: f.get("eventKind") ?? "event", birthYear: String(f.get("birthYear") ?? "").trim(), budget: f.get("budget") ?? "" } : null,
     // Date de retour (voyage) : "" = un seul jour ; null = le module n'en a pas.
     endDate: hasFeature(module, "range") ? f.get("endDate") ?? "" : null,
   };
