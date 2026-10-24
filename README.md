@@ -67,6 +67,9 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Minuteur silencieux avec bol tibétain (début, fin, intervalles).
   - Ambiances générées dans le navigateur : pluie, océan, forêt.
   - Humeur avant et après, séries, minutes totales ; chaque séance s'inscrit dans le calendrier et peut cocher l'habitude du jour.
+  - **Barre d'avancement glissante** : on recule ou on avance dans une séance avec le doigt.
+  - Une séance compte comme **terminée au complet** si elle est allée jusqu'au bout et qu'au moins 80 % de sa durée a vraiment été écoutée. Les séances partielles comptent dans le temps de méditation, pas dans la progression du parcours.
+  - **Mes statistiques** (📊) : temps de méditation par semaine, mois et année (graphiques en barres avec les chiffres, périodes précédentes, détail d'une barre au toucher), temps par type de pratique, progression de chaque parcours.
 - **Langues** : choix à l'accueil au premier lancement, puis dans ⚙︎ **Paramètres**. Les dates et les heures suivent la langue choisie.
 - Paramètres : langue, rappels de proximité, calendriers externes, exporter et importer une copie des données (JSON).
 - **Les données du prototype `calendrier.html` sont récupérées automatiquement** à la première ouverture, si l'application est servie depuis la même adresse. La copie d'origine sous la clé `items` est conservée.

@@ -59,6 +59,7 @@ export const meditationPage = {
           ${stat(stats.sessions, t("med.stats.sessions", { count: stats.sessions }))}
           ${stat(stats.streak, t("med.stats.streak", { count: stats.streak }))}
         </div>
+        <button type="button" class="btn link light med-stats-link" data-action="open-medstats">📊 ${t("stats.title")}</button>
         ${next ? `<button type="button" class="med-continue" data-action="med-setup" data-kind="session" data-id="${next.sessionId}">
           <span class="hint">${t(done.size ? "med.continue" : "med.begin")} · ${esc(programContent(next.program.id).title)}</span>
           <strong>${esc(nextContent.title)}</strong>

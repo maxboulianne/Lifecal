@@ -20,6 +20,8 @@ export class SessionRunner {
   #pausedAt = 0;
   #pausedTotal = 0;
   #startedAt = null;
+  #offset = 0; // décalage dû aux déplacements dans la barre d'avancement
+  #pendingSeek = null;
   #resumeWaiters = [];
   #spoken = { chars: 0, seconds: 0 };
 
@@ -33,11 +35,16 @@ export class SessionRunner {
     this.sleep = sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
-  // Temps de méditation écoulé, pauses exclues.
-  get elapsed() {
+  // Temps réellement écouté, pauses exclues (les sauts n'y changent rien).
+  get listened() {
     if (this.#startedAt === null) return 0;
     const end = this.state === "paused" ? this.#pausedAt : this.now();
     return end - this.#startedAt - this.#pausedTotal;
+  }
+
+  // Position dans la séance (ce qu'affiche la barre d'avancement).
+  get elapsed() {
+    return this.listened + this.#offset;
   }
 
   get charsPerSecond() {
@@ -47,12 +54,26 @@ export class SessionRunner {
   async run() {
     this.#startedAt = this.now();
     this.#setState("running");
-    for (let i = 0; i < this.script.length; i++) {
+    let i = 0;
+    let into = 0; // secondes déjà passées dans l'élément (après un saut)
+    for (;;) {
       if (this.state === "stopped") return;
-      await this.#play(i);
+      if (i >= this.script.length) {
+        await this.#wait(FINAL_RING - into);
+        if (this.#pendingSeek) {
+          ({ i, into } = this.#takeSeek());
+          continue;
+        }
+        break;
+      }
+      await this.#play(i, into);
+      into = 0;
+      if (this.#pendingSeek) {
+        ({ i, into } = this.#takeSeek());
+        continue;
+      }
+      i++;
     }
-    if (this.state === "stopped") return;
-    await this.#wait(FINAL_RING);
     if (this.state === "stopped") return;
     this.#setState("done");
   }
@@ -79,15 +100,76 @@ export class SessionRunner {
     this.#resumeWaiters.splice(0).forEach((r) => r());
   }
 
+  // Se déplacer dans la séance (en secondes depuis le début). Une phrase
+  // reprend à son début ; un silence ou une pause reprend à l'endroit choisi.
+  // En pause, la séance reste en pause à la nouvelle position.
+  seek(seconds) {
+    if (this.state !== "running" && this.state !== "paused") return;
+    const target = Math.min(Math.max(0, seconds), this.targetSeconds);
+    const plan = this.plan();
+    let index = plan.findIndex((p) => target < p.end);
+    if (index === -1) index = this.script.length; // dans le dernier son du bol
+    const start = index < plan.length ? plan[index].start : plan.at(-1)?.end ?? 0;
+    const type = index < plan.length ? tokenType(this.script[index]) : "ring";
+    const resumesInside = type === "pause" || type === "breathe" || type === "silence" || type === "ring";
+    const position = resumesInside ? target : start;
+    this.#offset += position - this.elapsed;
+    this.#pendingSeek = { index, into: resumesInside ? target - start : 0 };
+    this.voice.cancel();
+    this.onEvent({ type: "seek", position, ...this.#contextBefore(index) });
+  }
+
+  // Estimation de la place de chaque élément dans la séance : [{ start, end }].
+  plan() {
+    const cps = this.charsPerSecond;
+    const durations = this.script.map((tok) => {
+      switch (tokenType(tok)) {
+        case "say": return tok.length / cps;
+        case "pause": return tok;
+        case "bell": return 1;
+        case "breathe": return cycleSeconds(BREATH_PATTERNS[tok.pattern]) * tok.cycles;
+        default: return 0; // silences : calculés ci-dessous
+      }
+    });
+    const weights = this.script.reduce((w, tok) => w + (tokenType(tok) === "silence" ? tok.weight : 0), 0);
+    const free = this.targetSeconds - FINAL_RING - durations.reduce((a, b) => a + b, 0);
+    let t = 0;
+    return this.script.map((tok, k) => {
+      const d = tokenType(tok) === "silence" ? Math.max(MIN_SILENCE, (free * tok.weight) / weights) : durations[k];
+      const slot = { start: t, end: t + d };
+      t += d;
+      return slot;
+    });
+  }
+
   // ---- Interne -----------------------------------------------------------
 
-  async #play(i) {
+  #takeSeek() {
+    const seek = this.#pendingSeek;
+    this.#pendingSeek = null;
+    return { i: seek.index, into: seek.into };
+  }
+
+  // Ce qui doit être affiché en arrivant à un élément : la dernière phrase
+  // et le dernier rythme de respiration qui le précèdent.
+  #contextBefore(index) {
+    let line = null;
+    let breathe = null;
+    for (let k = 0; k < index && k < this.script.length; k++) {
+      const type = tokenType(this.script[k]);
+      if (type === "say") line = this.script[k];
+      if (type === "breathe") breathe = this.script[k].pattern;
+    }
+    return { line, breathe };
+  }
+
+  async #play(i, into = 0) {
     const token = this.script[i];
     switch (tokenType(token)) {
       case "say":
         return this.#say(token);
       case "pause":
-        return this.#wait(token);
+        return this.#wait(token - into);
       case "silence":
         this.onEvent({ type: "silence" });
         return this.#wait(this.silenceLength(i));
@@ -98,7 +180,7 @@ export class SessionRunner {
       case "breathe": {
         const pattern = BREATH_PATTERNS[token.pattern];
         this.onEvent({ type: "breathe", pattern: token.pattern });
-        return this.#wait(cycleSeconds(pattern) * token.cycles);
+        return this.#wait(cycleSeconds(pattern) * token.cycles - into);
       }
     }
   }
@@ -107,7 +189,7 @@ export class SessionRunner {
     this.onEvent({ type: "line", text });
     for (;;) {
       await this.#gate();
-      if (this.state === "stopped") return;
+      if (this.state === "stopped" || this.#pendingSeek) return;
       const start = this.now();
       const finished = await this.voice.speak(text);
       if (finished) {
@@ -115,7 +197,7 @@ export class SessionRunner {
         this.#spoken.seconds += this.now() - start;
         return;
       }
-      // Interrompu par une pause : on reprend la phrase au retour.
+      // Interrompu par une pause : on reprend la phrase au retour (sauf saut).
     }
   }
 
@@ -141,9 +223,9 @@ export class SessionRunner {
 
   async #wait(seconds) {
     let left = seconds;
-    while (left > 0 && this.state !== "stopped") {
+    while (left > 0 && this.state !== "stopped" && !this.#pendingSeek) {
       await this.#gate();
-      if (this.state === "stopped") return;
+      if (this.state === "stopped" || this.#pendingSeek) return;
       const step = Math.min(left, TICK_MS / 1000);
       const before = this.now();
       await this.sleep(step * 1000);

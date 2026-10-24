@@ -125,5 +125,7 @@ export const fmt = {
     const lf = memo("list", () => (Intl.ListFormat ? new Intl.ListFormat(lang.intl, { type: "conjunction" }) : null));
     return lf ? lf.format(items) : items.join(", ");
   },
+  // « 3,5 » en français, « 3.5 » en anglais
+  decimal: (n) => memo("dec", () => new Intl.NumberFormat(lang.intl, { maximumFractionDigits: 1 })).format(n),
   percent: (ratio) => memo("pct", () => new Intl.NumberFormat(lang.intl, { style: "percent" })).format(ratio),
 };
