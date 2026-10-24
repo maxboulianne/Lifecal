@@ -82,7 +82,10 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Page du voyage (« 🗺️ Ouvrir le voyage ») : dates, compte à rebours (« Départ dans 9 jours »), puis « Jour 2 sur 5 » pendant le séjour.
   - Préparation : la liste « À emporter ».
   - **Lieux à visiter** : on les ajoute, on les coche une fois visités, 📍 les place sur la carte (recherche par nom avec OpenStreetMap), ↗ les ouvre dans une carte.
-  - **Carte** des lieux (Leaflet et OpenStreetMap, chargés seulement à l'ouverture). Sans Internet, un petit message remplace la carte ; les lieux restent enregistrés.
+  - **Carte** centrée sur la destination (le lieu du voyage, sinon son titre : « Milan », « Calgary »), avec les lieux et les hôtels (Leaflet et OpenStreetMap, chargés seulement à l'ouverture). Sans Internet, un petit message et « Réessayer » ; les lieux restent enregistrés.
+  - **Lieux célèbres à proximité** : suggérés automatiquement d'après Wikipédia (les articles géolocalisés les plus lus des 30 derniers jours, sans gares, rues ni la ville elle-même) ; « Ajouter » les met dans les lieux, déjà placés sur la carte.
+  - **Hôtels** : une ou deux grandes chaînes au choix (Marriott, Hilton, IHG, Hyatt, Accor, Best Western, Radisson, Wyndham, Choice) ; leurs hôtels à moins de 25 km (OpenStreetMap) s'affichent sur la carte et en liste, avec la distance et le lien vers le site web.
+  - La destination, les suggestions et les hôtels trouvés sont gardés dans le voyage : pas de nouvelle recherche en revenant.
 - **Événements et anniversaires** (bouton 🎂) :
   - Trois types : 🎂 Fête, 💍 Anniversaire (mariage, rencontre…) et 🎉 Événement.
   - Une fête ou un anniversaire revient chaque année ; avec l'année de naissance (ou du mariage), l'âge s'affiche (« 62 ans »). Le 29 février tombe le 28 les autres années.

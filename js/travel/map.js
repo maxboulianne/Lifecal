@@ -24,8 +24,10 @@ function loadLeaflet() {
   return loading;
 }
 
-// places : [{ name, lat, lng, visited }] ; color : couleur du module Voyage.
-export async function mountMap(element, places, { color = "#8b5cf6" } = {}) {
+// center : la destination { lat, lng } (ou null) ; places : [{ name, lat, lng, visited }] ;
+// hotels : [{ name, lat, lng, km, url, color, chainName }] ; color : couleur du module Voyage.
+// Sans lieux ni hôtels, la carte montre la destination.
+export async function mountMap(element, { center = null, places = [], hotels = [], color = "#8b5cf6", labels = {} } = {}) {
   const L = await loadLeaflet();
   if (!element.isConnected) return null;
   const map = L.map(element, { scrollWheelZoom: false });
@@ -33,13 +35,24 @@ export async function mountMap(element, places, { color = "#8b5cf6" } = {}) {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(map);
-  const markers = places.map((p) =>
-    L.circleMarker([p.lat, p.lng], {
-      radius: 9, color: "#fff", weight: 2, fillColor: color, fillOpacity: p.visited ? 0.45 : 0.95,
-    }).addTo(map).bindPopup(`${p.visited ? "✓ " : ""}${escapeHtml(p.name)}`),
-  );
-  if (markers.length === 1) map.setView(markers[0].getLatLng(), 14);
-  else map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+  const markers = [
+    ...places.map((p) =>
+      L.circleMarker([p.lat, p.lng], {
+        radius: 9, color: "#fff", weight: 2, fillColor: color, fillOpacity: p.visited ? 0.45 : 0.95,
+      }).addTo(map).bindPopup(`${p.visited ? "✓ " : ""}${escapeHtml(p.name)}`)),
+    ...hotels.map((h) =>
+      L.circleMarker([h.lat, h.lng], { radius: 7, color: "#fff", weight: 2, fillColor: h.color, fillOpacity: 0.9 })
+        .addTo(map)
+        .bindPopup(`<strong>🏨 ${escapeHtml(h.name)}</strong><br>${escapeHtml(h.chainName)} · ${escapeHtml(h.distance)}<br>`
+          + `<a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">${escapeHtml(labels.website ?? "Site web")} ↗</a>`)),
+  ];
+  if (!markers.length && center) map.setView([center.lat, center.lng], 12);
+  else if (markers.length === 1 && !center) map.setView(markers[0].getLatLng(), 14);
+  else {
+    const bounds = L.featureGroup(markers).getBounds();
+    if (center) bounds.extend([center.lat, center.lng]);
+    map.fitBounds(bounds.pad(0.15), { maxZoom: 15 });
+  }
   return map;
 }
 

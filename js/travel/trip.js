@@ -42,3 +42,31 @@ export function placeMapUrl(place, destination = "") {
   const query = [place.name, destination].filter(Boolean).join(", ");
   return `https://www.openstreetmap.org/search?query=${encodeURIComponent(query)}`;
 }
+
+// ---- Destination, suggestions et hôtels (gardés dans item.data) ----------------
+//   dest         { query, lat, lng }          la destination trouvée sur la carte
+//   suggestions  { key, items: [...] }        lieux célèbres (voir discover.js)
+//   hotelChains  ["hilton", …]                chaînes choisies (2 au plus)
+//   hotels       { key, items: [...] }        hôtels de ces chaînes à 25 km
+
+// Ce qu'on cherche sur la carte : le lieu du voyage, sinon son titre (« Milan »).
+export const destQuery = (trip) => String(trip.place || trip.title || "").trim();
+
+// La destination connue, si elle correspond toujours au lieu du voyage.
+export function getDest(trip) {
+  const d = trip.data?.dest;
+  return d && d.query === destQuery(trip) && Number.isFinite(d.lat) && Number.isFinite(d.lng) ? d : null;
+}
+
+export const suggestionsKey = (trip, lang) => `${destQuery(trip)}|${lang}`;
+export const getHotelChains = (trip) => (Array.isArray(trip.data?.hotelChains) ? trip.data.hotelChains : []);
+export function hotelsKey(trip) {
+  const dest = getDest(trip);
+  const chains = [...getHotelChains(trip)].sort();
+  return dest && chains.length ? `${chains.join(",")}|${dest.lat},${dest.lng}` : null;
+}
+
+// Les données gardées, seulement si elles sont encore à jour.
+export const cachedSuggestions = (trip, lang) =>
+  trip.data?.suggestions?.key === suggestionsKey(trip, lang) ? trip.data.suggestions.items : null;
+export const cachedHotels = (trip) => (hotelsKey(trip) && trip.data?.hotels?.key === hotelsKey(trip) ? trip.data.hotels.items : null);
