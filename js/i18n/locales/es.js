@@ -351,4 +351,17 @@ export default {
   "trip.removePlace": "Quitar {name}",
   "trip.missing": "Este viaje ya no existe.",
   "nudge.packing": "{title} es {when}. La maleta está lista al {percent}: ¿unas cositas más?",
+
+  // Pages Commissions et Voyages
+  "nav.shopping": "Mis recados",
+  "nav.trips": "Mis viajes",
+  "shopping.add": "Nueva lista",
+  "shopping.empty": "Ninguna lista en curso. ¡Todo hecho, o casi!",
+  "shopping.left": { one: "Queda {count} artículo por encontrar", other: "Quedan {count} artículos por encontrar" },
+  "shopping.finish": "Lista terminada",
+  "shopping.done": "Terminadas hace poco",
+  "trips.add": "Nuevo viaje",
+  "trips.empty": "Todavía no hay ningún viaje previsto. ¿Adónde te gustaría ir?",
+  "trips.past": "Recuerdos de viaje",
+  "trips.bag": "maleta {done}/{total}",
 };

@@ -351,4 +351,17 @@ export default {
   "trip.removePlace": "Remove {name}",
   "trip.missing": "This trip no longer exists.",
   "nudge.packing": "{title} is {when}. Your bag is {percent} ready — just a few more things?",
+
+  // Pages Commissions et Voyages
+  "nav.shopping": "My errands",
+  "nav.trips": "My trips",
+  "shopping.add": "New list",
+  "shopping.empty": "No list in progress. All done, or nearly!",
+  "shopping.left": { one: "{count} item left to find", other: "{count} items left to find" },
+  "shopping.finish": "List done",
+  "shopping.done": "Recently done",
+  "trips.add": "New trip",
+  "trips.empty": "No trip planned yet. Where would you like to go?",
+  "trips.past": "Travel memories",
+  "trips.bag": "bag {done}/{total}",
 };

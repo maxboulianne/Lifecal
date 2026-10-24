@@ -27,6 +27,8 @@ import { JOURNAL_MODULE, entryFor, entryTitle, isEmptyContent } from "../journal
 import { meditationPage, setupContent, setupSheet } from "./pages/meditation.js";
 import { meditationStatsPage } from "./pages/meditation-stats.js";
 import { tripPage } from "./pages/trip.js";
+import { tripsPage } from "./pages/trips.js";
+import { shoppingPage } from "./pages/shopping.js";
 import { mountMap } from "../travel/map.js";
 import { geocode } from "../travel/geocode.js";
 import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited } from "../travel/trip.js";
@@ -42,7 +44,9 @@ const PAGES = {
   journal: journalPage,
   meditation: meditationPage,
   medstats: meditationStatsPage,
+  trips: tripsPage,
   trip: tripPage,
+  shopping: shoppingPage,
   habits: habitsPage,
   settings: settingsPage,
 };
@@ -152,8 +156,11 @@ export class App {
       (id) => `<span class="legend-item"><span class="dot" style="--c:${MODULES[id].color}"></span>${esc(moduleLabel(id))}</span>`,
     ).join("");
     $("#legend").setAttribute("aria-label", t("nav.modules"));
-    $("#fab").setAttribute("aria-label", t(this.page === "habits" ? "habits.add" : "nav.add"));
+    // Sur les pages Habitudes, Commissions et Voyages, le + crée un élément de ce module.
+    const fabModule = { shopping: "commission", trips: "voyage" }[this.page] ?? "";
+    $("#fab").setAttribute("aria-label", t({ habits: "habits.add", shopping: "shopping.add", trips: "trips.add" }[this.page] ?? "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
+    $("#fab").dataset.module = fabModule;
     $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip"].includes(this.page);
     this.#map?.remove();
     this.#map = null;
@@ -184,7 +191,11 @@ export class App {
   }
 
   #renderTopbar() {
-    const pageButtons = `
+    const pageButtons = `<div class="page-links">
+      <button type="button" class="icon-btn ${this.page === "shopping" ? "active" : ""}" data-action="open-shopping"
+        aria-label="${esc(t("nav.shopping"))}" title="${esc(t("nav.shopping"))}">🛒</button>
+      <button type="button" class="icon-btn ${["trips", "trip"].includes(this.page) ? "active" : ""}" data-action="open-trips"
+        aria-label="${esc(t("nav.trips"))}" title="${esc(t("nav.trips"))}">✈️</button>
       <button type="button" class="icon-btn ${this.page === "journal" ? "active" : ""}" data-action="open-journal"
         aria-label="${esc(t("nav.journal"))}" title="${esc(t("nav.journal"))}">📓</button>
       <button type="button" class="icon-btn ${this.page === "meditation" ? "active" : ""}" data-action="open-meditation"
@@ -192,7 +203,8 @@ export class App {
       <button type="button" class="icon-btn ${this.page === "habits" ? "active" : ""}" data-action="open-habits"
         aria-label="${esc(t("nav.habits"))}" title="${esc(t("nav.habits"))}">🌱</button>
       <button type="button" class="icon-btn ${this.page === "settings" ? "active" : ""}" data-action="open-settings"
-        aria-label="${esc(t("nav.settings"))}" title="${esc(t("nav.settings"))}">⚙︎</button>`;
+        aria-label="${esc(t("nav.settings"))}" title="${esc(t("nav.settings"))}">⚙︎</button>
+      </div>`;
 
     if (this.page) {
       $("#topbar").innerHTML = `
@@ -414,7 +426,12 @@ export class App {
       const voice = pickVoice(getLanguage(), prefs.voices?.[getLanguage()], this.voices);
       new SpeechVoice({ voice, lang: getLanguage() }).speak(t("med.testPhrase"));
     },
-    "new-item": (el) => this.openNewItem(el.dataset.date ? { date: el.dataset.date } : {}),
+    "new-item": (el) => {
+      if (el.dataset.module) return this.openNewItem({ date: todayISO(), module: el.dataset.module });
+      this.openNewItem(el.dataset.date ? { date: el.dataset.date } : {});
+    },
+    "open-shopping": () => this.openPage("shopping"),
+    "open-trips": () => this.openPage("trips"),
     "new-habit": () => this.openNewItem({ date: todayISO(), module: "habitude", repeat: FREQ.DAILY }),
     "open-item": (el) => this.openItem(el.dataset.id, el.dataset.date),
     "edit-item": (el) => this.openEdit(el.dataset.id),
@@ -559,7 +576,8 @@ export class App {
       const input = $("[data-role=checklist-input]", e.target);
       const text = input.value;
       if (!text.trim()) return;
-      return this.#updateChecklist(e.target.dataset.id, (list) => addEntry(list, text), "[data-role=checklist-input]");
+      const target = `.check-add[data-id="${CSS.escape(e.target.dataset.id)}"] [data-role=checklist-input]`;
+      return this.#updateChecklist(e.target.dataset.id, (list) => addEntry(list, text), target);
     }
     if (e.target.id !== "item-form") return;
     e.preventDefault();

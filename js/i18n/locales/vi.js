@@ -348,4 +348,17 @@ export default {
   "trip.removePlace": "Xóa {name}",
   "trip.missing": "Chuyến đi này không còn nữa.",
   "nudge.packing": "{title} là {when}. Hành lý đã sẵn sàng {percent} — thêm vài thứ nhỏ nữa nhé?",
+
+  // Pages Commissions et Voyages
+  "nav.shopping": "Việc mua sắm",
+  "nav.trips": "Chuyến đi của tôi",
+  "shopping.add": "Danh sách mới",
+  "shopping.empty": "Không có danh sách nào đang mở. Xong hết rồi, hoặc gần xong!",
+  "shopping.left": { other: "Còn {count} món cần mua" },
+  "shopping.finish": "Đã xong danh sách",
+  "shopping.done": "Vừa hoàn thành",
+  "trips.add": "Chuyến đi mới",
+  "trips.empty": "Chưa có chuyến đi nào. Bạn muốn đi đâu?",
+  "trips.past": "Kỷ niệm du lịch",
+  "trips.bag": "hành lý {done}/{total}",
 };
