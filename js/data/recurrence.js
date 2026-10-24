@@ -14,7 +14,7 @@
 // Les « occurrences » sont des copies de l'élément pour une date donnée ;
 // elles ne sont jamais enregistrées, seulement calculées à l'affichage.
 
-import { addDays, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
+import { addDays, diffDays as diffDaysISO, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
 import { STATUS } from "./item.js";
 
 export const FREQ = Object.freeze({ DAILY: "daily", WEEKLY: "weekly", FLEXIBLE: "flexible" });
@@ -70,10 +70,26 @@ export function toOccurrence(item, iso) {
   };
 }
 
+// Élément sur plusieurs jours (ex. un voyage) : data.endDate après la date de départ.
+export const spanEnd = (item) =>
+  !item.recurrence && typeof item.data?.endDate === "string" && item.data.endDate > item.date ? item.data.endDate : null;
+
 // Toutes les occurrences entre deux dates ISO (incluses).
+// Un élément sur plusieurs jours apparaît chaque jour, avec item.span = { start, end, day, days }.
 export function occurrencesBetween(items, fromISO, toISO) {
   const out = [];
   for (const item of items) {
+    const end = spanEnd(item);
+    if (end) {
+      const days = diffDaysISO(item.date, end) + 1;
+      const first = item.date > fromISO ? item.date : fromISO;
+      const last = end < toISO ? end : toISO;
+      for (let d = parseISODate(first); toISODate(d) <= last; d = addDays(d, 1)) {
+        const iso = toISODate(d);
+        out.push({ ...item, date: iso, span: { start: item.date, end, day: diffDaysISO(item.date, iso) + 1, days } });
+      }
+      continue;
+    }
     if (!item.recurrence) {
       if (item.date >= fromISO && item.date <= toISO) out.push(item);
       continue;

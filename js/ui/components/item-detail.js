@@ -12,6 +12,7 @@ import { entryContent } from "../../journal/journal.js";
 import { MOODS } from "../../meditation/catalog.js";
 import { hasFeature } from "../../config/modules.js";
 import { getChecklist, progress } from "../../data/checklist.js";
+import { tripDates, tripStatusText } from "./trip-text.js";
 
 const btn = (cls, action, item, label) =>
   `<button type="button" class="btn ${cls}" data-action="${action}" data-id="${esc(item.id)}" data-date="${esc(item.date)}">${label}</button>`;
@@ -34,7 +35,7 @@ export function itemDetail(item, { today }) {
     <p class="detail-module">${m.icon} ${esc(moduleLabel(item.module))}</p>
     <h2 id="detail-title">${esc(item.title)}</h2>
     ${badge}
-    <p class="detail-line">🕒 ${when}</p>
+    ${item.module === "voyage" ? tripSummary(item, today) : `<p class="detail-line">🕒 ${when}</p>`}
     ${item.occurrence ? habitSummary(item, today) : ""}
     ${item.module === "meditation" ? meditationSummary(item) : ""}
     ${item.module === "journal" && !item.recurrence ? journalSummary(item) : ""}
@@ -44,6 +45,13 @@ export function itemDetail(item, { today }) {
     ${source}
     <div class="actions stack">${item.occurrence ? habitActions(item) : itemActions(item)}</div>
   </article>`;
+}
+
+// Voyage : ses dates (même vu depuis un jour au milieu) et le compte à rebours.
+function tripSummary(item, today) {
+  const trip = { ...item, date: item.span?.start ?? item.date };
+  return `<p class="detail-line">🗓️ ${esc(tripDates(trip))}${item.time ? ` · ${fmt.time(item.time)}` : ""}</p>
+    <p class="detail-line">⏳ ${esc(tripStatusText(trip, today))}</p>`;
 }
 
 function habitSummary(occ, today) {
@@ -71,7 +79,7 @@ function habitActions(occ) {
 
 const MOOD_FACES = MOODS;
 
-function checklistSection(item) {
+export function checklistSection(item) {
   const list = getChecklist(item);
   const p = progress(list);
   const titleKey = `checklist.title.${item.module}`;
@@ -119,6 +127,8 @@ function itemActions(item) {
   return [
     item.module === "meditation" && !item.done
       ? `<button type="button" class="btn primary" data-action="open-meditation">${t("med.startNow")}</button>` : "",
+    item.module === "voyage"
+      ? `<button type="button" class="btn primary" data-action="open-trip" data-id="${esc(item.id)}">🗺️ ${t("trip.open")}</button>` : "",
     item.module === "journal"
       ? `<button type="button" class="btn primary" data-action="open-journal" data-date="${esc(item.date)}">${t("journal.open")}</button>` : "",
     isCancelled(item) ? "" : btn("primary", "toggle-done", item, t(item.done ? "detail.markUndone" : "detail.markDone")),

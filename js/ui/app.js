@@ -26,6 +26,10 @@ import { journalPage, readJournal } from "./pages/journal.js";
 import { JOURNAL_MODULE, entryFor, entryTitle, isEmptyContent } from "../journal/journal.js";
 import { meditationPage, setupContent, setupSheet } from "./pages/meditation.js";
 import { meditationStatsPage } from "./pages/meditation-stats.js";
+import { tripPage } from "./pages/trip.js";
+import { mountMap } from "../travel/map.js";
+import { geocode } from "../travel/geocode.js";
+import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited } from "../travel/trip.js";
 import { settingsPage } from "./pages/settings.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
 import { MeditationAudio } from "../meditation/audio.js";
@@ -38,6 +42,7 @@ const PAGES = {
   journal: journalPage,
   meditation: meditationPage,
   medstats: meditationStatsPage,
+  trip: tripPage,
   habits: habitsPage,
   settings: settingsPage,
 };
@@ -55,6 +60,8 @@ export class App {
   promptShift = 0;
   statsPeriod = "week";
   statsOffset = 0;
+  tripId = null;
+  #map = null;
 
   constructor({ repo, triggers, storageLabel }) {
     this.repo = repo;
@@ -103,10 +110,11 @@ export class App {
   // ---- Navigation --------------------------------------------------------
 
   #readHash() {
-    const [, first, date] = location.hash.match(/^#\/(\w+)(?:\/([\d-]+))?/) ?? [];
+    const [, first, second] = location.hash.match(/^#\/(\w+)(?:\/([\w-]+))?/) ?? [];
     this.page = PAGES[first] ? first : null;
     if (VIEWS[first]) this.view = first;
-    if (isISODate(date)) this.cursor = parseISODate(date);
+    if (first === "trip") this.tripId = second ?? null;
+    else if (isISODate(second)) this.cursor = parseISODate(second);
   }
 
   navigate(view, cursor, { push = false } = {}) {
@@ -146,7 +154,9 @@ export class App {
     $("#legend").setAttribute("aria-label", t("nav.modules"));
     $("#fab").setAttribute("aria-label", t(this.page === "habits" ? "habits.add" : "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
-    $("#fab").hidden = ["settings", "meditation", "medstats", "journal"].includes(this.page);
+    $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip"].includes(this.page);
+    this.#map?.remove();
+    this.#map = null;
 
     const main = $("#calendar");
     main.dataset.view = this.page ?? this.view;
@@ -161,10 +171,12 @@ export class App {
         promptShift: this.promptShift,
         statsPeriod: this.statsPeriod,
         statsOffset: this.statsOffset,
+        tripId: this.tripId,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
       $("#nudges").innerHTML = "";
+      if (this.page === "trip") this.#mountTripMap();
     } else {
       main.innerHTML = VIEWS[this.view].render({ cursor: this.cursor, repo: this.repo, today });
       this.#renderNudges(today);
@@ -186,10 +198,10 @@ export class App {
       $("#topbar").innerHTML = `
         <div class="nav">
           <button type="button" class="btn soft" data-action="back">‹ ${t(PAGES[this.page].parent ? `nav.${PAGES[this.page].parent}` : "nav.calendar")}</button>
-          <h1 id="title">${esc(PAGES[this.page].title())}</h1>
+          <h1 id="title">${esc(PAGES[this.page].title({ repo: this.repo, tripId: this.tripId }))}</h1>
         </div>
         <div class="nav">${pageButtons}</div>`;
-      document.title = `${PAGES[this.page].title()} – LifeCal`;
+      document.title = `${PAGES[this.page].title({ repo: this.repo, tripId: this.tripId })} – LifeCal`;
       return;
     }
 
@@ -249,9 +261,61 @@ export class App {
     const item = this.repo.get(id);
     const before = progress(getChecklist(item));
     const list = change(getChecklist(item));
-    await this.repo.update(id, { data: { ...item.data, checklist: list } });
-    this.#refreshDetail(id, focusSelector);
+    await this.#updateData(id, { checklist: list }, focusSelector);
     if (!before.complete && progress(list).complete) toast(t("checklist.allDone"));
+  }
+
+  // Modifie item.data puis redessine la fiche ouverte, ou la page (voyage).
+  async #updateData(id, patch, focusSelector) {
+    const item = this.repo.get(id);
+    const top = window.scrollY;
+    await this.repo.update(id, { data: { ...item.data, ...patch } });
+    if (!$("#modal").hidden) return this.#refreshDetail(id, focusSelector);
+    window.scrollTo(0, top);
+    if (focusSelector) $(focusSelector)?.focus();
+  }
+
+  openTrip(id) {
+    closeModal();
+    this.tripId = id;
+    this.page = "trip";
+    this.#setHash(`#/trip/${id}`, true);
+  }
+
+  // Carte du voyage : montée après le rendu de la page (Leaflet a besoin du DOM).
+  #mountTripMap() {
+    const el = $("#trip-map");
+    if (!el) return;
+    const trip = this.repo.get(el.dataset.id);
+    mountMap(el, located(getPlaces(trip)), { color: MODULES.voyage.color })
+      .then((map) => {
+        // La page a pu être redessinée pendant le chargement de la carte.
+        if (el.isConnected) this.#map = map;
+        else map?.remove();
+      })
+      .catch(() => {
+        if (!el.isConnected) return;
+        el.hidden = true;
+        $("[data-role=map-status]").textContent = t("trip.mapOffline");
+      });
+  }
+
+  async #locatePlace(el) {
+    const trip = this.repo.get(el.dataset.id);
+    const place = getPlaces(trip).find((p) => p.id === el.dataset.entry);
+    el.disabled = true;
+    try {
+      const hit =
+        (await geocode([place.name, trip.place].filter(Boolean).join(", "), getLanguage())) ??
+        (trip.place ? await geocode(place.name, getLanguage()) : null);
+      if (!hit) return toast(t("trip.notFound"));
+      await this.#updateData(trip.id, { places: setPlaceCoords(getPlaces(trip), place.id, hit) });
+      toast(t("trip.located", { name: place.name }));
+    } catch {
+      toast(t("trip.mapOffline"));
+    } finally {
+      el.disabled = false;
+    }
   }
 
   openEdit(id) {
@@ -270,6 +334,12 @@ export class App {
       if (parent) this.openPage(parent);
       else this.backToCalendar();
     },
+    "open-trip": (el) => this.openTrip(el.dataset.id),
+    "place-remove": (el) => {
+      const trip = this.repo.get(el.dataset.id);
+      return this.#updateData(trip.id, { places: removePlace(getPlaces(trip), el.dataset.entry) });
+    },
+    "place-locate": (el) => this.#locatePlace(el),
     "open-medstats": () => {
       this.statsOffset = 0;
       this.openPage("medstats");
@@ -447,6 +517,11 @@ export class App {
       }
       syncRepeatFields(form);
     }
+    if (el.dataset.action === "place-toggle") {
+      const trip = this.repo.get(el.dataset.id);
+      await this.#updateData(trip.id, { places: toggleVisited(getPlaces(trip), el.dataset.entry) });
+      return;
+    }
     if (el.dataset.action === "check-toggle") {
       await this.#updateChecklist(el.dataset.id, (list) => toggleEntry(list, el.dataset.entry));
       return;
@@ -472,6 +547,13 @@ export class App {
 
   async #onSubmit(e) {
     if (e.target.id === "med-setup") return this.#startMeditation(e);
+    if (e.target.classList.contains("place-add")) {
+      e.preventDefault();
+      const name = $("[data-role=place-input]", e.target).value;
+      if (!name.trim()) return;
+      const trip = this.repo.get(e.target.dataset.id);
+      return this.#updateData(trip.id, { places: addPlace(getPlaces(trip), name) }, "[data-role=place-input]");
+    }
     if (e.target.classList.contains("check-add")) {
       e.preventDefault();
       const input = $("[data-role=checklist-input]", e.target);
@@ -483,9 +565,16 @@ export class App {
     e.preventDefault();
     const form = e.target;
     const existing = form.dataset.id ? this.repo.get(form.dataset.id) : null;
-    const { checklistText, ...data } = readItemForm(form, existing);
+    const { checklistText, endDate, ...data } = readItemForm(form, existing);
     if (checklistText !== null) {
       data.data = { ...(existing?.data ?? {}), checklist: fromLines(checklistText, getChecklist(existing)) };
+    }
+    if (endDate !== null) {
+      if (endDate && endDate < data.date) {
+        $("[data-role=errors]", form).textContent = t("errors.endDate");
+        return;
+      }
+      data.data = { ...(data.data ?? existing?.data ?? {}), endDate: endDate > data.date ? endDate : null };
     }
     try {
       if (existing) await this.repo.update(existing.id, data);

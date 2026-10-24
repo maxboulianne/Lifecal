@@ -37,7 +37,7 @@ export const MODULES = {
     id: "voyage",
     color: "#8b5cf6", // violet
     icon: "✈️",
-    features: ["location", "checklist", "places", "map", "preparation"],
+    features: ["location", "checklist", "range", "places", "map", "preparation"],
   },
   meditation: {
     id: "meditation",

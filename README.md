@@ -42,6 +42,7 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
 - Vue Mois : une pastille de couleur par élément. Vue Année : le nombre d'éléments et d'éléments faits pour chaque mois.
 - Petits coups de pouce (déclencheurs) :
   - un voyage dans 3 semaines ou moins propose de commencer à préparer ;
+  - à 3 jours du départ, si la valise n'est pas prête, un rappel doux avec le pourcentage déjà prêt ;
   - un événement spécial dans la semaine fait penser à un mot ou à un cadeau ;
   - une habitude manquée la veille donne lieu à un encouragement ;
   - les rappels de proximité (bêta, à activer dans ⚙︎ Réglages) : « tu passes près de l'IGA, voici ta liste ».
@@ -70,6 +71,12 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - **Barre d'avancement glissante** : on recule ou on avance dans une séance avec le doigt.
   - Une séance compte comme **terminée au complet** si elle est allée jusqu'au bout et qu'au moins 80 % de sa durée a vraiment été écoutée. Les séances partielles comptent dans le temps de méditation, pas dans la progression du parcours.
   - **Mes statistiques** (📊) : temps de méditation par semaine, mois et année (graphiques en barres avec les chiffres, périodes précédentes, détail d'une barre au toucher), temps par type de pratique, progression de chaque parcours.
+- **Voyages** :
+  - Une **date de retour** (facultative) : le voyage s'étend sur chaque jour du séjour dans le calendrier (« 2/5 »).
+  - Page du voyage (« 🗺️ Ouvrir le voyage ») : dates, compte à rebours (« Départ dans 9 jours »), puis « Jour 2 sur 5 » pendant le séjour.
+  - Préparation : la liste « À emporter ».
+  - **Lieux à visiter** : on les ajoute, on les coche une fois visités, 📍 les place sur la carte (recherche par nom avec OpenStreetMap), ↗ les ouvre dans une carte.
+  - **Carte** des lieux (Leaflet et OpenStreetMap, chargés seulement à l'ouverture). Sans Internet, un petit message remplace la carte ; les lieux restent enregistrés.
 - **Langues** : choix à l'accueil au premier lancement, puis dans ⚙︎ **Paramètres**. Les dates et les heures suivent la langue choisie.
 - Paramètres : langue, rappels de proximité, calendriers externes, exporter et importer une copie des données (JSON).
 - **Les données du prototype `calendrier.html` sont récupérées automatiquement** à la première ouverture, si l'application est servie depuis la même adresse. La copie d'origine sous la clé `items` est conservée.
@@ -92,6 +99,7 @@ js/data/storage/           Adaptateurs de stockage (localStorage, mémoire)
 js/triggers/               Moteur de déclencheurs + déclencheurs calendrier et proximité
 js/geo/geo.js              Position, distances, lien vers la carte
 js/sync/                   Fournisseurs externes (Google, Outlook, Yahoo) + fusion
+js/travel/                 Voyages : dates, lieux à visiter, recherche d'un lieu, carte
 js/journal/                Journal : entrée du jour, question du jour, humeur et tendance
 js/meditation/             Catalogue, scripts des séances (7 langues), lecteur, voix, sons, progrès
 js/i18n/                   Traductions (7 langues) et formatage des dates via Intl
@@ -133,8 +141,8 @@ Les données sont stockées dans un document versionné, `{ schemaVersion, items
 | Google Agenda, Outlook, Yahoo | Implémenter `listEvents`, `upsertEvent` et `deleteEvent` dans `js/sync/providers.js`. La fusion (`SyncService.pull`) est déjà prête et testée. La connexion OAuth demandera un petit serveur. |
 | Nouvelle séance de méditation | Son script dans `js/meditation/scripts/fr.js` (phrases, pauses, `SILENCE`, `BELL`, `BREATHE`), son id dans `catalog.js`, puis la traduction dans les 6 autres langues (`npm test` vérifie que la structure est identique) |
 | Voix plus naturelles | Ajouter une implémentation `RecordedVoice` dans `js/meditation/voice.js` : un fichier audio par phrase, `audio/<langue>/<séance>/<n>.mp3`. Le reste du lecteur ne change pas. |
-| Carte des voyages | `js/geo/geo.js` (coordonnées déjà dans le modèle) + une bibliothèque de cartes comme Leaflet |
+| Élément sur plusieurs jours | `data.endDate` (voir `spanEnd` dans `js/data/recurrence.js`) et la fonction `range` du module |
 
 ## Prochaines étapes (après le pilote)
 
-Sauvegarde automatique et rappels (notifications), préparation des voyages (lieux à visiter, carte), suite des parcours de méditation, synchronisation avec Google, Outlook et Yahoo.
+Sauvegarde automatique et rappels (notifications), suite des parcours de méditation, synchronisation avec Google, Outlook et Yahoo.
