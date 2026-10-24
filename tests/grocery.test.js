@@ -16,6 +16,8 @@ test("même produit malgré les accents, la casse et la ponctuation", () => {
   assert.equal(productKey("Steak haché mi-maigre"), productKey("Bœuf haché mi-maigre"));
   assert.equal(productKey("Poitrines de poulet"), productKey("poitrine de poulet"));
   assert.notEqual(productKey("Bœuf haché maigre"), productKey("Bœuf haché mi-maigre"));
+  assert.notEqual(productKey("우유"), productKey("버터"), "coréen");
+  assert.equal(productKey("Đậu hộp"), "đau hop", "vietnamien");
   assert.equal(parseAmount("4,99"), 4.99);
   assert.equal(parseAmount("0"), null);
   assert.equal(parseAmount("abc"), null);
@@ -101,4 +103,43 @@ test("migration v2 -> v3 : section épicerie vide, données gardées ; dépôt",
   // Une donnée invalide est écartée plutôt que de bloquer l'application.
   const cleaned = normalizeGrocery({ prices: [{ product: "x", price: -1, qty: 1, unit: "kg" }, { product: "y", price: 1, qty: 1, unit: "boîte" }], stores: ["maxi", "inconnue"] });
   assert.deepEqual([cleaned.prices.length, cleaned.stores], [0, ["maxi"]]);
+});
+
+import { addCustomItem, isListed, removeCustomItem, toggleListed } from "../js/grocery/grocery.js";
+import { CATALOG_LANGS, RAW_CATALOG, catalog } from "../js/grocery/catalog.js";
+
+test("liste personnalisée : cocher ajoute à la liste, décocher retire", () => {
+  let list = toggleListed([], "Lait");
+  assert.equal(isListed(list, "lait"), true);
+  list = toggleListed(list, "Pommes de terre");
+  assert.equal(list.length, 2);
+  list = toggleListed(list, "LAIT");
+  assert.deepEqual(list.map((e) => e.product), ["Pommes de terre"]);
+  // Un article déjà pris au magasin ne compte plus comme coché, et n'est pas effacé.
+  list = list.map((e) => ({ ...e, done: true }));
+  assert.equal(isListed(list, "Pommes de terre"), false);
+  list = toggleListed(list, "Pommes de terre");
+  assert.equal(list.length, 2);
+});
+
+test("articles personnalisés : ajout sans doublon, retrait", () => {
+  let custom = addCustomItem([], "  Kombucha ", "drinks");
+  custom = addCustomItem(custom, "kombucha", "drinks");
+  custom = addCustomItem(custom, "", "drinks");
+  assert.deepEqual(custom.map((c) => c.name), ["Kombucha"]);
+  assert.equal(removeCustomItem(custom, custom[0].id).length, 0);
+  assert.deepEqual(normalizeGrocery({ custom: [{ name: "x", category: "drinks" }, { name: " ", category: "drinks" }] }).custom.length, 1);
+});
+
+test("catalogue : chaque article a ses 7 langues, sans doublon dans une langue", () => {
+  for (const c of RAW_CATALOG) {
+    assert.equal(c.name.length, CATALOG_LANGS.length, c.id);
+    for (const item of c.items) assert.equal(item.length, CATALOG_LANGS.length, item[0]);
+  }
+  for (const lang of CATALOG_LANGS) {
+    const keys = catalog(lang).flatMap((c) => c.items).map(productKey);
+    assert.equal(new Set(keys).size, keys.length, `doublon en ${lang}`);
+  }
+  assert.equal(catalog("fr")[0].items[0], "Pommes");
+  assert.equal(catalog("xx")[0].items[0], "Pommes", "langue inconnue : français");
 });

@@ -366,7 +366,7 @@ export default {
   // Épicerie : liste, carnet de prix, comparaison
   "grocery.tab.grocery": "Danh sách đi chợ",
   "grocery.tab.prices": "Sổ giá",
-  "grocery.tab.lists": "Danh sách khác",
+  "grocery.tab.lists": "Danh sách riêng",
   "grocery.perUnit": "/cái",
   "grocery.units": { other: "{count} cái" },
   "grocery.priceFor": "{price} cho {qty}",
@@ -424,4 +424,9 @@ export default {
   "grocery.calendarTitle": "Đi chợ {store}",
   "grocery.addedToCalendar": { other: "Đã thêm {count} danh sách vào lịch" },
   "grocery.nothingToAdd": "Không có món nào có giá để thêm.",
+  "grocery.custom.intro": "Đánh dấu những gì bạn cần: món đó sẽ vào danh sách đi chợ, xếp theo cửa hàng rẻ nhất.",
+  "grocery.custom.checked": { other: "{count} món trong danh sách đi chợ" },
+  "grocery.custom.seeList": "Xem danh sách đi chợ",
+  "grocery.custom.addPlaceholder": "Thêm món của tôi…",
+  "grocery.custom.calendarLists": "Danh sách trong lịch",
 };

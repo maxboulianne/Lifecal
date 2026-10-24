@@ -29,7 +29,7 @@ import { meditationStatsPage } from "./pages/meditation-stats.js";
 import { tripPage } from "./pages/trip.js";
 import { tripsPage } from "./pages/trips.js";
 import { SHOPPING_TABS, perText, shoppingPage } from "./pages/shopping.js";
-import { addToList, clearDone, createPrice, planList, productKey, removeListEntry, toggleListEntry } from "../grocery/grocery.js";
+import { addCustomItem, removeCustomItem, toggleListed, addToList, clearDone, createPrice, planList, productKey, removeListEntry, toggleListEntry } from "../grocery/grocery.js";
 import { getStore } from "../grocery/stores.js";
 import { mountMap } from "../travel/map.js";
 import { geocode } from "../travel/geocode.js";
@@ -525,6 +525,7 @@ export class App {
     "open-shopping": () => this.openPage("shopping"),
     "shopping-tab": (el) => this.#openShoppingTab(el.dataset.tab),
     "grocery-remove": (el) => this.#updateGrocery({ list: removeListEntry(this.repo.grocery().list, el.dataset.entry) }),
+    "catalog-remove": (el) => this.#updateGrocery({ custom: removeCustomItem(this.repo.grocery().custom, el.dataset.id) }),
     "grocery-clear": () => this.#updateGrocery({ list: clearDone(this.repo.grocery().list) }),
     "grocery-add-product": async (el) => {
       await this.#updateGrocery({ list: addToList(this.repo.grocery().list, el.dataset.product) });
@@ -644,6 +645,9 @@ export class App {
     if (el.dataset.action === "grocery-toggle") {
       return this.#updateGrocery({ list: toggleListEntry(this.repo.grocery().list, el.dataset.entry) });
     }
+    if (el.dataset.action === "catalog-toggle") {
+      return this.#updateGrocery({ list: toggleListed(this.repo.grocery().list, el.dataset.name) });
+    }
     if (el.dataset.action === "grocery-store") {
       const chosen = [...document.querySelectorAll("[data-action=grocery-store]:checked")].map((c) => c.value);
       return this.#updateGrocery({ stores: chosen });
@@ -684,6 +688,18 @@ export class App {
     if (e.target.id === "med-setup") return this.#startMeditation(e);
     if (e.target.dataset.role === "grocery-add") return this.#addGrocery(e);
     if (e.target.dataset.role === "price-add") return this.#addPrice(e);
+    if (e.target.dataset.role === "catalog-add") {
+      e.preventDefault();
+      const { category } = e.target.dataset;
+      const name = String(new FormData(e.target).get("name") ?? "").trim();
+      if (!name) return;
+      // Ajouté au catalogue et coché d'emblée (on l'ajoute parce qu'on en a besoin).
+      const g = this.repo.grocery();
+      return this.#updateGrocery(
+        { custom: addCustomItem(g.custom, name, category), list: addToList(g.list, name) },
+        `[data-role=catalog-add][data-category="${category}"] [name=name]`,
+      );
+    }
     if (e.target.classList.contains("place-add")) {
       e.preventDefault();
       const name = $("[data-role=place-input]", e.target).value;

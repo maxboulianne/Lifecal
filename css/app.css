@@ -885,3 +885,13 @@ body.player-open { overflow: hidden; }
 .price-rows .pr-store { flex: 0 0 auto; min-width: 84px; }
 .price-rows .badge-best { white-space: nowrap; }
 .price-rows .pr-price { flex: 1 1 0; min-width: 0; }
+
+/* Liste personnalisée : articles courants à cocher, par catégorie. */
+.catalog-intro { margin: 0 4px; }
+.catalog-grid { list-style: none; margin: 4px 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.catalog-item { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.catalog-item label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; min-height: var(--tap); padding: 0 10px; cursor: pointer; }
+.catalog-item input { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
+.catalog-item span { overflow-wrap: anywhere; }
+.catalog-item.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); font-weight: 600; }
+.catalog-item .check-remove { flex: none; width: 32px; }
