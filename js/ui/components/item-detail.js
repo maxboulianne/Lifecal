@@ -10,6 +10,8 @@ import { describeRule, streakText } from "./habit-text.js";
 import { stateLabel } from "./item-chip.js";
 import { entryContent } from "../../journal/journal.js";
 import { MOODS } from "../../meditation/catalog.js";
+import { hasFeature } from "../../config/modules.js";
+import { getChecklist, progress } from "../../data/checklist.js";
 
 const btn = (cls, action, item, label) =>
   `<button type="button" class="btn ${cls}" data-action="${action}" data-id="${esc(item.id)}" data-date="${esc(item.date)}">${label}</button>`;
@@ -37,6 +39,7 @@ export function itemDetail(item, { today }) {
     ${item.module === "meditation" ? meditationSummary(item) : ""}
     ${item.module === "journal" && !item.recurrence ? journalSummary(item) : ""}
     ${place}
+    ${hasFeature(item.module, "checklist") && !item.occurrence ? checklistSection(item) : ""}
     ${item.notes && item.module !== "journal" ? `<p class="detail-notes">${esc(item.notes)}</p>` : ""}
     ${source}
     <div class="actions stack">${item.occurrence ? habitActions(item) : itemActions(item)}</div>
@@ -67,6 +70,29 @@ function habitActions(occ) {
 }
 
 const MOOD_FACES = MOODS;
+
+function checklistSection(item) {
+  const list = getChecklist(item);
+  const p = progress(list);
+  const titleKey = `checklist.title.${item.module}`;
+  return `<section class="checklist" aria-labelledby="checklist-title">
+    <h3 id="checklist-title">${t(titleKey) === titleKey ? t("checklist.title") : t(titleKey)}
+      ${p.total ? `<span class="hint">${p.done}/${p.total}</span>` : ""}</h3>
+    ${list.length ? `<ul class="check-list">${list.map((e) => `<li class="${e.done ? "is-checked" : ""}">
+      <label class="check-row">
+        <input type="checkbox" data-action="check-toggle" data-id="${esc(item.id)}" data-entry="${esc(e.id)}" ${e.done ? "checked" : ""}>
+        <span>${esc(e.text)}</span>
+      </label>
+      <button type="button" class="check-remove" data-action="check-remove" data-id="${esc(item.id)}" data-entry="${esc(e.id)}"
+        aria-label="${esc(t("checklist.remove", { text: e.text }))}">×</button>
+    </li>`).join("")}</ul>` : ""}
+    ${p.complete ? `<p class="check-done">${t("checklist.allDone")}</p>` : ""}
+    <form class="check-add" data-id="${esc(item.id)}">
+      <input data-role="checklist-input" placeholder="${esc(t("checklist.placeholder"))}" aria-label="${esc(t("checklist.placeholder"))}" autocomplete="off">
+      <button type="submit" class="btn soft">${t("checklist.add")}</button>
+    </form>
+  </section>`;
+}
 
 function journalSummary(item) {
   const c = entryContent(item);

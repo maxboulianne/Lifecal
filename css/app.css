@@ -632,6 +632,27 @@ body.player-open { overflow: hidden; }
 .past-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .past-text span { color: var(--muted); font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
+/* ---- Listes à cocher --------------------------------------------------- */
+
+.chip-count { font-size: 0.75rem; opacity: 0.9; white-space: nowrap; }
+.checklist { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.checklist h3 { margin: 0 0 8px; font-size: 1rem; display: flex; justify-content: space-between; align-items: baseline; }
+.check-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.check-list li { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); }
+.check-row { flex: 1; display: flex; align-items: center; gap: 12px; min-height: var(--tap); cursor: pointer; }
+.check-row input { width: 24px; height: 24px; flex: none; accent-color: var(--c, var(--accent)); }
+.check-list li.is-checked .check-row span { text-decoration: line-through; color: var(--muted); }
+.check-remove {
+  width: 36px; height: 36px; border: none; border-radius: 50%; background: none;
+  color: var(--muted); font-size: 1.2rem; cursor: pointer;
+}
+.check-done { margin: 4px 0 8px; color: #15803d; font-weight: 600; }
+.check-add { display: flex; gap: 8px; }
+.check-add input {
+  flex: 1; min-width: 0; min-height: var(--tap); padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 16px;
+}
+
 /* ---- Message éphémère ------------------------------------------------- */
 
 .toast {
