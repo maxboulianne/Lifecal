@@ -3,6 +3,12 @@
 //   bell()              bol tibétain (plusieurs harmoniques qui s'éteignent lentement)
 //   startAmbience(id)   pluie, océan ou forêt (bruit filtré et modulé)
 //   stopAmbience()
+//
+// Sur iPad et iPhone :
+//  - Web Audio suit le mode silencieux de l'appareil, contrairement à la voix.
+//    On déclare donc la séance comme une « lecture » (audioSession), ou, sur
+//    les anciennes versions, on joue un son muet en boucle qui a le même effet.
+//  - La voix de synthèse peut interrompre le contexte audio : on le relance.
 
 const AudioCtx = globalThis.AudioContext ?? globalThis.webkitAudioContext;
 
@@ -10,6 +16,8 @@ export class MeditationAudio {
   #ctx = null;
   #ambience = null;
   #master = null;
+  #active = false; // une séance est en cours : le son doit continuer
+  #keepAlive = null;
 
   get supported() {
     return Boolean(AudioCtx);
@@ -18,13 +26,29 @@ export class MeditationAudio {
   // À appeler lors d'un toucher de l'utilisateur (exigence d'iOS).
   unlock() {
     if (!AudioCtx) return;
+    if (navigator.audioSession) navigator.audioSession.type = "playback";
+    else this.#startKeepAlive();
     if (!this.#ctx) {
       this.#ctx = new AudioCtx();
       this.#master = this.#ctx.createGain();
       this.#master.gain.value = 0.9;
       this.#master.connect(this.#ctx.destination);
+      this.#ctx.addEventListener?.("statechange", () => {
+        if (this.#active && this.#ctx.state !== "running" && this.#ctx.state !== "closed") this.#resume();
+      });
     }
-    if (this.#ctx.state === "suspended") this.#ctx.resume();
+    this.#resume();
+  }
+
+  #resume() {
+    if (this.#ctx.state !== "running") this.#ctx.resume().catch(() => {});
+  }
+
+  // Ancien iOS : un son muet en boucle fait passer l'appareil en mode lecture.
+  #startKeepAlive() {
+    if (typeof Audio === "undefined") return;
+    this.#keepAlive ??= Object.assign(new Audio(silentWav()), { loop: true });
+    this.#keepAlive.play().catch(() => {});
   }
 
   bell() {
@@ -58,6 +82,7 @@ export class MeditationAudio {
 
   startAmbience(id) {
     this.stopAmbience();
+    this.#active = true;
     const ctx = this.#ctx;
     if (!ctx || !id || id === "none") return;
     const make = { rain, ocean, forest }[id];
@@ -84,9 +109,34 @@ export class MeditationAudio {
     }, 2200);
   }
 
+  // Fin de séance : l'ambiance s'éteint, et l'appareil peut revenir au silence.
   close() {
     this.stopAmbience();
+    this.#active = false;
+    this.#keepAlive?.pause();
   }
+}
+
+// Un quart de seconde de silence au format WAV.
+function silentWav() {
+  const rate = 8000;
+  const samples = rate / 4;
+  const view = new DataView(new ArrayBuffer(44 + samples));
+  const text = (offset, str) => [...str].forEach((c, k) => view.setUint8(offset + k, c.charCodeAt(0)));
+  text(0, "RIFF");
+  view.setUint32(4, 36 + samples, true);
+  text(8, "WAVEfmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true); // 8 bits
+  text(36, "data");
+  view.setUint32(40, samples, true);
+  for (let i = 0; i < samples; i++) view.setUint8(44 + i, 128); // silence en 8 bits
+  return URL.createObjectURL(new Blob([view], { type: "audio/wav" }));
 }
 
 // ---- Ambiances ---------------------------------------------------------------
@@ -135,7 +185,7 @@ function rain(ctx, out) {
   lp.type = "lowpass";
   lp.frequency.value = 6000;
   const g = ctx.createGain();
-  g.gain.value = 0.35;
+  g.gain.value = 0.8;
   src.connect(hp).connect(lp).connect(g).connect(out);
   src.start();
   return [src];
@@ -148,10 +198,10 @@ function ocean(ctx, out) {
   lp.type = "lowpass";
   lp.frequency.value = 900;
   const g = ctx.createGain();
-  g.gain.value = 0.35;
+  g.gain.value = 0.6;
   src.connect(lp).connect(g).connect(out);
   src.start();
-  const wave = lfo(ctx, 0.09, 0.25, g.gain); // une vague toutes les ~11 s
+  const wave = lfo(ctx, 0.09, 0.4, g.gain); // une vague toutes les ~11 s
   const tone = lfo(ctx, 0.09, 500, lp.frequency);
   return [src, wave, tone];
 }
@@ -164,10 +214,10 @@ function forest(ctx, out) {
   bp.frequency.value = 700;
   bp.Q.value = 0.6;
   const g = ctx.createGain();
-  g.gain.value = 0.18;
+  g.gain.value = 0.8;
   src.connect(bp).connect(g).connect(out);
   src.start();
-  const wind = lfo(ctx, 0.05, 0.08, g.gain);
+  const wind = lfo(ctx, 0.05, 0.3, g.gain);
 
   let stopped = false;
   const chirp = () => {
@@ -182,7 +232,7 @@ function forest(ctx, out) {
       osc.frequency.setValueAtTime(f, start);
       osc.frequency.exponentialRampToValueAtTime(f * (1.25 + Math.random() * 0.3), start + 0.08);
       cg.gain.setValueAtTime(0.0001, start);
-      cg.gain.exponentialRampToValueAtTime(0.035, start + 0.02);
+      cg.gain.exponentialRampToValueAtTime(0.08, start + 0.02);
       cg.gain.exponentialRampToValueAtTime(0.0001, start + 0.1);
       osc.connect(cg).connect(out);
       osc.start(start);
