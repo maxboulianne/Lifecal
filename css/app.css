@@ -346,7 +346,7 @@ button { font: inherit; color: inherit; }
 
 /* Formulaire */
 .form label { display: block; margin-bottom: 12px; font-size: 0.9rem; color: var(--muted); }
-.form input:not([type=radio]):not([type=checkbox]), .form textarea {
+.form input:not([type=radio]):not([type=checkbox]), .form textarea, .form select {
   display: block;
   width: 100%;
   margin-top: 4px;
@@ -816,3 +816,72 @@ body.player-open { overflow: hidden; }
 /* Volume de l'ambiance, sous les boutons du lecteur. */
 .player-volume { display: flex; align-items: center; gap: 10px; width: min(100%, 260px); font-size: 1.1rem; }
 .player-volume .player-volume-range { flex: 1; }
+
+/* ---- Épicerie : liste par épicerie, carnet de prix ---------------------- */
+.segmented.tabs { width: 100%; }
+.segmented.tabs button { flex: 1; padding: 0 6px; font-size: 0.92rem; }
+.print-only { display: none; }
+.grocery-add { display: flex; gap: 8px; padding: 12px; }
+.grocery-add input, .grocery-search {
+  min-width: 0; min-height: var(--tap); padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 16px;
+}
+.grocery-add input[name=product] { flex: 1; }
+.grocery-add .g-qty { width: 76px; flex: none; }
+.grocery-search { width: 100%; }
+.grocery-tools { display: flex; flex-direction: column; gap: 4px; padding: 0 4px; }
+.grocery-tools .actions { margin-top: 4px; }
+.store-group { border-left: 5px solid var(--c, var(--line)); }
+.store-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 4px; }
+.store-head h2, .store-head h3 { margin: 0; font-size: 1.1rem; }
+.store-head .btn.link { margin-left: auto; }
+.store-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+.grocery-list, .price-rows, .store-list { list-style: none; margin: 0; padding: 0; }
+.grocery-list > li {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 4px 0; border-bottom: 1px solid var(--line);
+}
+.grocery-list > li:last-child { border-bottom: none; }
+.grocery-list .check-row { flex: 1 1 180px; min-width: 0; }
+.grocery-list li.is-checked .g-name { text-decoration: line-through; color: var(--muted); }
+.g-price { display: flex; flex-direction: column; align-items: flex-end; text-align: right; font-size: 0.95rem; }
+.g-price small { color: var(--muted); font-size: 0.8rem; }
+.g-price .g-save { color: #15803d; }
+.g-compare { flex-basis: 100%; margin: 0 0 6px 36px; font-size: 0.9rem; }
+.g-compare summary { cursor: pointer; color: var(--muted); min-height: 32px; display: flex; align-items: center; }
+.g-compare ol { margin: 4px 0 0; padding: 0; list-style: none; }
+.g-compare ol li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.g-compare ol li strong { margin-left: auto; font-weight: 500; }
+.g-compare li.is-best strong { color: #15803d; font-weight: 700; }
+.price-form .switch { margin-top: 4px; }
+.price-rows > li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.price-rows > li:last-child { border-bottom: none; }
+.price-rows .pr-store { flex: 1; min-width: 0; }
+.price-rows .pr-price { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.price-rows .pr-price small { color: var(--muted); font-size: 0.8rem; }
+.price-rows li.is-best .pr-price strong { color: #15803d; }
+.price-rows li.is-expired { opacity: 0.55; }
+.badge-best { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 0.75rem; font-weight: 600; }
+.store-list > li { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.store-list > li:last-child { border-bottom: none; }
+.store-list .check-row { flex: 1; }
+@media (prefers-color-scheme: dark) {
+  .g-price .g-save, .g-compare li.is-best strong, .price-rows li.is-best .pr-price strong { color: #4ade80; }
+  .badge-best { background: #14532d; color: #bbf7d0; }
+}
+
+/* Impression (ou PDF) de la liste : seulement les articles, avec leurs cases. */
+@media print {
+  #topbar, #legend, #nudges, #fab, #toast, .no-print { display: none !important; }
+  .print-only { display: block; }
+  .print-title { font-size: 1.2rem; font-weight: 700; margin: 0 0 8px; }
+  body { background: #fff; color: #000; }
+  .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+  .grocery-list input[type=checkbox] { width: 18px; height: 18px; }
+}
+.form select { appearance: auto; }
+.price-rows .pr-store { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.price-rows .badge-best { margin-left: 0; }
+.price-rows .pr-price { flex: 0 1 auto; }
+.price-rows .pr-store { flex: 0 0 auto; min-width: 84px; }
+.price-rows .badge-best { white-space: nowrap; }
+.price-rows .pr-price { flex: 1 1 0; min-width: 0; }

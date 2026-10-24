@@ -1,14 +1,15 @@
 // Versions du schéma de données et migrations.
 //
 // Le document enregistré a la forme :
-//   { schemaVersion, items: [...], settings: {...} }
+//   { schemaVersion, items: [...], settings: {...}, grocery: {...} }
 //
 // Pour faire évoluer le format : incrémenter SCHEMA_VERSION et ajouter une
 // fonction dans MIGRATIONS qui transforme la version N-1 en version N.
 
 import { normalizeItem } from "./item.js";
+import { emptyGrocery, normalizeGrocery } from "../grocery/grocery.js";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 // Clé utilisée par le prototype calendrier.html (un simple tableau d'éléments).
 export const LEGACY_KEY = "items";
@@ -25,7 +26,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
 });
 
 export function emptyDocument() {
-  return { schemaVersion: SCHEMA_VERSION, items: [], settings: structuredClone(DEFAULT_SETTINGS) };
+  return { schemaVersion: SCHEMA_VERSION, items: [], settings: structuredClone(DEFAULT_SETTINGS), grocery: emptyGrocery() };
 }
 
 const MIGRATIONS = {
@@ -38,6 +39,10 @@ const MIGRATIONS = {
       return normalizeItem({ ...raw, createdAt: raw.createdAt ?? created, updatedAt: raw.updatedAt ?? created });
     });
     return { schemaVersion: 2, items, settings: { ...structuredClone(DEFAULT_SETTINGS), ...(doc.settings ?? {}) } };
+  },
+  // v2 -> v3 : carnet de prix et liste d'épicerie.
+  3(doc) {
+    return { ...doc, schemaVersion: 3, grocery: emptyGrocery() };
   },
 };
 
@@ -57,6 +62,7 @@ export function migrate(input) {
   }
   doc.items = doc.items.map(normalizeItem);
   doc.settings = { ...structuredClone(DEFAULT_SETTINGS), ...doc.settings };
+  doc.grocery = normalizeGrocery(doc.grocery);
   return doc;
 }
 

@@ -149,6 +149,18 @@ export class Repository extends Emitter {
     return this.update(id, { status: STATUS.ACTIVE });
   }
 
+  // ---- Épicerie (carnet de prix, liste) -------------------------------------
+
+  grocery() {
+    return this.#doc.grocery;
+  }
+
+  // patch : { stores?, prices?, list? } (nouvelles valeurs complètes)
+  async updateGrocery(patch) {
+    this.#doc.grocery = { ...this.#doc.grocery, ...patch };
+    await this.#commit("grocery", null);
+  }
+
   async updateSettings(patch) {
     Object.assign(this.#doc.settings, patch);
     await this.#commit("settings", this.#doc.settings);

@@ -111,6 +111,8 @@ export const fmt = {
     const [h, m] = hhmm.split(":").map(Number);
     return dtf("time", { hour: "numeric", minute: "2-digit" }).format(new Date(2026, 0, 1, h, m));
   },
+  // « 28 oct. »
+  dayMonth: (d) => dtf("dayMonth", { day: "numeric", month: "short" }).format(d),
   // « 23 octobre 2026 »
   date: (d) => dtf("date", { day: "numeric", month: "long", year: "numeric" }).format(d),
   // « 19 – 25 octobre 2026 »
@@ -127,5 +129,7 @@ export const fmt = {
   },
   // « 3,5 » en français, « 3.5 » en anglais
   decimal: (n) => memo("dec", () => new Intl.NumberFormat(lang.intl, { maximumFractionDigits: 1 })).format(n),
+  // « 4,99 $ » en français, « $4.99 » en anglais (dollars canadiens)
+  money: (n) => memo("money", () => new Intl.NumberFormat(lang.intl, { style: "currency", currency: "CAD" })).format(n),
   percent: (ratio) => memo("pct", () => new Intl.NumberFormat(lang.intl, { style: "percent" })).format(ratio),
 };
