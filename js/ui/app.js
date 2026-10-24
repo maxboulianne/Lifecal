@@ -14,7 +14,7 @@ import { ValidationError } from "../data/repository.js";
 import { isCancelled } from "../data/item.js";
 import { addEntry, fromLines, getChecklist, progress, removeEntry, toggleEntry } from "../data/checklist.js";
 import { getCurrentPosition, watchPosition } from "../geo/geo.js";
-import { getLanguage, setLanguage, t, tList } from "../i18n/index.js";
+import { fmt, getLanguage, setLanguage, t, tList } from "../i18n/index.js";
 import { itemDetail } from "./components/item-detail.js";
 import { itemForm, readItemForm, syncRepeatFields } from "./components/item-form.js";
 import { closeModal, openModal, setupModal } from "./components/modal.js";
@@ -34,8 +34,9 @@ import { SHOPPING_TABS, perText, shoppingPage } from "./pages/shopping.js";
 import { parseAmount, addCustomItem, fromChecklist, looksLikeGroceryList, removeCustomItem, toChecklist, toggleListed, addToList, clearDone, createPrice, planList, productKey, removeListEntry, toggleListEntry } from "../grocery/grocery.js";
 import { getStore } from "../grocery/stores.js";
 import { mountMap } from "../travel/map.js";
+import { MAX_CHAINS, fetchHotels, fetchSuggestions, getChain } from "../travel/discover.js";
 import { geocode } from "../travel/geocode.js";
-import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited } from "../travel/trip.js";
+import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited, cachedHotels, cachedSuggestions, destQuery, getDest, hotelsKey, suggestionsKey } from "../travel/trip.js";
 import { settingsPage } from "./pages/settings.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
 import { MeditationAudio } from "../meditation/audio.js";
@@ -218,6 +219,7 @@ export class App {
         statsPeriod: this.statsPeriod,
         statsOffset: this.statsOffset,
         tripId: this.tripId,
+        tripStatus: this.#tripStatus[this.tripId] ?? {},
         shoppingTab: this.shoppingTab,
         groceryPrefill: this.groceryPrefill,
         lastStore: this.lastStore,
@@ -226,7 +228,10 @@ export class App {
         count: this.repo.all().length,
       });
       $("#nudges").innerHTML = "";
-      if (this.page === "trip") this.#mountTripMap();
+      if (this.page === "trip") {
+        this.#mountTripMap();
+        this.#discoverTrip(this.tripId);
+      }
       if (this.page === "shopping" && this.catalogQuery) {
         const search = $("[data-role=catalog-search]");
         if (search) search.value = this.catalogQuery;
@@ -488,11 +493,16 @@ export class App {
   }
 
   // Carte du voyage : montée après le rendu de la page (Leaflet a besoin du DOM).
+  // Centrée sur la destination, avec les lieux et les hôtels des chaînes choisies.
   #mountTripMap() {
     const el = $("#trip-map");
     if (!el) return;
     const trip = this.repo.get(el.dataset.id);
-    mountMap(el, located(getPlaces(trip)), { color: MODULES.voyage.color })
+    const hotels = (cachedHotels(trip) ?? []).map((h) => ({
+      ...h, color: getChain(h.chain).color, chainName: getChain(h.chain).name,
+      distance: t("trip.hotelDistance", { km: fmt.decimal(h.km) }),
+    }));
+    mountMap(el, { center: getDest(trip), places: located(getPlaces(trip)), hotels, color: MODULES.voyage.color, labels: { website: t("trip.website") } })
       .then((map) => {
         // La page a pu être redessinée pendant le chargement de la carte.
         if (el.isConnected) this.#map = map;
@@ -503,6 +513,69 @@ export class App {
         el.hidden = true;
         $("[data-role=map-status]").textContent = t("trip.mapOffline");
       });
+  }
+
+  // État des recherches d'un voyage (en mémoire seulement) :
+  // { dest, suggestions, hotels } = "loading" | "notfound" | "offline", et les clés déjà tentées.
+  #tripStatus = {};
+
+  #rerenderTrip(id) {
+    if (this.page !== "trip" || this.tripId !== id) return;
+    const top = window.scrollY;
+    this.render();
+    window.scrollTo(0, top);
+  }
+
+  // Trouve la destination sur la carte, puis les lieux célèbres, puis les hôtels
+  // des chaînes choisies. Chaque recherche n'est faite qu'une fois ; le résultat
+  // est gardé dans le voyage (consultable ensuite sans Internet).
+  async #discoverTrip(id) {
+    const status = (this.#tripStatus[id] ??= {});
+    const lang = getLanguage();
+    let trip = this.repo.get(id);
+    if (!trip) return;
+    const query = destQuery(trip);
+    if (query && !getDest(trip)) {
+      if (status.destKey === query) return; // déjà en cours, introuvable ou hors ligne
+      status.destKey = query;
+      status.dest = "loading";
+      this.#rerenderTrip(id);
+      try {
+        const hit = await geocode(query, lang);
+        status.dest = hit ? undefined : "notfound";
+        if (hit) await this.#updateData(id, { dest: { query, lat: hit.lat, lng: hit.lng } });
+        else this.#rerenderTrip(id);
+      } catch {
+        status.dest = "offline";
+        this.#rerenderTrip(id);
+      }
+      return; // la page redessinée relance la suite
+    }
+    const dest = getDest(trip);
+    if (!dest) return;
+    const sKey = suggestionsKey(trip, lang);
+    if (cachedSuggestions(trip, lang) === null && status.suggestionsKey !== sKey) {
+      status.suggestionsKey = sKey;
+      try {
+        const items = await fetchSuggestions(dest, lang, { exclude: [query, trip.title] });
+        await this.#updateData(id, { suggestions: { key: sKey, items } });
+      } catch {
+        status.suggestions = "offline";
+        this.#rerenderTrip(id);
+      }
+    }
+    trip = this.repo.get(id);
+    const hKey = hotelsKey(trip);
+    if (hKey && cachedHotels(trip) === null && status.hotelsKey !== hKey) {
+      status.hotelsKey = hKey;
+      try {
+        const items = await fetchHotels(trip.data.hotelChains, getDest(trip));
+        if (hotelsKey(this.repo.get(id)) === hKey) await this.#updateData(id, { hotels: { key: hKey, items } });
+      } catch {
+        status.hotels = "offline";
+        this.#rerenderTrip(id);
+      }
+    }
   }
 
   async #locatePlace(el) {
@@ -545,6 +618,19 @@ export class App {
       return this.#updateData(trip.id, { places: removePlace(getPlaces(trip), el.dataset.entry) });
     },
     "place-locate": (el) => this.#locatePlace(el),
+    // Ajouter un lieu célèbre suggéré (déjà placé sur la carte).
+    "suggestion-add": (el) => {
+      const trip = this.repo.get(el.dataset.id);
+      const s = cachedSuggestions(trip, getLanguage())?.[Number(el.dataset.index)];
+      if (!s) return;
+      const list = addPlace(getPlaces(trip), s.name);
+      toast(t("trip.located", { name: s.name }));
+      return this.#updateData(trip.id, { places: setPlaceCoords(list, list.at(-1).id, s) });
+    },
+    "trip-retry": (el) => {
+      delete this.#tripStatus[el.dataset.id];
+      this.#rerenderTrip(el.dataset.id);
+    },
     "open-medstats": () => {
       this.statsOffset = 0;
       this.openPage("medstats");
@@ -777,6 +863,14 @@ export class App {
     if (el.dataset.action === "grocery-deal") {
       el.form.querySelector("[data-role=until]").hidden = !el.checked;
       return;
+    }
+    if (el.dataset.action === "hotel-chain") {
+      const chosen = [...document.querySelectorAll("[data-action=hotel-chain]:checked")].map((c) => c.value);
+      if (chosen.length > MAX_CHAINS) {
+        el.checked = false;
+        return toast(t("trip.hotelsMax", { max: MAX_CHAINS }));
+      }
+      return this.#updateData(el.dataset.id, { hotelChains: chosen });
     }
     if (el.dataset.action === "place-toggle") {
       const trip = this.repo.get(el.dataset.id);

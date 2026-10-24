@@ -923,3 +923,23 @@ body.player-open { overflow: hidden; }
 .event-meta { color: var(--muted); font-size: 0.85rem; }
 .event-when { flex: none; max-width: 40%; text-align: right; font-weight: 600; color: var(--c); }
 .card .event-text .hint { margin: 0; }
+
+/* Voyage : lieux célèbres suggérés et hôtels des grandes chaînes. */
+.trip-status-line { margin: 4px 0; }
+.suggestions { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.suggestions h3 { margin: 0 0 2px; font-size: 1rem; }
+.suggestion-list, .hotel-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.suggestion-list > li, .hotel-list > li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.suggestion-list > li:last-child, .hotel-list > li:last-child { border-bottom: none; }
+.suggestion-text, .hotel-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.card .suggestion-text .hint, .card .hotel-text .hint { margin: 0; }
+.small-btn { min-height: 36px; padding: 0 12px; font-size: 0.9rem; white-space: nowrap; }
+.chain-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; margin: 8px 0; }
+.chain-option {
+  display: flex; align-items: center; gap: 8px; min-height: var(--tap); padding: 0 10px;
+  border: 1px solid var(--line); border-left: 4px solid var(--hc); border-radius: 10px; background: var(--bg); cursor: pointer;
+}
+.chain-option input { width: 20px; height: 20px; accent-color: var(--hc); flex: none; }
+.chain-option:has(input:checked) { font-weight: 600; background: color-mix(in srgb, var(--hc) 10%, var(--surface)); }
+.hotel-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--hc); flex: none; }
+.hotel-list .btn.link { white-space: nowrap; }

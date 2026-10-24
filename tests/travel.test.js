@@ -62,3 +62,59 @@ test("recherche d'un lieu : résultat, aucun résultat", async () => {
   const fetchEmpty = async () => ({ ok: true, json: async () => [] });
   assert.equal(await geocode("zzz", "fr", fetchEmpty), null);
 });
+
+import { HOTEL_CHAINS, classifyChain, fetchHotels, fetchSuggestions, hotelsQuery, parseHotels, parseSuggestions, suggestionsUrl } from "../js/travel/discover.js";
+
+const milan = { lat: 45.4642, lng: 9.19 };
+
+test("lieux célèbres : classés par lectures, sans gares, rues ni la ville elle-même", async () => {
+  const json = { query: { pages: [
+    { title: "Milan", description: "ville d'Italie", coordinates: [{ lat: 45.46, lon: 9.19 }], pageviews: { a: 90000 } },
+    { title: "Cathédrale de Milan", description: "cathédrale gothique", coordinates: [{ lat: 45.4641, lon: 9.1919 }], pageviews: { a: 5000, b: 4000 }, fullurl: "https://fr.wikipedia.org/wiki/Cath%C3%A9drale_de_Milan" },
+    { title: "Gare de Milan-Centrale", description: "gare ferroviaire", coordinates: [{ lat: 45.48, lon: 9.2 }], pageviews: { a: 8000 } },
+    { title: "La Scala", description: "opéra", coordinates: [{ lat: 45.4674, lon: 9.1895 }], pageviews: { a: 7000, b: null } },
+    { title: "Sans position", description: "musée", pageviews: { a: 99999 } },
+  ] } };
+  const list = parseSuggestions(json, { exclude: ["Milan"] });
+  assert.deepEqual(list.map((s) => [s.name, s.views]), [["Cathédrale de Milan", 9000], ["La Scala", 7000]]);
+  assert.equal(list[0].url, "https://fr.wikipedia.org/wiki/Cath%C3%A9drale_de_Milan");
+  assert.deepEqual([list[0].lat, list[0].lng], [45.4641, 9.1919]);
+  // Ancien format (pages en objet) accepté aussi
+  assert.equal(parseSuggestions({ query: { pages: { 1: json.query.pages[1] } } }).length, 1);
+  const url = new URL(suggestionsUrl(milan, "fr"));
+  assert.equal(url.host, "fr.wikipedia.org");
+  assert.equal(url.searchParams.get("ggscoord"), "45.4642|9.19");
+  assert.equal(url.searchParams.get("origin"), "*");
+  let asked = "";
+  const out = await fetchSuggestions(milan, "en", { fetchImpl: async (u) => { asked = u; return { ok: true, json: async () => json }; } });
+  assert.match(asked, /^https:\/\/en\.wikipedia\.org/);
+  assert.equal(out.length, 2, "la ville elle-même est écartée par sa description");
+});
+
+test("hôtels : chaîne reconnue par la marque ou le nom, 25 km, triés par distance", async () => {
+  assert.equal(classifyChain({ brand: "Courtyard", name: "Courtyard Milan Linate" }, ["marriott", "hilton"]), "marriott");
+  assert.equal(classifyChain({ name: "Hampton by Hilton Milan Bicocca" }, ["marriott", "hilton"]), "hilton");
+  assert.equal(classifyChain({ name: "Hotel Rosa" }, ["marriott", "hilton"]), null);
+  assert.equal(classifyChain({ name: "Hilton Milan" }, ["marriott"]), null, "chaîne non choisie");
+  const json = { elements: [
+    { type: "node", id: 1, lat: 45.47, lon: 9.2, tags: { tourism: "hotel", name: "Hilton Milan", brand: "Hilton", website: "https://hilton.example/milan" } },
+    { type: "way", id: 2, center: { lat: 45.4645, lon: 9.191 }, tags: { tourism: "hotel", name: "DoubleTree by Hilton Milan" } },
+    { type: "node", id: 1, lat: 45.47, lon: 9.2, tags: { tourism: "hotel", name: "Hilton Milan", brand: "Hilton" } }, // doublon
+    { type: "node", id: 3, lat: 46.2, lon: 9.2, tags: { tourism: "hotel", name: "Hilton Lontano" } }, // > 25 km
+    { type: "node", id: 4, lat: 45.47, lon: 9.2, tags: { tourism: "hotel", name: "Albergo Rosa" } },
+  ] };
+  const hotels = parseHotels(json, ["hilton"], milan);
+  assert.deepEqual(hotels.map((h) => [h.name, h.chain]), [["DoubleTree by Hilton Milan", "hilton"], ["Hilton Milan", "hilton"]]);
+  assert.equal(hotels[1].url, "https://hilton.example/milan");
+  assert.equal(hotels[0].url, "https://www.hilton.com", "sans site : le site de la chaîne");
+  assert.ok(hotels[0].km < hotels[1].km);
+  const q = hotelsQuery(["hilton", "accor"], milan);
+  assert.match(q, /around:25000,45.4642,9.19/);
+  assert.match(q, /DoubleTree/);
+  assert.match(q, /Novotel/);
+  let body = "";
+  await fetchHotels(["hilton"], milan, { fetchImpl: async (u, o) => { body = o.body; return { ok: true, json: async () => json }; } });
+  assert.match(decodeURIComponent(body), /tourism"="hotel/);
+  assert.equal(HOTEL_CHAINS.length, 9);
+  for (const c of HOTEL_CHAINS) assert.doesNotThrow(() => new RegExp(c.brands), c.id);
+});
