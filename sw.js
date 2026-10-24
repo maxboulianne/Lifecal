@@ -3,10 +3,13 @@
 // Stratégie « réseau d'abord » : avec une connexion, on charge toujours la
 // dernière version (les mises à jour arrivent toutes seules) et on en garde
 // une copie ; sans connexion, ou si le réseau tarde trop, on sert la copie.
+// Chaque fichier est revérifié auprès du serveur (cache: "no-cache") : sans
+// cela, le navigateur pouvait resservir une ancienne version jusqu'à 10 minutes
+// après une mise à jour (GitHub Pages autorise ce délai).
 // Les données (calendrier, journal…) ne passent jamais par ici : elles
 // restent dans le stockage du navigateur.
 
-const CACHE = "lifecal-v1";
+const CACHE = "lifecal-v2";
 const NETWORK_TIMEOUT_MS = 4000;
 
 // Le minimum pour ouvrir l'app hors ligne ; le reste des fichiers
@@ -14,7 +17,7 @@ const NETWORK_TIMEOUT_MS = 4000;
 const SHELL = ["./", "index.html", "css/app.css", "js/main.js", "manifest.webmanifest", "icon.svg", "apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL.map(fresh))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -32,7 +35,7 @@ self.addEventListener("message", (event) => {
   const urls = (event.data.urls ?? []).filter((u) => new URL(u).origin === self.location.origin);
   event.waitUntil(
     caches.open(CACHE).then((cache) =>
-      Promise.all(urls.map((u) => cache.match(u).then((hit) => hit || cache.add(u)).catch(() => {}))),
+      Promise.all(urls.map((u) => cache.match(u).then((hit) => hit || cache.add(fresh(u))).catch(() => {}))),
     ),
   );
 });
@@ -46,7 +49,7 @@ self.addEventListener("fetch", (event) => {
 
 async function networkFirst(request) {
   const cache = await caches.open(CACHE);
-  const network = fetch(request).then((response) => {
+  const network = fetch(fresh(request.url)).then((response) => {
     if (response.ok) cache.put(request, response.clone());
     return response;
   });
@@ -63,5 +66,9 @@ async function networkFirst(request) {
     return network;
   }
 }
+
+// Demande au serveur si le fichier a changé (réponse « pas changé » très
+// légère sinon), plutôt que de se fier à la copie du navigateur.
+const fresh = (url) => new Request(url, { cache: "no-cache", credentials: "same-origin" });
 
 const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms));
