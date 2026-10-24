@@ -3,6 +3,7 @@ import { esc } from "../../core/dom.js";
 import { isCancelled } from "../../data/item.js";
 import { fmt, t } from "../../i18n/index.js";
 import { getChecklist, progress } from "../../data/checklist.js";
+import { EVENT_MODULE, kindIcon } from "../../events/events.js";
 
 const stateClass = (item) =>
   [item.done && "is-done", isCancelled(item) && "is-cancelled", item.occurrence?.optional && "is-optional"]
@@ -33,7 +34,7 @@ export function itemChip(item, { detailed = false } = {}) {
   return `<button type="button" class="chip ${stateClass(item)}" style="--c:${m.color}"
     data-action="open-item" data-id="${esc(item.id)}" data-date="${esc(item.date)}" aria-label="${esc(label)}">
     ${item.done ? '<span class="chip-check" aria-hidden="true">✓</span>' : ""}${time}
-    <span class="chip-title">${esc(item.title)}</span>${repeat}${span}${count}${place}
+    <span class="chip-title">${item.module === EVENT_MODULE ? `${kindIcon(item)} ` : ""}${esc(item.title)}</span>${repeat}${span}${count}${place}
   </button>`;
 }
 

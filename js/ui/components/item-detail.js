@@ -13,6 +13,8 @@ import { MOODS } from "../../meditation/catalog.js";
 import { hasFeature } from "../../config/modules.js";
 import { getChecklist, progress } from "../../data/checklist.js";
 import { tripDates, tripStatusText } from "./trip-text.js";
+import { EVENT_MODULE, ageOn, budgetOf, eventKind, kindIcon } from "../../events/events.js";
+import { diffDays } from "../../core/dates.js";
 
 const btn = (cls, action, item, label) =>
   `<button type="button" class="btn ${cls}" data-action="${action}" data-id="${esc(item.id)}" data-date="${esc(item.date)}">${label}</button>`;
@@ -36,14 +38,16 @@ export function itemDetail(item, { today }) {
     <h2 id="detail-title">${esc(item.title)}</h2>
     ${badge}
     ${item.module === "voyage" ? tripSummary(item, today) : `<p class="detail-line">🕒 ${when}</p>`}
-    ${item.occurrence ? habitSummary(item, today) : ""}
+    ${item.occurrence && item.module !== EVENT_MODULE ? habitSummary(item, today) : ""}
+    ${item.module === EVENT_MODULE ? eventSummary(item, today) : ""}
     ${item.module === "meditation" ? meditationSummary(item) : ""}
     ${item.module === "journal" && !item.recurrence ? journalSummary(item) : ""}
     ${place}
-    ${hasFeature(item.module, "checklist") && !item.occurrence ? checklistSection(item) : ""}
+    ${item.module === EVENT_MODULE ? eventLists(item)
+      : hasFeature(item.module, "checklist") && !item.occurrence ? checklistSection(item) : ""}
     ${item.notes && item.module !== "journal" ? `<p class="detail-notes">${esc(item.notes)}</p>` : ""}
     ${source}
-    <div class="actions stack">${item.occurrence ? habitActions(item) : itemActions(item)}</div>
+    <div class="actions stack">${item.occurrence ? (item.module === EVENT_MODULE ? eventActions(item) : habitActions(item)) : itemActions(item)}</div>
   </article>`;
 }
 
@@ -52,6 +56,37 @@ function tripSummary(item, today) {
   const trip = { ...item, date: item.span?.start ?? item.date };
   return `<p class="detail-line">🗓️ ${esc(tripDates(trip))}${item.time ? ` · ${fmt.time(item.time)}` : ""}</p>
     <p class="detail-line">⏳ ${esc(tripStatusText(trip, today))}</p>`;
+}
+
+// Fête, anniversaire ou événement : type, âge, compte à rebours, budget.
+function eventSummary(item, today) {
+  const kind = eventKind(item);
+  const age = ageOn(item, item.date);
+  const days = diffDays(today, item.date);
+  const budget = budgetOf(item);
+  return `<p class="detail-line">${kindIcon(item)} ${esc(t(`event.kind.${kind}`))}${age ? ` · ${esc(t(`event.age.${kind}`, { count: age }))}` : ""}</p>
+    ${days >= 0 ? `<p class="detail-line">⏳ ${esc(capitalize(fmt.inDays(days)))}</p>` : ""}
+    ${budget ? `<p class="detail-line">💰 ${esc(t("event.budgetLine", { amount: fmt.amount(budget) }))}</p>` : ""}`;
+}
+
+const capitalize = (s) => s.charAt(0).toLocaleUpperCase() + s.slice(1);
+
+// Idées cadeaux, invités, à préparer.
+function eventLists(item) {
+  return [
+    checklistSection(item, { field: "gifts", title: t("event.gifts"), placeholder: t("event.giftsPlaceholder"), doneText: t("event.giftsDone") }),
+    checklistSection(item, { field: "guests", title: t("event.guests"), placeholder: t("event.guestsPlaceholder"), doneText: t("event.guestsDone") }),
+    checklistSection(item, { field: "checklist", title: t("event.prep") }),
+  ].join("");
+}
+
+// Une fête qui revient chaque année : modifier, supprimer, fermer.
+function eventActions(occ) {
+  return [
+    btn("soft", "edit-item", occ, t("detail.edit")),
+    btn("danger", "delete-item", occ, t("detail.delete")),
+    `<button type="button" class="btn ghost" data-action="close">${t("detail.close")}</button>`,
+  ].join("");
 }
 
 function habitSummary(occ, today) {
@@ -79,24 +114,30 @@ function habitActions(occ) {
 
 const MOOD_FACES = MOODS;
 
-export function checklistSection(item) {
-  const list = getChecklist(item);
+// Une liste à cocher de l'élément. `field` : "checklist" (par défaut), ou une
+// autre liste rangée dans item.data (idées cadeaux, invités d'un événement).
+export function checklistSection(item, { field = "checklist", title = null, placeholder = null, doneText = null } = {}) {
+  const list = getChecklist(item, field);
   const p = progress(list);
   const titleKey = `checklist.title.${item.module}`;
-  return `<section class="checklist" aria-labelledby="checklist-title-${esc(item.id)}">
-    <h3 id="checklist-title-${esc(item.id)}">${t(titleKey) === titleKey ? t("checklist.title") : t(titleKey)}
+  const heading = title ?? (t(titleKey) === titleKey ? t("checklist.title") : t(titleKey));
+  const hint = placeholder ?? t("checklist.placeholder");
+  const ids = `data-id="${esc(item.id)}" data-field="${field}"`;
+  const titleId = `checklist-title-${esc(item.id)}-${field}`;
+  return `<section class="checklist" aria-labelledby="${titleId}">
+    <h3 id="${titleId}">${esc(heading)}
       ${p.total ? `<span class="hint">${p.done}/${p.total}</span>` : ""}</h3>
     ${list.length ? `<ul class="check-list">${list.map((e) => `<li class="${e.done ? "is-checked" : ""}">
       <label class="check-row">
-        <input type="checkbox" data-action="check-toggle" data-id="${esc(item.id)}" data-entry="${esc(e.id)}" ${e.done ? "checked" : ""}>
+        <input type="checkbox" data-action="check-toggle" ${ids} data-entry="${esc(e.id)}" ${e.done ? "checked" : ""}>
         <span>${esc(e.text)}</span>
       </label>
-      <button type="button" class="check-remove" data-action="check-remove" data-id="${esc(item.id)}" data-entry="${esc(e.id)}"
+      <button type="button" class="check-remove" data-action="check-remove" ${ids} data-entry="${esc(e.id)}"
         aria-label="${esc(t("checklist.remove", { text: e.text }))}">×</button>
     </li>`).join("")}</ul>` : ""}
-    ${p.complete ? `<p class="check-done">${t("checklist.allDone")}</p>` : ""}
-    <form class="check-add" data-id="${esc(item.id)}">
-      <input data-role="checklist-input" placeholder="${esc(t("checklist.placeholder"))}" aria-label="${esc(t("checklist.placeholder"))}" autocomplete="off">
+    ${p.complete ? `<p class="check-done">${esc(doneText ?? t("checklist.allDone"))}</p>` : ""}
+    <form class="check-add" ${ids}>
+      <input data-role="checklist-input" placeholder="${esc(hint)}" aria-label="${esc(hint)}" autocomplete="off">
       <button type="submit" class="btn soft">${t("checklist.add")}</button>
     </form>
   </section>`;

@@ -29,8 +29,9 @@ import { meditationPage, setupContent, setupSheet } from "./pages/meditation.js"
 import { meditationStatsPage } from "./pages/meditation-stats.js";
 import { tripPage } from "./pages/trip.js";
 import { tripsPage } from "./pages/trips.js";
+import { eventsPage } from "./pages/events.js";
 import { SHOPPING_TABS, perText, shoppingPage } from "./pages/shopping.js";
-import { addCustomItem, fromChecklist, looksLikeGroceryList, removeCustomItem, toChecklist, toggleListed, addToList, clearDone, createPrice, planList, productKey, removeListEntry, toggleListEntry } from "../grocery/grocery.js";
+import { parseAmount, addCustomItem, fromChecklist, looksLikeGroceryList, removeCustomItem, toChecklist, toggleListed, addToList, clearDone, createPrice, planList, productKey, removeListEntry, toggleListEntry } from "../grocery/grocery.js";
 import { getStore } from "../grocery/stores.js";
 import { mountMap } from "../travel/map.js";
 import { geocode } from "../travel/geocode.js";
@@ -69,6 +70,7 @@ const PAGES = {
   meditation: meditationPage,
   medstats: meditationStatsPage,
   trips: tripsPage,
+  events: eventsPage,
   trip: tripPage,
   shopping: shoppingPage,
   habits: habitsPage,
@@ -193,8 +195,8 @@ export class App {
     ).join("");
     $("#legend").setAttribute("aria-label", t("nav.modules"));
     // Sur les pages Habitudes, Commissions et Voyages, le + crée un élément de ce module.
-    const fabModule = { shopping: "commission", trips: "voyage" }[this.page] ?? "";
-    $("#fab").setAttribute("aria-label", t({ habits: "habits.add", shopping: "shopping.add", trips: "trips.add" }[this.page] ?? "nav.add"));
+    const fabModule = { trips: "voyage", events: "evenement" }[this.page] ?? "";
+    $("#fab").setAttribute("aria-label", t({ habits: "habits.add", trips: "trips.add", events: "events.add" }[this.page] ?? "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
     $("#fab").dataset.module = fabModule;
     $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip"].includes(this.page)
@@ -240,6 +242,8 @@ export class App {
     const pageButtons = `<div class="page-links">
       <button type="button" class="icon-btn ${this.page === "shopping" ? "active" : ""}" data-action="open-shopping"
         aria-label="${esc(t("nav.shopping"))}" title="${esc(t("nav.shopping"))}">🛒</button>
+      <button type="button" class="icon-btn ${this.page === "events" ? "active" : ""}" data-action="open-events"
+        aria-label="${esc(t("nav.events"))}" title="${esc(t("nav.events"))}">🎂</button>
       <button type="button" class="icon-btn ${["trips", "trip"].includes(this.page) ? "active" : ""}" data-action="open-trips"
         aria-label="${esc(t("nav.trips"))}" title="${esc(t("nav.trips"))}">✈️</button>
       <button type="button" class="icon-btn ${this.page === "journal" ? "active" : ""}" data-action="open-journal"
@@ -300,7 +304,10 @@ export class App {
     openModal(itemForm(null, { date: toISODate(this.cursor), ...options }), { labelledBy: "form-title" });
   }
 
+  #detailDate = null; // date de l'occurrence affichée (fête qui revient chaque année)
+
   openItem(id, date) {
+    this.#detailDate = date ?? null;
     const item = this.repo.getOn(id, date);
     if (!item) return;
     openModal(itemDetail(item, { today: todayISO() }), { labelledBy: "detail-title" });
@@ -310,19 +317,20 @@ export class App {
   #refreshDetail(id, focusSelector) {
     const sheet = $("#modal .sheet");
     const top = sheet.scrollTop;
-    this.openItem(id);
+    this.openItem(id, this.#detailDate);
     sheet.scrollTop = top;
     if (focusSelector) $(focusSelector, sheet)?.focus();
   }
 
-  async #updateChecklist(id, change, focusSelector) {
+  // `field` : la liste « checklist » ou une autre (idées cadeaux, invités…).
+  async #updateChecklist(id, change, focusSelector, field = "checklist") {
     const item = this.repo.get(id);
-    const before = progress(getChecklist(item));
-    const list = change(getChecklist(item));
-    await this.#updateData(id, { checklist: list }, focusSelector);
+    const before = progress(getChecklist(item, field));
+    const list = change(getChecklist(item, field));
+    await this.#updateData(id, { [field]: list }, focusSelector);
     // La « Liste d'épicerie » du calendrier : la liste d'épicerie suit.
-    if (item.data?.grocery) await this.repo.updateGrocery({ list: fromChecklist(this.repo.grocery().list, list) });
-    if (!before.complete && progress(list).complete) toast(t("checklist.allDone"));
+    if (item.data?.grocery && field === "checklist") await this.repo.updateGrocery({ list: fromChecklist(this.repo.grocery().list, list) });
+    if (field === "checklist" && !before.complete && progress(list).complete) toast(t("checklist.allDone"));
   }
 
   // Modifie item.data puis redessine la fiche ouverte, ou la page (voyage).
@@ -643,6 +651,7 @@ export class App {
     "grocery-print": () => window.print(),
 
     "open-trips": () => this.openPage("trips"),
+    "open-events": () => this.openPage("events"),
     "new-habit": () => this.openNewItem({ date: todayISO(), module: "habitude", repeat: FREQ.DAILY }),
     "open-item": (el) => this.openItem(el.dataset.id, el.dataset.date),
     "edit-item": (el) => this.openEdit(el.dataset.id),
@@ -668,7 +677,8 @@ export class App {
       closeModal();
     },
     "delete-item": async (el) => {
-      const recurring = Boolean(this.repo.get(el.dataset.id)?.recurrence);
+      const item = this.repo.get(el.dataset.id);
+      const recurring = Boolean(item?.recurrence) && item.module === "habitude";
       if (!confirm(t(recurring ? "confirm.deleteHabit" : "confirm.delete"))) return;
       await this.repo.remove(el.dataset.id);
       closeModal();
@@ -704,7 +714,7 @@ export class App {
       }
     },
     "clear-position": (el) => this.#setFormCoords(el.closest("form"), null),
-    "check-remove": (el) => this.#updateChecklist(el.dataset.id, (list) => removeEntry(list, el.dataset.entry)),
+    "check-remove": (el) => this.#updateChecklist(el.dataset.id, (list) => removeEntry(list, el.dataset.entry), null, el.dataset.field),
     export: () => this.#exportData(),
     close: () => closeModal(),
   };
@@ -741,6 +751,12 @@ export class App {
   async #onChange(e) {
     const el = e.target;
     const form = el.closest("#item-form");
+    if (form && el.name === "eventKind") {
+      // Une fête ou un anniversaire revient chaque année ; un événement, non.
+      form.elements.yearly.checked = el.value !== "event";
+      syncRepeatFields(form);
+    }
+    if (form && el.name === "yearly") syncRepeatFields(form);
     if (form && (el.name === "module" || el.name === "repeat")) {
       // Choisir « Habitude » pour un nouvel élément propose « Tous les jours ».
       if (el.name === "module" && el.value === "habitude" && !form.dataset.id && form.elements.repeat.value === "none") {
@@ -768,7 +784,7 @@ export class App {
       return;
     }
     if (el.dataset.action === "check-toggle") {
-      await this.#updateChecklist(el.dataset.id, (list) => toggleEntry(list, el.dataset.entry));
+      await this.#updateChecklist(el.dataset.id, (list) => toggleEntry(list, el.dataset.entry), null, el.dataset.field);
       return;
     }
     if (el.dataset.action === "pick-voice") {
@@ -818,16 +834,20 @@ export class App {
       const input = $("[data-role=checklist-input]", e.target);
       const text = input.value;
       if (!text.trim()) return;
-      const target = `.check-add[data-id="${CSS.escape(e.target.dataset.id)}"] [data-role=checklist-input]`;
-      return this.#updateChecklist(e.target.dataset.id, (list) => addEntry(list, text), target);
+      const { id, field } = e.target.dataset;
+      const target = `.check-add[data-id="${CSS.escape(id)}"][data-field="${field}"] [data-role=checklist-input]`;
+      return this.#updateChecklist(id, (list) => addEntry(list, text), target, field);
     }
     if (e.target.id !== "item-form") return;
     e.preventDefault();
     const form = e.target;
     const existing = form.dataset.id ? this.repo.get(form.dataset.id) : null;
-    const { checklistText, endDate, ...data } = readItemForm(form, existing);
+    const { checklistText, endDate, event, ...data } = readItemForm(form, existing);
     if (checklistText !== null) {
       data.data = { ...(existing?.data ?? {}), checklist: fromLines(checklistText, getChecklist(existing)) };
+    }
+    if (event) {
+      data.data = { ...(data.data ?? existing?.data ?? {}), kind: event.kind, yearUnknown: event.yearUnknown, budget: parseAmount(event.budget) };
     }
     if (endDate !== null) {
       if (endDate && endDate < data.date) {
