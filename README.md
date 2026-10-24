@@ -67,7 +67,7 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Voix guidée féminine (voix de synthèse de l'appareil), texte affiché à l'écran, cercle de respiration animé.
   - Exercices de respiration : cohérence cardiaque, respiration carrée, 4-7-8.
   - Minuteur silencieux avec bol tibétain (début, fin, intervalles).
-  - Ambiances générées dans le navigateur : pluie, océan, forêt.
+  - Ambiances générées dans le navigateur : pluie, océan, forêt. Elles sont calculées d'avance puis jouées par un lecteur audio ordinaire, que la voix de l'iPad ne peut pas couper pour de bon.
   - Humeur avant et après, séries, minutes totales ; chaque séance s'inscrit dans le calendrier et peut cocher l'habitude du jour.
   - **Barre d'avancement glissante** : on recule ou on avance dans une séance avec le doigt.
   - Une séance compte comme **terminée au complet** si elle est allée jusqu'au bout et qu'au moins 80 % de sa durée a vraiment été écoutée. Les séances partielles comptent dans le temps de méditation, pas dans la progression du parcours.

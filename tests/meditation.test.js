@@ -179,7 +179,7 @@ test("avancer jusqu'à la fin : terminé rapidement, peu de temps écouté", asy
   assert.ok(runner.elapsed >= 595);
 });
 
-test("se déplacer dans une pause reprend au bon endroit et affiche la dernière phrase", async () => {
+test("se déplacer dans une pause : la dernière consigne est redite, puis la pause reprend au bon endroit", async () => {
   const script = ["Première", SILENCE_TOKEN(), "Deuxième", 30, "Fin"];
   let target = null;
   const { runner, events, voice } = seekRig(script, 3, (text, r) => {
@@ -193,8 +193,28 @@ test("se déplacer dans une pause reprend au bon endroit et affiche la dernière
   const seek = events.find((e) => e.type === "seek");
   assert.equal(seek.line, "Deuxième");
   assert.ok(Math.abs(seek.position - target) < 0.01);
-  assert.deepEqual(voice.spoken, ["Première", "Deuxième", "Fin"]);
+  assert.deepEqual(voice.spoken, ["Première", "Deuxième", "Deuxième", "Fin"]);
   assert.equal(runner.state, "done");
+});
+
+test("avancer dans un long silence : la voix reprend tout de suite, la séance finit à l'heure", async () => {
+  const script = fr.sessions.pp1.script;
+  let jumped = false;
+  let after = null;
+  const { runner, voice } = seekRig(script, 10, (text, r) => {
+    if (!jumped && voice.spoken.length === 2) {
+      jumped = true;
+      // au milieu du plus long silence
+      const plan = r.plan();
+      const k = plan.reduce((best, p, j) => (p.end - p.start > plan[best].end - plan[best].start ? j : best), 0);
+      r.seek((plan[k].start + plan[k].end) / 2);
+      after = { count: voice.spoken.length, line: script.slice(0, k).filter((x) => typeof x === "string").at(-1) };
+    }
+  });
+  await runner.run();
+  assert.equal(voice.spoken[after.count], after.line, "la consigne du silence est redite aussitôt");
+  assert.equal(runner.state, "done");
+  assert.ok(Math.abs(runner.elapsed - 600) < 25, `position finale ${Math.round(runner.elapsed)} s`);
 });
 
 test("se déplacer pendant une pause : reste en pause à la nouvelle position", async () => {
