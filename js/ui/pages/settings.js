@@ -2,6 +2,27 @@ import { esc } from "../../core/dom.js";
 import { isGeolocationSupported } from "../../geo/geo.js";
 import { LANGUAGES, getLanguage, t } from "../../i18n/index.js";
 import { PROVIDERS } from "../../sync/providers.js";
+import { isSpeechSupported, pickVoice, voicesFor } from "../../meditation/voice.js";
+
+function voiceSection(settings, voices) {
+  if (!isSpeechSupported()) return "";
+  const lang = getLanguage();
+  const list = voicesFor(lang, voices);
+  const chosen = pickVoice(lang, settings.meditation?.voices?.[lang], voices);
+  return `<div class="card">
+    <h2>${t("settings.voice")}</h2>
+    <p class="hint">${t("settings.voiceHint")}</p>
+    ${list.length
+      ? `<div class="voice-row">
+          <select data-action="pick-voice" aria-label="${esc(t("settings.voice"))}">
+            ${list.map((v) => `<option value="${esc(v.voiceURI)}" ${v === chosen ? "selected" : ""}>${esc(v.name)} (${esc(v.lang)})</option>`).join("")}
+          </select>
+          <button type="button" class="btn soft" data-action="test-voice">${t("settings.voiceTest")}</button>
+        </div>`
+      : `<p class="hint">${t("settings.voiceNone")}</p>`}
+    <p class="hint small">${t("settings.voiceTip")}</p>
+  </div>`;
+}
 
 export function languagePicker() {
   const current = getLanguage();
@@ -19,12 +40,14 @@ export const settingsPage = {
 
   title: () => t("settings.title"),
 
-  render({ settings, storageLabel, count }) {
+  render({ settings, voices, storageLabel, count }) {
     return `<section class="page settings">
       <div class="card">
         <h2>${t("settings.language")}</h2>
         ${languagePicker()}
       </div>
+
+      ${voiceSection(settings, voices)}
 
       <div class="card">
         <h2>${t("settings.proximity")} <span class="tag">${t("settings.beta")}</span></h2>

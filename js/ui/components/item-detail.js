@@ -32,6 +32,7 @@ export function itemDetail(item, { today }) {
     ${badge}
     <p class="detail-line">🕒 ${when}</p>
     ${item.occurrence ? habitSummary(item, today) : ""}
+    ${item.module === "meditation" ? meditationSummary(item) : ""}
     ${place}
     ${item.notes ? `<p class="detail-notes">${esc(item.notes)}</p>` : ""}
     ${source}
@@ -62,8 +63,22 @@ function habitActions(occ) {
   ].join("");
 }
 
+const MOOD_FACES = ["😣", "😕", "😐", "🙂", "😌"];
+
+function meditationSummary(item) {
+  const d = item.data ?? {};
+  const lines = [];
+  if (d.minutes) lines.push(`🧘 ${t("med.minutes", { count: d.minutes })}`);
+  if (Number.isInteger(d.moodBefore) || Number.isInteger(d.moodAfter)) {
+    lines.push(`${MOOD_FACES[d.moodBefore] ?? "·"} → ${MOOD_FACES[d.moodAfter] ?? "·"}`);
+  }
+  return lines.map((l) => `<p class="detail-line">${l}</p>`).join("");
+}
+
 function itemActions(item) {
   return [
+    item.module === "meditation" && !item.done
+      ? `<button type="button" class="btn primary" data-action="open-meditation">${t("med.startNow")}</button>` : "",
     isCancelled(item) ? "" : btn("primary", "toggle-done", item, t(item.done ? "detail.markUndone" : "detail.markDone")),
     btn("soft", "edit-item", item, t("detail.edit")),
     btn("soft", isCancelled(item) ? "restore-item" : "cancel-item", item, t(isCancelled(item) ? "detail.restore" : "detail.cancel")),

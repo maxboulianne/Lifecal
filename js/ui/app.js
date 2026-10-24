@@ -19,11 +19,18 @@ import { closeModal, openModal, setupModal } from "./components/modal.js";
 import { nudgesBar } from "./components/nudges.js";
 import { cheer, toast } from "./components/toast.js";
 import { welcome } from "./components/welcome.js";
+import { MeditationPlayer } from "./meditation/player.js";
 import { habitsPage } from "./pages/habits.js";
+import { meditationPage, setupContent, setupSheet } from "./pages/meditation.js";
 import { settingsPage } from "./pages/settings.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
+import { MeditationAudio } from "../meditation/audio.js";
+import { BREATHING_EXERCISES } from "../meditation/catalog.js";
+import { breathingScript, timerScript } from "../meditation/runner.js";
+import { sessionContent } from "../meditation/scripts/index.js";
+import { loadVoices, pickVoice, SpeechVoice } from "../meditation/voice.js";
 
-const PAGES = { habits: habitsPage, settings: settingsPage };
+const PAGES = { meditation: meditationPage, habits: habitsPage, settings: settingsPage };
 
 export class App {
   page = null; // null = calendrier
@@ -41,6 +48,13 @@ export class App {
 
   start() {
     setupModal();
+    this.audio = new MeditationAudio();
+    this.player = new MeditationPlayer({ repo: this.repo, audio: this.audio });
+    // Les voix de l'appareil arrivent parfois en retard : redessiner les Paramètres.
+    loadVoices().then((v) => {
+      this.voices = v;
+      if (this.page === "settings") this.render();
+    });
     this.#readHash();
     document.addEventListener("click", (e) => this.#onClick(e));
     document.addEventListener("change", (e) => this.#onChange(e));
@@ -102,7 +116,7 @@ export class App {
     $("#legend").setAttribute("aria-label", t("nav.modules"));
     $("#fab").setAttribute("aria-label", t(this.page === "habits" ? "habits.add" : "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
-    $("#fab").hidden = this.page === "settings";
+    $("#fab").hidden = this.page === "settings" || this.page === "meditation";
 
     const main = $("#calendar");
     main.dataset.view = this.page ?? this.view;
@@ -111,6 +125,7 @@ export class App {
         repo: this.repo,
         today,
         settings: this.repo.settings,
+        voices: this.voices ?? [],
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -123,6 +138,8 @@ export class App {
 
   #renderTopbar() {
     const pageButtons = `
+      <button type="button" class="icon-btn ${this.page === "meditation" ? "active" : ""}" data-action="open-meditation"
+        aria-label="${esc(t("nav.meditation"))}" title="${esc(t("nav.meditation"))}">🧘</button>
       <button type="button" class="icon-btn ${this.page === "habits" ? "active" : ""}" data-action="open-habits"
         aria-label="${esc(t("nav.habits"))}" title="${esc(t("nav.habits"))}">🌱</button>
       <button type="button" class="icon-btn ${this.page === "settings" ? "active" : ""}" data-action="open-settings"
@@ -200,6 +217,19 @@ export class App {
       this.openPage("habits");
     },
     "open-settings": () => this.openPage("settings"),
+    "open-meditation": () => {
+      closeModal();
+      this.openPage("meditation");
+    },
+    "med-setup": (el) => {
+      const prefs = this.repo.settings.meditation ?? {};
+      openModal(setupSheet(el.dataset.kind, el.dataset.id, prefs), { labelledBy: "med-setup-title" });
+    },
+    "test-voice": () => {
+      const prefs = this.repo.settings.meditation ?? {};
+      const voice = pickVoice(getLanguage(), prefs.voices?.[getLanguage()], this.voices);
+      new SpeechVoice({ voice, lang: getLanguage() }).speak(t("med.testPhrase"));
+    },
     "new-item": (el) => this.openNewItem(el.dataset.date ? { date: el.dataset.date } : {}),
     "new-habit": () => this.openNewItem({ date: todayISO(), module: "habitude", repeat: FREQ.DAILY }),
     "open-item": (el) => this.openItem(el.dataset.id, el.dataset.date),
@@ -302,6 +332,10 @@ export class App {
       }
       syncRepeatFields(form);
     }
+    if (el.dataset.action === "pick-voice") {
+      const prefs = this.repo.settings.meditation ?? {};
+      await this.repo.updateSettings({ meditation: { ...prefs, voices: { ...prefs.voices, [getLanguage()]: el.value } } });
+    }
     if (el.dataset.action === "toggle-proximity") {
       try {
         await this.repo.updateSettings({ proximityEnabled: el.checked });
@@ -318,6 +352,7 @@ export class App {
   }
 
   async #onSubmit(e) {
+    if (e.target.id === "med-setup") return this.#startMeditation(e);
     if (e.target.id !== "item-form") return;
     e.preventDefault();
     const form = e.target;
@@ -333,6 +368,33 @@ export class App {
       $("[data-role=errors]", form).textContent =
         err instanceof ValidationError ? err.errors.map((k) => t(k)).join(" ") : t("form.saveError");
     }
+  }
+
+  // Prépare la séance choisie et ouvre le lecteur (dans le geste de l'utilisateur).
+  #startMeditation(e) {
+    e.preventDefault();
+    const form = e.target;
+    const { kind, id } = form.dataset;
+    const f = new FormData(form);
+    const minutes = Number(f.get("minutes"));
+    const ambience = f.get("ambience") ?? "none";
+    const interval = Number(f.get("interval") ?? 0);
+    const voiceOn = kind !== "timer" && f.get("voice") === "on";
+    const prefs = this.repo.settings.meditation ?? {};
+    this.repo.updateSettings({
+      meditation: { ...prefs, ambience, ...(kind === "timer" ? { interval } : { voiceOn }), minutes: { ...prefs.minutes, [kind]: minutes } },
+    });
+
+    let script;
+    if (kind === "session") script = sessionContent(id).script;
+    else if (kind === "breathing") {
+      const pattern = BREATHING_EXERCISES.find((b) => b.id === id).pattern;
+      script = breathingScript(pattern, minutes, { intro: t("med.breath.intro"), outro: t("med.breath.outro") });
+    } else script = timerScript(minutes, interval);
+
+    const content = setupContent(kind, id);
+    closeModal();
+    this.player.open({ kind, id, title: content.title, kicker: content.kicker, color: content.color, script, minutes, ambience, voiceOn });
   }
 
   #setFormCoords(form, pos) {
