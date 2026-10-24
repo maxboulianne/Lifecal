@@ -1,6 +1,7 @@
 import { esc } from "../../core/dom.js";
 import { isGeolocationSupported } from "../../geo/geo.js";
-import { LANGUAGES, getLanguage, t } from "../../i18n/index.js";
+import { LANGUAGES, fmt, getLanguage, t } from "../../i18n/index.js";
+import { parseISODate } from "../../core/dates.js";
 import { PROVIDERS } from "../../sync/providers.js";
 import { isSpeechSupported, pickVoice, voicesFor } from "../../meditation/voice.js";
 
@@ -40,7 +41,7 @@ export const settingsPage = {
 
   title: () => t("settings.title"),
 
-  render({ settings, voices, storageLabel, count }) {
+  render({ settings, voices, storageLabel, count, storageProtected }) {
     return `<section class="page settings">
       <div class="card">
         <h2>${t("settings.language")}</h2>
@@ -68,6 +69,11 @@ export const settingsPage = {
       <div class="card">
         <h2>${t("settings.data")}</h2>
         <p class="hint">${t("settings.dataHint", { count, where: t(storageLabel) })}</p>
+        <p class="hint">${settings.lastExport
+          ? t("settings.lastExport", { date: fmt.date(parseISODate(settings.lastExport)) })
+          : t("settings.noExport")}</p>
+        ${storageProtected ? `<p class="hint">🔒 ${t("settings.persisted")}</p>` : ""}
+        <p class="hint">📶 ${t("settings.offline")}</p>
         <div class="actions start">
           <button type="button" class="btn soft" data-action="export">${t("settings.export")}</button>
           <label class="btn soft file-btn">${t("settings.import")}

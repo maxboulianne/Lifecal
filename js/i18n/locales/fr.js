@@ -311,4 +311,13 @@ export default {
   "checklist.add": "Ajouter",
   "checklist.remove": "Retirer « {text} »",
   "checklist.allDone": "Toute la liste est cochée, bravo 🎉",
+
+  // Hors ligne et sauvegarde
+  "toast.offline": "Tu es hors ligne. LifeCal continue de fonctionner, et tes données restent sur l'appareil.",
+  "settings.lastExport": "Dernière copie : {date}.",
+  "settings.noExport": "Aucune copie pour l'instant.",
+  "settings.persisted": "Tes données sont protégées contre l'effacement automatique du navigateur.",
+  "settings.offline": "LifeCal fonctionne aussi sans Internet.",
+  "nudge.backup": "Ça fait un moment : pense à faire une copie de tes données pour les garder à l'abri.",
+  "nudge.backupAction": "Faire une copie",
 };

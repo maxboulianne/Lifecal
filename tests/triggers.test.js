@@ -59,3 +59,15 @@ test("bilan du lundi pour « X fois par semaine »", () => {
   assert.deepEqual(n.params, { title: "Course", done: 1, target: 3 });
   assert.equal(engine.evaluate({ items: [h], today: "2026-10-20", settings: {} }).length, 0);
 });
+
+import { backupReminder } from "../js/triggers/calendar-triggers.js";
+
+test("rappel de copie : le dimanche, s'il n'y a pas de copie récente", () => {
+  const items = Array.from({ length: 12 }, (_, k) => item({ title: `x${k}`, module: "rdv", date: "2026-10-20" }));
+  const sunday = "2026-10-25";
+  assert.equal(backupReminder.evaluate({ items, today: sunday, settings: {} }).length, 1);
+  assert.equal(backupReminder.evaluate({ items, today: "2026-10-24", settings: {} }).length, 0); // samedi
+  assert.equal(backupReminder.evaluate({ items, today: sunday, settings: { lastExport: "2026-10-10" } }).length, 0);
+  assert.equal(backupReminder.evaluate({ items, today: sunday, settings: { lastExport: "2026-09-01" } }).length, 1);
+  assert.equal(backupReminder.evaluate({ items: items.slice(0, 3), today: sunday, settings: {} }).length, 0); // peu de données
+});

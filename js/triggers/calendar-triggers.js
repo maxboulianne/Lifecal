@@ -123,4 +123,33 @@ export const eveningJournal = {
   },
 };
 
-export const calendarTriggers = [travelPreparation, specialEventPreparation, missedHabitEncouragement, flexibleWeekReview, eveningJournal];
+// Le dimanche, si la dernière copie des données date de plus d'un mois
+// (ou n'existe pas) : un rappel doux d'en faire une. Les données ne vivent
+// que sur l'appareil ; une copie les met à l'abri.
+export const backupReminder = {
+  id: "copie-donnees",
+  kind: "calendar",
+  minItems: 10,
+  everyDays: 30,
+  evaluate({ items, today, settings }) {
+    if (parseISODate(today).getDay() !== 0 || items.length < this.minItems) return [];
+    const last = settings?.lastExport;
+    if (last && diffDays(last, today) < this.everyDays) return [];
+    return [
+      {
+        id: `copie-donnees:${today}`,
+        tone: "info",
+        icon: "💾",
+        messageKey: "nudge.backup",
+        params: {},
+        itemIds: [],
+        actionKey: "nudge.backupAction",
+        action: "open-settings",
+      },
+    ];
+  },
+};
+
+export const calendarTriggers = [
+  travelPreparation, specialEventPreparation, missedHabitEncouragement, flexibleWeekReview, eveningJournal, backupReminder,
+];
