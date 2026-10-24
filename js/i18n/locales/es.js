@@ -292,4 +292,13 @@ export default {
   "checklist.add": "Añadir",
   "checklist.remove": "Quitar «{text}»",
   "checklist.allDone": "Toda la lista está marcada, ¡bravo! 🎉",
+
+  // Hors ligne et sauvegarde
+  "toast.offline": "Estás sin conexión. LifeCal sigue funcionando y tus datos se quedan en el dispositivo.",
+  "settings.lastExport": "Última copia: {date}.",
+  "settings.noExport": "Todavía no hay ninguna copia.",
+  "settings.persisted": "Tus datos están protegidos contra el borrado automático del navegador.",
+  "settings.offline": "LifeCal también funciona sin Internet.",
+  "nudge.backup": "Ha pasado un tiempo: recuerda hacer una copia de tus datos para mantenerlos a salvo.",
+  "nudge.backupAction": "Hacer una copia",
 };

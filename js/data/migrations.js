@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   proximityRadiusMeters: 300,
   dismissedNudges: {},
   connectedCalendars: [],
+  lastExport: null, // date de la dernière copie exportée
   // Méditation : préférences du lecteur et voix choisie par langue (voiceURI).
   meditation: { voiceOn: true, ambience: "none", interval: 0, minutes: {}, voices: {} },
 });

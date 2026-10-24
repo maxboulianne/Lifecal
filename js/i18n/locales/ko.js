@@ -289,4 +289,13 @@ export default {
   "checklist.add": "추가",
   "checklist.remove": "“{text}” 삭제",
   "checklist.allDone": "목록을 모두 체크했어요, 잘했어요 🎉",
+
+  // Hors ligne et sauvegarde
+  "toast.offline": "오프라인 상태예요. LifeCal은 계속 작동하고, 데이터는 이 기기에 그대로 있어요.",
+  "settings.lastExport": "마지막 사본: {date}.",
+  "settings.noExport": "아직 사본이 없어요.",
+  "settings.persisted": "데이터가 브라우저의 자동 삭제로부터 보호되고 있어요.",
+  "settings.offline": "LifeCal은 인터넷 없이도 작동해요.",
+  "nudge.backup": "한동안 사본을 만들지 않았어요. 데이터를 안전하게 지키려면 사본을 만들어 두세요.",
+  "nudge.backupAction": "사본 만들기",
 };

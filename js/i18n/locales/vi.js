@@ -289,4 +289,13 @@ export default {
   "checklist.add": "Thêm",
   "checklist.remove": "Xóa “{text}”",
   "checklist.allDone": "Đã đánh dấu xong cả danh sách, tuyệt vời 🎉",
+
+  // Hors ligne et sauvegarde
+  "toast.offline": "Bạn đang ngoại tuyến. LifeCal vẫn hoạt động, và dữ liệu của bạn vẫn nằm trên thiết bị.",
+  "settings.lastExport": "Bản sao gần nhất: {date}.",
+  "settings.noExport": "Chưa có bản sao nào.",
+  "settings.persisted": "Dữ liệu của bạn được bảo vệ khỏi việc trình duyệt tự động xóa.",
+  "settings.offline": "LifeCal cũng hoạt động khi không có Internet.",
+  "nudge.backup": "Đã lâu rồi: hãy nhớ tạo một bản sao dữ liệu để giữ an toàn.",
+  "nudge.backupAction": "Tạo bản sao",
 };

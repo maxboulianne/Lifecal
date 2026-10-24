@@ -19,6 +19,12 @@ npm start            # = python3 -m http.server 8080
 
 Aucune dépendance et aucune étape de compilation.
 
+### Sans Internet
+
+Le service worker (`sw.js`) garde une copie de l'application : après une première visite, LifeCal s'ouvre et fonctionne sans connexion. Avec Internet, il charge toujours la dernière version, donc les mises à jour arrivent toutes seules. Les données, elles, ne passent jamais par le service worker : elles restent dans le stockage du navigateur.
+
+Au démarrage, l'app demande aussi au navigateur de protéger ses données contre l'effacement automatique (`navigator.storage.persist`). Le dimanche, si la dernière copie exportée date de plus d'un mois, un rappel doux propose d'en faire une.
+
 ## Tests
 
 ```bash
@@ -128,4 +134,4 @@ Les données sont stockées dans un document versionné, `{ schemaVersion, items
 
 ## Prochaines étapes (après le pilote)
 
-Fonctionnement sans Internet, sauvegarde automatique et rappels (notifications), préparation des voyages (lieux à visiter, carte), suite des parcours de méditation, synchronisation avec Google, Outlook et Yahoo.
+Sauvegarde automatique et rappels (notifications), préparation des voyages (lieux à visiter, carte), suite des parcours de méditation, synchronisation avec Google, Outlook et Yahoo.

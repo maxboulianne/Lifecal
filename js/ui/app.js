@@ -80,9 +80,15 @@ export class App {
       else this.render();
     });
     this.repo.on("change", () => this.#quiet || this.render());
+    window.addEventListener("offline", () => toast(t("toast.offline")));
     this.#syncProximityWatch();
     this.render();
     if (!this.repo.settings.language) openModal(welcome(), { labelledBy: "welcome-title" });
+  }
+
+  setStorageProtected(ok) {
+    this.storageProtected = ok;
+    if (this.page === "settings") this.render();
   }
 
   // ---- Navigation --------------------------------------------------------
@@ -141,6 +147,7 @@ export class App {
         today,
         settings: this.repo.settings,
         voices: this.voices ?? [],
+        storageProtected: this.storageProtected,
         cursor: this.cursor,
         promptShift: this.promptShift,
         storageLabel: this.storageLabel,
@@ -575,6 +582,7 @@ export class App {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    this.repo.updateSettings({ lastExport: todayISO() });
   }
 
   async #importData(file) {
