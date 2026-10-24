@@ -77,8 +77,16 @@ export function unlockSpeech() {
   synth().speak(u);
 }
 
+// Safari (iPad, iPhone, Mac) : une phrase lancée juste après cancel() est
+// souvent perdue, et la voix peut rester bloquée sans jamais signaler la fin.
+// On attend donc un court instant après chaque arrêt, et un délai de secours
+// fait avancer la séance si la phrase ne se termine jamais.
+const AFTER_CANCEL_MS = 300;
+const START_TIMEOUT_MS = 2500;
+
 export class SpeechVoice {
   #pending = null;
+  #cancelledAt = -Infinity;
 
   constructor({ voice, lang, rate = 0.88, pitch = 1 }) {
     this.voice = voice;
@@ -89,25 +97,58 @@ export class SpeechVoice {
 
   speak(text) {
     return new Promise((resolve) => {
-      const u = new SpeechSynthesisUtterance(text);
-      if (this.voice) u.voice = this.voice;
-      u.lang = this.lang;
-      u.rate = this.rate;
-      u.pitch = this.pitch;
+      const timers = [];
       const finish = (ok) => {
         if (this.#pending !== finish) return;
         this.#pending = null;
+        timers.forEach(clearTimeout);
         resolve(ok);
       };
       this.#pending = finish;
-      u.onend = () => finish(true);
-      u.onerror = () => finish(false);
-      synth().speak(u);
+      const wait = Math.max(0, this.#cancelledAt + AFTER_CANCEL_MS - Date.now());
+      timers.push(setTimeout(() => {
+        if (this.#pending !== finish) return;
+        const s = synth();
+        let current = null;
+        let started = false;
+        const utter = () => {
+          const u = new SpeechSynthesisUtterance(text);
+          if (this.voice) u.voice = this.voice;
+          u.lang = this.lang;
+          u.rate = this.rate;
+          u.pitch = this.pitch;
+          // Seule la dernière phrase lancée compte (pas celle qu'on a relancée).
+          u.onstart = () => current === u && (started = true);
+          u.onend = () => current === u && finish(true);
+          // Arrêtée par cancel() : false (reprise prévue). Autre erreur : on passe à la suite.
+          u.onerror = (e) => {
+            if (current !== u) return;
+            const stopped = ["interrupted", "canceled"].includes(e.error);
+            if (stopped) this.#cancelledAt = Date.now(); // laisser la voix se remettre avant de reprendre
+            finish(!stopped);
+          };
+          current = u;
+          if (s.paused) s.resume();
+          s.speak(u);
+        };
+        utter();
+        // La voix n'a jamais commencé : on la débloque et on réessaie une fois.
+        timers.push(setTimeout(() => {
+          if (started || s.speaking || this.#pending !== finish) return;
+          current = null;
+          s.cancel();
+          timers.push(setTimeout(() => this.#pending === finish && utter(), AFTER_CANCEL_MS));
+        }, START_TIMEOUT_MS));
+        // Durée maximale raisonnable de la phrase : au-delà, on passe à la suite.
+        const longest = 2 * START_TIMEOUT_MS + AFTER_CANCEL_MS + (text.length / 6 / this.rate) * 1000;
+        timers.push(setTimeout(() => finish(true), longest));
+      }, wait));
     });
   }
 
   cancel() {
     const pending = this.#pending;
+    this.#cancelledAt = Date.now();
     synth()?.cancel();
     pending?.(false);
   }

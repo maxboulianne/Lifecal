@@ -77,6 +77,7 @@ export class MeditationPlayer {
     });
     this.root.addEventListener("change", (e) => {
       if (!e.target.matches(".player-seek")) return;
+      this.audio.unlock(); // relancer le son au besoin (iOS)
       this.#runner?.seek(Number(e.target.value));
       this.#scrubbing = false;
     });
@@ -318,7 +319,7 @@ export class MeditationPlayer {
     clearInterval(this.#ticker);
     this.#stopBreath();
     this.#breathPattern = null;
-    this.audio.stopAmbience();
+    this.audio.close();
     this.#voice?.cancel();
     this.#wakeLock?.release?.().catch(() => {});
     this.#wakeLock = null;
@@ -342,12 +343,16 @@ export class MeditationPlayer {
     try {
       if (action === "mood-before") {
         if (this.#voice?.speech) unlockSpeech(); // pendant le toucher (iOS)
+        this.audio.unlock();
         this.#moodBefore = el.dataset.mood === "" ? null : Number(el.dataset.mood);
         await this.#start();
       } else if (action === "pause") {
         const r = this.#runner;
         if (r.state === "running") r.pause();
-        else r.resume();
+        else {
+          this.audio.unlock();
+          r.resume();
+        }
         el.textContent = r.state === "paused" ? "▶" : "❚❚";
         el.setAttribute("aria-label", t(r.state === "paused" ? "med.resume" : "med.pause"));
       } else if (action === "voice") {
