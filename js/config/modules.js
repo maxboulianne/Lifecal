@@ -39,6 +39,12 @@ export const MODULES = {
     icon: "✈️",
     features: ["location", "checklist", "places", "map", "preparation"],
   },
+  meditation: {
+    id: "meditation",
+    color: "#0d9488", // sarcelle
+    icon: "🧘",
+    features: ["meditation"],
+  },
   journal: {
     id: "journal",
     color: "#64748b", // gris

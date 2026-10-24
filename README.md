@@ -43,6 +43,14 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Chaque jour, on coche l'habitude, ou on saute le jour (un jour sauté ne casse pas la série).
   - Page 🌱 **Mes habitudes** : série en cours, meilleure série, bilans de la semaine, du mois et de l'année, grille des 12 dernières semaines et un mot d'encouragement.
   - Une habitude arrêtée garde tout son historique.
+- **Méditation** (bouton 🧘) :
+  - Parcours **Premiers pas** (7 séances : arriver, le souffle, l'esprit qui vagabonde, les sons, le corps, les émotions, la bienveillance) et **Moments difficiles** (ancrage 5-4-3-2-1, respiration apaisante, accueillir une émotion forte).
+  - Durée au choix : la séance s'adapte, les silences s'allongent ou raccourcissent.
+  - Voix guidée féminine (voix de synthèse de l'appareil), texte affiché à l'écran, cercle de respiration animé.
+  - Exercices de respiration : cohérence cardiaque, respiration carrée, 4-7-8.
+  - Minuteur silencieux avec bol tibétain (début, fin, intervalles).
+  - Ambiances générées dans le navigateur : pluie, océan, forêt.
+  - Humeur avant et après, séries, minutes totales ; chaque séance s'inscrit dans le calendrier et peut cocher l'habitude du jour.
 - **Langues** : choix à l'accueil au premier lancement, puis dans ⚙︎ **Paramètres**. Les dates et les heures suivent la langue choisie.
 - Paramètres : langue, rappels de proximité, calendriers externes, exporter et importer une copie des données (JSON).
 - **Les données du prototype `calendrier.html` sont récupérées automatiquement** à la première ouverture, si l'application est servie depuis la même adresse. La copie d'origine sous la clé `items` est conservée.
@@ -64,6 +72,7 @@ js/data/storage/           Adaptateurs de stockage (localStorage, mémoire)
 js/triggers/               Moteur de déclencheurs + déclencheurs calendrier et proximité
 js/geo/geo.js              Position, distances, lien vers la carte
 js/sync/                   Fournisseurs externes (Google, Outlook, Yahoo) + fusion
+js/meditation/             Catalogue, scripts des séances (7 langues), lecteur, voix, sons, progrès
 js/i18n/                   Traductions (7 langues) et formatage des dates via Intl
 js/ui/                     Contrôleur, vues (jour/semaine/mois/année), pages (habitudes, paramètres), composants
 prototype/calendrier.html  Prototype d'origine, gardé pour référence
@@ -101,6 +110,8 @@ Les données sont stockées dans un document versionné, `{ schemaVersion, items
 | IndexedDB, serveur, compte en ligne | Nouvel adaptateur avec `load()`, `save()` et `clear()` dans `js/data/storage/` |
 | Nouveau déclencheur | Un objet `{ id, kind, evaluate(ctx) }` enregistré dans `js/main.js` |
 | Google Agenda, Outlook, Yahoo | Implémenter `listEvents`, `upsertEvent` et `deleteEvent` dans `js/sync/providers.js`. La fusion (`SyncService.pull`) est déjà prête et testée. La connexion OAuth demandera un petit serveur. |
+| Nouvelle séance de méditation | Son script dans `js/meditation/scripts/fr.js` (phrases, pauses, `SILENCE`, `BELL`, `BREATHE`), son id dans `catalog.js`, puis la traduction dans les 6 autres langues (`npm test` vérifie que la structure est identique) |
+| Voix plus naturelles | Ajouter une implémentation `RecordedVoice` dans `js/meditation/voice.js` : un fichier audio par phrase, `audio/<langue>/<séance>/<n>.mp3`. Le reste du lecteur ne change pas. |
 | Carte des voyages | `js/geo/geo.js` (coordonnées déjà dans le modèle) + une bibliothèque de cartes comme Leaflet |
 
 ## Prochaines étapes (après le pilote)
