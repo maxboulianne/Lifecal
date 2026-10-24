@@ -71,6 +71,7 @@ button { font: inherit; color: inherit; }
 }
 
 .nav { display: flex; align-items: center; gap: 6px; }
+.page-links { display: flex; align-items: center; gap: 2px; }
 
 #title {
   margin: 0 4px;
@@ -743,6 +744,9 @@ body.player-open { overflow: hidden; }
 @media (max-width: 760px) {
   .topbar { justify-content: center; }
   .topbar .nav { flex-wrap: wrap; justify-content: center; gap: 4px; }
+  /* Flèches, titre et « Aujourd'hui » restent sur une ligne ; le titre passe à la ligne au besoin. */
+  .topbar .nav:first-child { flex-wrap: nowrap; }
+  .topbar .nav:first-child #title { min-width: 0; font-size: 1rem; }
   .segmented button { padding: 0 9px; }
   .icon-btn { width: 40px; height: 40px; font-size: 1.35rem; }
   .week-view { grid-template-columns: 1fr; }
@@ -780,3 +784,31 @@ body.player-open { overflow: hidden; }
 .place-btn:disabled { opacity: .3; }
 .trip-map { height: 300px; border-radius: 12px; overflow: hidden; background: var(--bg); z-index: 0; }
 .trip-map .leaflet-container { font: inherit; }
+
+/* ---- Mes commissions, Mes voyages -------------------------------------- */
+.lists, .trips { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.actions.center { justify-content: center; }
+.list-card { border-left: 5px solid var(--c); }
+.list-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.list-head h2 { margin: 0 0 2px; font-size: 1.15rem; }
+.list-head .hint { margin: 0; }
+.list-left { margin: 8px 0 0; color: var(--c); font-weight: 600; }
+.list-card .actions { margin-top: 8px; }
+.past-list { padding: 4px 16px; }
+.past-row {
+  display: flex; justify-content: space-between; gap: 8px; width: 100%; min-height: var(--tap);
+  align-items: center; padding: 0; border: none; border-bottom: 1px solid var(--line);
+  background: none; color: var(--muted); font: inherit; text-align: left; cursor: pointer;
+}
+.past-row:last-child { border-bottom: none; }
+.trip-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; border: none; border-left: 5px solid var(--c);
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.trip-card-icon { font-size: 1.8rem; align-self: flex-start; }
+.trip-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.trip-card-text strong { font-size: 1.15rem; }
+.trip-card .trip-status { margin: 4px 0 0; }
+.trip-card-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 0.9rem; }
+.trip-card-meta:empty { display: none; }
+.trip-card-go { font-size: 1.6rem; color: var(--muted); }

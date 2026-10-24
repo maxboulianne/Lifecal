@@ -51,6 +51,7 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Page 🌱 **Mes habitudes** : série en cours, meilleure série, bilans de la semaine, du mois et de l'année, grille des 12 dernières semaines et un mot d'encouragement.
   - Une habitude arrêtée garde tout son historique.
 - **Listes à cocher** pour les commissions (« Ma liste ») et les voyages (« À emporter ») :
+  - Page 🛒 **Mes commissions** : toutes les listes en cours au même endroit, les articles qui restent, « Liste terminée », et les listes terminées récemment.
   - On tape les articles dans le formulaire, un par ligne, ou on les ajoute un à un dans la fiche de l'élément.
   - On les coche au magasin. Un compteur s'affiche dans le calendrier (☑ 2/5).
   - Le rappel de proximité montre les articles qui restent à acheter.
@@ -72,6 +73,7 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Une séance compte comme **terminée au complet** si elle est allée jusqu'au bout et qu'au moins 80 % de sa durée a vraiment été écoutée. Les séances partielles comptent dans le temps de méditation, pas dans la progression du parcours.
   - **Mes statistiques** (📊) : temps de méditation par semaine, mois et année (graphiques en barres avec les chiffres, périodes précédentes, détail d'une barre au toucher), temps par type de pratique, progression de chaque parcours.
 - **Voyages** :
+  - Page ✈️ **Mes voyages** : les voyages à venir (compte à rebours, valise, lieux visités) et les souvenirs de voyage. Le bouton + y crée directement un voyage.
   - Une **date de retour** (facultative) : le voyage s'étend sur chaque jour du séjour dans le calendrier (« 2/5 »).
   - Page du voyage (« 🗺️ Ouvrir le voyage ») : dates, compte à rebours (« Départ dans 9 jours »), puis « Jour 2 sur 5 » pendant le séjour.
   - Préparation : la liste « À emporter ».

@@ -27,6 +27,7 @@ function placeRow(trip, place) {
 
 export const tripPage = {
   id: "trip",
+  parent: "trips",
 
   title: ({ repo, tripId }) => repo.get(tripId)?.title ?? t("module.voyage"),
 

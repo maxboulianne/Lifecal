@@ -348,4 +348,17 @@ export default {
   "trip.removePlace": "{name} 삭제",
   "trip.missing": "이 여행은 더 이상 없어요.",
   "nudge.packing": "{title}, {when}이에요. 짐은 {percent} 준비됐어요 — 조금만 더 챙겨 볼까요?",
+
+  // Pages Commissions et Voyages
+  "nav.shopping": "내 장보기",
+  "nav.trips": "내 여행",
+  "shopping.add": "새 목록",
+  "shopping.empty": "진행 중인 목록이 없어요. 거의 다 했어요!",
+  "shopping.left": { other: "살 것 {count}개 남음" },
+  "shopping.finish": "목록 완료",
+  "shopping.done": "최근 완료",
+  "trips.add": "새 여행",
+  "trips.empty": "아직 계획된 여행이 없어요. 어디로 가 보고 싶나요?",
+  "trips.past": "여행 추억",
+  "trips.bag": "짐 {done}/{total}",
 };

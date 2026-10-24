@@ -83,8 +83,8 @@ export function checklistSection(item) {
   const list = getChecklist(item);
   const p = progress(list);
   const titleKey = `checklist.title.${item.module}`;
-  return `<section class="checklist" aria-labelledby="checklist-title">
-    <h3 id="checklist-title">${t(titleKey) === titleKey ? t("checklist.title") : t(titleKey)}
+  return `<section class="checklist" aria-labelledby="checklist-title-${esc(item.id)}">
+    <h3 id="checklist-title-${esc(item.id)}">${t(titleKey) === titleKey ? t("checklist.title") : t(titleKey)}
       ${p.total ? `<span class="hint">${p.done}/${p.total}</span>` : ""}</h3>
     ${list.length ? `<ul class="check-list">${list.map((e) => `<li class="${e.done ? "is-checked" : ""}">
       <label class="check-row">
