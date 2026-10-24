@@ -28,7 +28,9 @@ import { meditationPage, setupContent, setupSheet } from "./pages/meditation.js"
 import { meditationStatsPage } from "./pages/meditation-stats.js";
 import { tripPage } from "./pages/trip.js";
 import { tripsPage } from "./pages/trips.js";
-import { shoppingPage } from "./pages/shopping.js";
+import { SHOPPING_TABS, perText, shoppingPage } from "./pages/shopping.js";
+import { addToList, clearDone, createPrice, planList, productKey, removeListEntry, toggleListEntry } from "../grocery/grocery.js";
+import { getStore } from "../grocery/stores.js";
 import { mountMap } from "../travel/map.js";
 import { geocode } from "../travel/geocode.js";
 import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited } from "../travel/trip.js";
@@ -39,6 +41,9 @@ import { BREATHING_EXERCISES } from "../meditation/catalog.js";
 import { breathingScript, timerScript } from "../meditation/runner.js";
 import { sessionContent } from "../meditation/scripts/index.js";
 import { loadVoices, pickVoice, SpeechVoice } from "../meditation/voice.js";
+
+// Mots d'une recherche, écrits comme les clés de produits (sans accents).
+const productKeyWords = (query) => productKey(query).split(" ").filter(Boolean);
 
 const PAGES = {
   journal: journalPage,
@@ -62,6 +67,9 @@ export class App {
   #quiet = false; // enregistrement du journal en cours : ne pas redessiner sous les doigts
   #journalTimer = null;
   promptShift = 0;
+  shoppingTab = "grocery";
+  groceryPrefill = null;
+  lastStore = null;
   statsPeriod = "week";
   statsOffset = 0;
   tripId = null;
@@ -88,6 +96,7 @@ export class App {
     document.addEventListener("submit", (e) => this.#onSubmit(e));
     document.addEventListener("input", (e) => {
       if (e.target.dataset.journal) this.#scheduleJournalSave();
+      if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
     });
     window.addEventListener("hashchange", () => {
       this.#flushJournal();
@@ -118,6 +127,7 @@ export class App {
     this.page = PAGES[first] ? first : null;
     if (VIEWS[first]) this.view = first;
     if (first === "trip") this.tripId = second ?? null;
+    else if (first === "shopping") this.shoppingTab = SHOPPING_TABS.includes(second) ? second : "grocery";
     else if (isISODate(second)) this.cursor = parseISODate(second);
   }
 
@@ -161,7 +171,8 @@ export class App {
     $("#fab").setAttribute("aria-label", t({ habits: "habits.add", shopping: "shopping.add", trips: "trips.add" }[this.page] ?? "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
     $("#fab").dataset.module = fabModule;
-    $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip"].includes(this.page);
+    $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip"].includes(this.page)
+      || (this.page === "shopping" && this.shoppingTab !== "lists"); // l'épicerie a ses propres champs
     this.#map?.remove();
     this.#map = null;
 
@@ -179,6 +190,9 @@ export class App {
         statsPeriod: this.statsPeriod,
         statsOffset: this.statsOffset,
         tripId: this.tripId,
+        shoppingTab: this.shoppingTab,
+        groceryPrefill: this.groceryPrefill,
+        lastStore: this.lastStore,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -285,6 +299,84 @@ export class App {
     if (!$("#modal").hidden) return this.#refreshDetail(id, focusSelector);
     window.scrollTo(0, top);
     if (focusSelector) $(focusSelector)?.focus();
+  }
+
+  // ---- Épicerie ----------------------------------------------------------
+
+  #openShoppingTab(tab) {
+    this.shoppingTab = SHOPPING_TABS.includes(tab) ? tab : "grocery";
+    if (this.shoppingTab !== "prices") this.groceryPrefill = null;
+    history.replaceState(null, "", `#/shopping/${this.shoppingTab}`);
+    this.render();
+  }
+
+  // Modifie la section épicerie sans perdre la position dans la page.
+  async #updateGrocery(patch, focusSelector) {
+    const top = window.scrollY;
+    await this.repo.updateGrocery(patch);
+    window.scrollTo(0, top);
+    if (focusSelector) $(focusSelector)?.focus();
+  }
+
+  async #addGrocery(e) {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const product = String(f.get("product") ?? "").trim();
+    if (!product) return;
+    const before = this.repo.grocery().list;
+    const list = addToList(before, product, f.get("qty"));
+    if (list === before) return toast(t("grocery.already", { name: product }));
+    await this.#updateGrocery({ list }, "[data-role=grocery-add] [name=product]");
+  }
+
+  async #addPrice(e) {
+    e.preventDefault();
+    const form = e.target;
+    const f = new FormData(form);
+    const errors = $("[data-role=errors]", form);
+    if (!String(f.get("product") ?? "").trim()) return (errors.textContent = t("grocery.errors.product"));
+    const price = createPrice({
+      product: f.get("product"), store: f.get("store"), price: f.get("price"), qty: f.get("qty"), unit: f.get("unit"),
+      deal: f.get("deal") === "on", until: f.get("until") || null,
+    }, todayISO());
+    if (!price) return (errors.textContent = t("grocery.errors.price"));
+    this.lastStore = price.store;
+    this.groceryPrefill = null;
+    await this.#updateGrocery({ prices: [...this.repo.grocery().prices, price] });
+    toast(t("grocery.saved", { name: price.product, store: getStore(price.store)?.name ?? "" }));
+    $("[data-role=price-add] [name=product]")?.focus();
+  }
+
+  // Recherche dans le carnet de prix, sans redessiner la page.
+  #filterPrices(query) {
+    const words = productKeyWords(query);
+    let shown = 0;
+    document.querySelectorAll(".price-card").forEach((card) => {
+      const match = words.every((w) => card.dataset.key.includes(w));
+      card.hidden = !match;
+      if (match) shown++;
+    });
+    const none = $("[data-role=no-match]");
+    if (none) none.hidden = shown > 0;
+  }
+
+  // Une liste « Épicerie Super C » par épicerie dans le calendrier (aujourd'hui),
+  // avec les articles à acheter et leur meilleur prix.
+  async #groceryToCalendar() {
+    const plan = planList(this.repo.grocery(), todayISO());
+    let added = 0;
+    for (const { store, entries } of plan.groups) {
+      const lines = entries.filter((l) => !l.entry.done)
+        .map(({ entry, best }) => `${entry.product}${entry.qty ? ` (${entry.qty})` : ""} — ${perText(best.per).split(" · ")[0]}`);
+      if (!lines.length) continue;
+      const name = getStore(store).name;
+      await this.repo.add({
+        title: t("grocery.calendarTitle", { store: name }), module: "commission", date: todayISO(), place: name,
+        data: { checklist: fromLines(lines.join("\n")) },
+      });
+      added++;
+    }
+    toast(added ? t("grocery.addedToCalendar", { count: added }) : t("grocery.nothingToAdd"));
   }
 
   openTrip(id) {
@@ -431,6 +523,21 @@ export class App {
       this.openNewItem(el.dataset.date ? { date: el.dataset.date } : {});
     },
     "open-shopping": () => this.openPage("shopping"),
+    "shopping-tab": (el) => this.#openShoppingTab(el.dataset.tab),
+    "grocery-remove": (el) => this.#updateGrocery({ list: removeListEntry(this.repo.grocery().list, el.dataset.entry) }),
+    "grocery-clear": () => this.#updateGrocery({ list: clearDone(this.repo.grocery().list) }),
+    "grocery-add-product": async (el) => {
+      await this.#updateGrocery({ list: addToList(this.repo.grocery().list, el.dataset.product) });
+      toast(t("grocery.added", { name: el.dataset.product }));
+    },
+    "grocery-price": (el) => {
+      this.groceryPrefill = el.dataset.product;
+      this.#openShoppingTab("prices");
+      $("[data-role=price-add] [name=price]")?.focus();
+    },
+    "grocery-price-remove": (el) => this.#updateGrocery({ prices: this.repo.grocery().prices.filter((p) => p.id !== el.dataset.id) }),
+    "grocery-print": () => window.print(),
+    "grocery-calendar": () => this.#groceryToCalendar(),
     "open-trips": () => this.openPage("trips"),
     "new-habit": () => this.openNewItem({ date: todayISO(), module: "habitude", repeat: FREQ.DAILY }),
     "open-item": (el) => this.openItem(el.dataset.id, el.dataset.date),
@@ -534,6 +641,17 @@ export class App {
       }
       syncRepeatFields(form);
     }
+    if (el.dataset.action === "grocery-toggle") {
+      return this.#updateGrocery({ list: toggleListEntry(this.repo.grocery().list, el.dataset.entry) });
+    }
+    if (el.dataset.action === "grocery-store") {
+      const chosen = [...document.querySelectorAll("[data-action=grocery-store]:checked")].map((c) => c.value);
+      return this.#updateGrocery({ stores: chosen });
+    }
+    if (el.dataset.action === "grocery-deal") {
+      el.form.querySelector("[data-role=until]").hidden = !el.checked;
+      return;
+    }
     if (el.dataset.action === "place-toggle") {
       const trip = this.repo.get(el.dataset.id);
       await this.#updateData(trip.id, { places: toggleVisited(getPlaces(trip), el.dataset.entry) });
@@ -564,6 +682,8 @@ export class App {
 
   async #onSubmit(e) {
     if (e.target.id === "med-setup") return this.#startMeditation(e);
+    if (e.target.dataset.role === "grocery-add") return this.#addGrocery(e);
+    if (e.target.dataset.role === "price-add") return this.#addPrice(e);
     if (e.target.classList.contains("place-add")) {
       e.preventDefault();
       const name = $("[data-role=place-input]", e.target).value;
