@@ -432,4 +432,7 @@ export default {
   "grocery.custom.seeList": "See my grocery list",
   "grocery.custom.addPlaceholder": "Add my own item…",
   "grocery.custom.calendarLists": "My calendar lists",
+  "grocery.custom.openAll": "Open all",
+  "grocery.custom.closeAll": "Close all",
+  "grocery.custom.search": "Search an item (e.g. parsley)",
 };

@@ -429,4 +429,7 @@ export default {
   "grocery.custom.seeList": "Xem danh sách đi chợ",
   "grocery.custom.addPlaceholder": "Thêm món của tôi…",
   "grocery.custom.calendarLists": "Danh sách trong lịch",
+  "grocery.custom.openAll": "Mở tất cả",
+  "grocery.custom.closeAll": "Đóng tất cả",
+  "grocery.custom.search": "Tìm món (vd. ngò tây)",
 };
