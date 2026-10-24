@@ -1,7 +1,5 @@
 // 한국어
 export default {
-  "nav.prev": "이전",
-  "nav.next": "다음",
   "nav.today": "오늘",
   "nav.views": "보기 선택",
   "nav.add": "항목 추가",
@@ -477,4 +475,16 @@ export default {
   "trip.hotelsSource": "OpenStreetMap 데이터라 빠진 곳이 있을 수 있어요. 가격과 예약 가능 여부는 호텔 사이트에서 확인하세요.",
   "trip.hotelDistance": "중심에서 {km}km",
   "trip.website": "웹사이트",
+
+  // Flèches du calendrier, selon la vue
+  "nav.prev.day": "이전 날",
+  "nav.next.day": "다음 날",
+  "nav.prev.week": "이전 주",
+  "nav.next.week": "다음 주",
+  "nav.prev.month": "이전 달",
+  "nav.next.month": "다음 달",
+  "nav.prev.year": "이전 해",
+  "nav.next.year": "다음 해",
+  "nav.prev": "이전",
+  "nav.next": "다음",
 };

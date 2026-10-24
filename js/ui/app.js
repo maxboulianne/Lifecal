@@ -20,6 +20,7 @@ import { itemForm, readItemForm, syncRepeatFields } from "./components/item-form
 import { closeModal, openModal, setupModal } from "./components/modal.js";
 import { nudgesBar } from "./components/nudges.js";
 import { cheer, toast } from "./components/toast.js";
+import { CHEVRON_LEFT, CHEVRON_RIGHT } from "./components/icons.js";
 import { welcome } from "./components/welcome.js";
 import { MeditationPlayer } from "./meditation/player.js";
 import { habitsPage } from "./pages/habits.js";
@@ -62,6 +63,8 @@ function saveCatalogOpen(open) {
     /* préférence non retenue : sans conséquence */
   }
 }
+
+const SWIPE_MIN_PX = 60;
 
 // Mots d'une recherche, écrits comme les clés de produits (sans accents).
 const productKeyWords = (query) => productKey(query).split(" ").filter(Boolean);
@@ -119,6 +122,14 @@ export class App {
     document.addEventListener("click", (e) => this.#onClick(e));
     document.addEventListener("change", (e) => this.#onChange(e));
     document.addEventListener("submit", (e) => this.#onSubmit(e));
+    this.#listenSwipe();
+    // Flèches du clavier (iPad avec clavier, ordinateur) : jour, semaine, mois ou année d'avant ou d'après.
+    document.addEventListener("keydown", (e) => {
+      if (this.page || !$("#modal").hidden || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
+      if (e.key === "ArrowLeft") this.#actions.prev();
+      if (e.key === "ArrowRight") this.#actions.next();
+    });
     document.addEventListener("input", (e) => {
       if (e.target.dataset.journal) this.#scheduleJournalSave();
       if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
@@ -150,6 +161,24 @@ export class App {
   }
 
   // ---- Navigation --------------------------------------------------------
+
+  // Glisser le doigt vers la gauche ou la droite sur le calendrier : période
+  // suivante ou précédente (un geste surtout horizontal, d'au moins 60 px).
+  #listenSwipe() {
+    const area = $("#calendar");
+    let start = null;
+    area.addEventListener("touchstart", (e) => {
+      start = !this.page && e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    }, { passive: true });
+    area.addEventListener("touchend", (e) => {
+      if (!start || this.page) return;
+      const dx = e.changedTouches[0].clientX - start.x;
+      const dy = e.changedTouches[0].clientY - start.y;
+      start = null;
+      if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      this.#actions[dx < 0 ? "next" : "prev"]();
+    }, { passive: true });
+  }
 
   #readHash() {
     const [, first, second] = location.hash.match(/^#\/(\w+)(?:\/([\w-]+))?/) ?? [];
@@ -275,9 +304,9 @@ export class App {
     const title = VIEWS[this.view].title(this.cursor);
     $("#topbar").innerHTML = `
       <div class="nav">
-        <button type="button" class="icon-btn" data-action="prev" aria-label="${esc(t("nav.prev"))}">‹</button>
+        <button type="button" class="nav-arrow" data-action="prev" aria-label="${esc(t(`nav.prev.${this.view}`))}" title="${esc(t(`nav.prev.${this.view}`))}">${CHEVRON_LEFT}</button>
         <h1 id="title" aria-live="polite">${esc(title)}</h1>
-        <button type="button" class="icon-btn" data-action="next" aria-label="${esc(t("nav.next"))}">›</button>
+        <button type="button" class="nav-arrow" data-action="next" aria-label="${esc(t(`nav.next.${this.view}`))}" title="${esc(t(`nav.next.${this.view}`))}">${CHEVRON_RIGHT}</button>
         <button type="button" class="btn soft" data-action="today">${t("nav.today")}</button>
       </div>
       <div class="nav">

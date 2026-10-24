@@ -1,7 +1,5 @@
 // English
 export default {
-  "nav.prev": "Previous",
-  "nav.next": "Next",
   "nav.today": "Today",
   "nav.views": "Choose a view",
   "nav.add": "Add an item",
@@ -480,4 +478,16 @@ export default {
   "trip.hotelsSource": "OpenStreetMap data: the list may be incomplete. Check prices and availability on the hotel's website.",
   "trip.hotelDistance": "{km} km from the center",
   "trip.website": "Website",
+
+  // Flèches du calendrier, selon la vue
+  "nav.prev.day": "Previous day",
+  "nav.next.day": "Next day",
+  "nav.prev.week": "Previous week",
+  "nav.next.week": "Next week",
+  "nav.prev.month": "Previous month",
+  "nav.next.month": "Next month",
+  "nav.prev.year": "Previous year",
+  "nav.next.year": "Next year",
+  "nav.prev": "Previous",
+  "nav.next": "Next",
 };

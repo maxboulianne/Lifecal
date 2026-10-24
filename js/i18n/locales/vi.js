@@ -1,7 +1,5 @@
 // Tiếng Việt
 export default {
-  "nav.prev": "Trước",
-  "nav.next": "Sau",
   "nav.today": "Hôm nay",
   "nav.views": "Chọn chế độ xem",
   "nav.add": "Thêm mục",
@@ -477,4 +475,16 @@ export default {
   "trip.hotelsSource": "Dữ liệu OpenStreetMap: danh sách có thể chưa đầy đủ. Hãy xem giá và phòng trống trên trang của khách sạn.",
   "trip.hotelDistance": "cách trung tâm {km} km",
   "trip.website": "Trang web",
+
+  // Flèches du calendrier, selon la vue
+  "nav.prev.day": "Ngày trước",
+  "nav.next.day": "Ngày sau",
+  "nav.prev.week": "Tuần trước",
+  "nav.next.week": "Tuần sau",
+  "nav.prev.month": "Tháng trước",
+  "nav.next.month": "Tháng sau",
+  "nav.prev.year": "Năm trước",
+  "nav.next.year": "Năm sau",
+  "nav.prev": "Trước",
+  "nav.next": "Sau",
 };

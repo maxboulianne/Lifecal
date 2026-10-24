@@ -1,7 +1,5 @@
 // Português (Brasil)
 export default {
-  "nav.prev": "Anterior",
-  "nav.next": "Próximo",
   "nav.today": "Hoje",
   "nav.views": "Escolher a visualização",
   "nav.add": "Adicionar um item",
@@ -480,4 +478,16 @@ export default {
   "trip.hotelsSource": "Dados do OpenStreetMap: a lista pode estar incompleta. Confira preços e disponibilidade no site do hotel.",
   "trip.hotelDistance": "a {km} km do centro",
   "trip.website": "Site",
+
+  // Flèches du calendrier, selon la vue
+  "nav.prev.day": "Dia anterior",
+  "nav.next.day": "Próximo dia",
+  "nav.prev.week": "Semana anterior",
+  "nav.next.week": "Próxima semana",
+  "nav.prev.month": "Mês anterior",
+  "nav.next.month": "Próximo mês",
+  "nav.prev.year": "Ano anterior",
+  "nav.next.year": "Próximo ano",
+  "nav.prev": "Anterior",
+  "nav.next": "Próximo",
 };

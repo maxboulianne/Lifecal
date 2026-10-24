@@ -35,7 +35,7 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
 
 ## Ce qui fonctionne
 
-- Vues Jour, **Semaine** (par défaut), Mois et Année, avec les flèches ‹ › et le bouton « Aujourd'hui ».
+- Vues Jour, **Semaine** (par défaut), Mois et Année. Les boutons flèches en haut, un glissement du doigt vers la gauche ou la droite sur le calendrier, ou les flèches du clavier font avancer ou reculer d'un jour, d'une semaine, d'un mois ou d'une année selon la vue ; « Aujourd'hui » y revient.
 - Un toucher sur l'en-tête d'un jour ouvre la vue Jour. Le bouton « retour » du navigateur ramène à la vue précédente.
 - Un toucher sur un élément ouvre ses détails. On peut alors le marquer comme fait, le modifier, l'annuler (il reste visible, barré) ou le supprimer.
 - Le bouton « + » ajoute un élément. Le lieu est facultatif et le bouton « Utiliser ma position » enregistre les coordonnées.

@@ -7,6 +7,7 @@ import {
   GRATITUDE_SLOTS, entryContent, entryFor, moodSeries, pastEntries, promptIndex, weekTrend,
 } from "../../journal/journal.js";
 import { MOODS } from "../../meditation/catalog.js";
+import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
 
 const MOOD_COLORS = ["#ef4444", "#f59e0b", "#a3a3a3", "#22c55e", "#0d9488"];
 
@@ -64,11 +65,11 @@ export const journalPage = {
     return `<section class="page journal">
       <article class="card journal-entry" data-date="${iso}">
         <header class="journal-nav">
-          <button type="button" class="icon-btn" data-action="journal-day" data-date="${toISODate(addDays(date, -1))}" aria-label="${esc(t("nav.prev"))}">‹</button>
+          <button type="button" class="nav-arrow" data-action="journal-day" data-date="${toISODate(addDays(date, -1))}" aria-label="${esc(t("nav.prev.day"))}" title="${esc(t("nav.prev.day"))}">${CHEVRON_LEFT}</button>
           <h2>${esc(iso === today ? t("nav.today") : fmt.longDate(date))}</h2>
           ${iso < today
-            ? `<button type="button" class="icon-btn" data-action="journal-day" data-date="${toISODate(addDays(date, 1))}" aria-label="${esc(t("nav.next"))}">›</button>`
-            : '<span class="icon-btn" aria-hidden="true"></span>'}
+            ? `<button type="button" class="nav-arrow" data-action="journal-day" data-date="${toISODate(addDays(date, 1))}" aria-label="${esc(t("nav.next.day"))}" title="${esc(t("nav.next.day"))}">${CHEVRON_RIGHT}</button>`
+            : '<span class="nav-arrow is-placeholder" aria-hidden="true"></span>'}
         </header>
 
         <p class="journal-question">${t("journal.mood")}</p>

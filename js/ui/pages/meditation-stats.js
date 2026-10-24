@@ -6,6 +6,7 @@ import { esc } from "../../core/dom.js";
 import { fmt, t } from "../../i18n/index.js";
 import { meditationLog, periodSeries, programProgress, secondsByKind } from "../../meditation/progress.js";
 import { programContent, sessionContent } from "../../meditation/scripts/index.js";
+import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
 
 export const PERIODS = ["week", "month", "year"];
 
@@ -135,10 +136,10 @@ export const meditationStatsPage = {
             class="${p === statsPeriod ? "active" : ""}" aria-pressed="${p === statsPeriod}">${t(`view.${p}`)}</button>`).join("")}
         </nav>
         <div class="stats-nav">
-          <button type="button" class="icon-btn" data-action="stats-shift" data-step="1" aria-label="${esc(t("nav.prev"))}">‹</button>
+          <button type="button" class="nav-arrow" data-action="stats-shift" data-step="1" aria-label="${esc(t("nav.prev"))}" title="${esc(t("nav.prev"))}">${CHEVRON_LEFT}</button>
           <h2>${esc(periodLabel(series))}</h2>
-          <button type="button" class="icon-btn" data-action="stats-shift" data-step="-1" aria-label="${esc(t("nav.next"))}"
-            ${statsOffset === 0 ? "disabled" : ""}>›</button>
+          <button type="button" class="nav-arrow" data-action="stats-shift" data-step="-1" aria-label="${esc(t("nav.next"))}" title="${esc(t("nav.next"))}"
+            ${statsOffset === 0 ? "disabled" : ""}>${CHEVRON_RIGHT}</button>
         </div>
 
         <div class="stats-hero">

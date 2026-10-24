@@ -943,3 +943,15 @@ body.player-open { overflow: hidden; }
 .chain-option:has(input:checked) { font-weight: 600; background: color-mix(in srgb, var(--hc) 10%, var(--surface)); }
 .hotel-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--hc); flex: none; }
 .hotel-list .btn.link { white-space: nowrap; }
+
+/* Flèches du calendrier : de vrais boutons, bien visibles. */
+.nav-arrow {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: var(--tap); height: var(--tap); padding: 0; border: none; border-radius: 12px;
+  background: var(--soft); color: var(--ink); cursor: pointer;
+}
+.nav-arrow:hover { filter: brightness(0.96); }
+.nav-arrow:active { transform: scale(0.94); }
+@media (max-width: 760px) { .nav-arrow { width: 40px; height: 40px; } }
+.nav-arrow:disabled { opacity: 0.35; cursor: default; transform: none; }
+.nav-arrow.is-placeholder { visibility: hidden; }
