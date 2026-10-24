@@ -364,4 +364,5 @@ export default {
   "trips.empty": "Nenhuma viagem planejada por enquanto. Para onde você gostaria de ir?",
   "trips.past": "Lembranças de viagem",
   "trips.bag": "mala {done}/{total}",
+  "med.ambienceVolume": "Volume do ambiente",
 };

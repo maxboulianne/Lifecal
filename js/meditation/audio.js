@@ -22,19 +22,30 @@ const WARMUP_SECONDS = 4;
 const BELL_SECONDS = 8;
 const RESUME_DELAY_MS = 400;
 
+// Volume de l'ambiance : 0 à 1 (réglage), converti en gain perçu plus naturellement.
+export const DEFAULT_AMBIENCE_VOLUME = 0.6;
+const ambienceGain = (volume) => 1.5 * volume * volume;
+
 export class MeditationAudio {
   #ambienceEl = null;
   #bellEl = null;
-  #active = false; // une séance est en cours : l'ambiance doit continuer
+  #active = false; // une séance est en cours
+  #paused = false; // séance en pause : les sons aussi
+  #ambienceId = null;
   #ambienceUrl = null;
+  #volume = DEFAULT_AMBIENCE_VOLUME;
   #token = 0;
-  #cache = new Map(); // id -> Promise<url>
+  #cache = new Map(); // id -> Promise<Float32Array> (son brut, avant le volume)
   #bellUrl = null; // Promise<url>
   #bellUrlReady = null;
   #silentUrl = null;
 
   get supported() {
     return Boolean(Offline) && typeof Audio !== "undefined";
+  }
+
+  get #playing() {
+    return this.#active && !this.#paused;
   }
 
   // À appeler lors d'un toucher de l'utilisateur (exigence d'iOS).
@@ -47,16 +58,15 @@ export class MeditationAudio {
       this.#ambienceEl.loop = true;
       // Interrompue par la voix ou par le système : on la relance.
       this.#ambienceEl.addEventListener("pause", () => {
-        if (this.#active) setTimeout(() => this.#active && this.#play(this.#ambienceEl), RESUME_DELAY_MS);
+        if (this.#playing) setTimeout(() => this.#playing && this.#play(this.#ambienceEl), RESUME_DELAY_MS);
       });
       this.#bellEl = new Audio();
       // Le bol coupé par la voix finit de résonner.
       this.#bellEl.addEventListener("pause", () => {
-        const el = this.#bellEl;
-        if (this.#active && !el.ended && el.src === this.#bellUrlReady) setTimeout(() => this.#active && this.#play(el), RESUME_DELAY_MS);
+        if (this.#playing && this.#bellRinging()) setTimeout(() => this.#playing && this.#play(this.#bellEl), RESUME_DELAY_MS);
       });
     }
-    if (this.#ambienceEl.paused) {
+    if (this.#ambienceEl.paused && !this.#paused) {
       if (!this.#ambienceEl.src) this.#ambienceEl.src = this.#silentUrl;
       this.#play(this.#ambienceEl);
     }
@@ -70,45 +80,93 @@ export class MeditationAudio {
   async bell() {
     const el = this.#bellEl;
     const url = await this.#bellUrl;
-    if (!el || !url) return;
+    if (!el || !url || this.#paused) return;
     this.#bellUrlReady = url;
     if (el.src !== url) el.src = url;
     el.currentTime = 0;
     this.#play(el);
   }
 
-  startAmbience(id) {
+  startAmbience(id, volume = this.#volume) {
     this.#active = true;
-    const el = this.#ambienceEl;
-    if (!el) return;
-    const token = ++this.#token;
-    const make = AMBIENCES[id];
-    if (!make) return this.#setAmbience(this.#silentUrl);
-    if (!this.#cache.has(id)) this.#cache.set(id, renderAmbience(make).then((b) => wavUrl(b, RATE)));
-    this.#cache.get(id)
-      .then((url) => token === this.#token && this.#active && this.#setAmbience(url))
-      .catch((err) => console.error(err));
+    this.#paused = false;
+    this.#volume = volume;
+    this.#ambienceId = AMBIENCES[id] ? id : null;
+    this.#token++;
+    if (!this.#ambienceEl) return;
+    if (!this.#ambienceId) return this.#setAmbience(this.#silentUrl);
+    this.#loadAmbience();
+  }
+
+  // Nouveau volume (0 à 1) : l'ambiance est refaite et reprend au même endroit.
+  setVolume(volume) {
+    this.#volume = volume;
+    if (this.#ambienceId && this.#active) {
+      this.#token++;
+      this.#loadAmbience();
+    }
   }
 
   stopAmbience() {
     this.#token++;
+    this.#ambienceId = null;
     if (this.#ambienceEl && this.#ambienceUrl !== this.#silentUrl) this.#setAmbience(this.#silentUrl);
+  }
+
+  // Pause de la séance : l'ambiance et le bol se taisent aussi.
+  pause() {
+    this.#paused = true;
+    this.#ambienceEl?.pause();
+    this.#bellEl?.pause();
+  }
+
+  // À appeler pendant le toucher « Reprendre » (exigence d'iOS).
+  resume() {
+    if (!this.#paused) return;
+    this.#paused = false;
+    this.unlock();
+    if (this.#bellRinging()) this.#play(this.#bellEl);
   }
 
   // Fin de séance : tout s'arrête, et l'appareil peut revenir au silence.
   close() {
     this.#token++;
     this.#active = false;
+    this.#paused = false;
     this.#ambienceEl?.pause();
     this.#bellEl?.pause();
   }
 
-  #setAmbience(url) {
+  #bellRinging() {
+    const el = this.#bellEl;
+    return Boolean(el && this.#bellUrlReady && el.src === this.#bellUrlReady && !el.ended && el.currentTime > 0);
+  }
+
+  #loadAmbience() {
+    const id = this.#ambienceId;
+    const token = this.#token;
+    if (!this.#cache.has(id)) this.#cache.set(id, renderAmbience(AMBIENCES[id]));
+    const gain = ambienceGain(this.#volume);
+    this.#cache.get(id)
+      .then((raw) => {
+        if (token !== this.#token || !this.#active) return;
+        this.#setAmbience(wavUrl(raw.map((v) => v * gain), RATE), { keepPosition: true });
+      })
+      .catch((err) => console.error(err));
+  }
+
+  #setAmbience(url, { keepPosition = false } = {}) {
     const el = this.#ambienceEl;
+    const previous = this.#ambienceUrl;
+    const at = keepPosition && previous !== this.#silentUrl ? el.currentTime : 0;
     this.#ambienceUrl = url;
-    if (el.src !== url) el.src = url;
+    if (el.src !== url) {
+      el.src = url;
+      if (at) el.addEventListener("loadedmetadata", () => (el.currentTime = at % el.duration), { once: true });
+    }
+    if (previous && previous !== url && previous !== this.#silentUrl) URL.revokeObjectURL(previous);
     el.loop = true;
-    this.#play(el);
+    if (!this.#paused) this.#play(el);
   }
 
   #play(el) {

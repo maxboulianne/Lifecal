@@ -361,4 +361,5 @@ export default {
   "trips.empty": "Chưa có chuyến đi nào. Bạn muốn đi đâu?",
   "trips.past": "Kỷ niệm du lịch",
   "trips.bag": "hành lý {done}/{total}",
+  "med.ambienceVolume": "Âm lượng âm thanh nền",
 };

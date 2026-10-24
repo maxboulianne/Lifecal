@@ -383,4 +383,5 @@ export default {
   "trips.empty": "Aucun voyage prévu pour l'instant. Où aimerais-tu aller ?",
   "trips.past": "Souvenirs de voyage",
   "trips.bag": "valise {done}/{total}",
+  "med.ambienceVolume": "Volume de l'ambiance",
 };
