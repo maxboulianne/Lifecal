@@ -762,3 +762,21 @@ body.player-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .toast { transition: none; }
 }
+
+/* ---- Voyage ---------------------------------------------------------------- */
+.trip { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.trip .card h2 { margin: 0 0 8px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.trip .checklist { margin-top: 0; padding-top: 0; border-top: none; }
+.trip-hero { border-top: 5px solid var(--c); }
+.trip-hero h2 { font-size: 1.5rem; }
+.trip-dates { margin: 0; color: var(--muted); }
+.trip-status { margin: 8px 0; font-weight: 600; color: var(--c); }
+.place-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 36px; height: 36px; border: none; border-radius: 50%; background: none;
+  color: var(--muted); font-size: 1.05rem; text-decoration: none; cursor: pointer; filter: grayscale(1); opacity: .6;
+}
+.place-btn.is-located { filter: none; opacity: 1; }
+.place-btn:disabled { opacity: .3; }
+.trip-map { height: 300px; border-radius: 12px; overflow: hidden; background: var(--bg); z-index: 0; }
+.trip-map .leaflet-container { font: inherit; }

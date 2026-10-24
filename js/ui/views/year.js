@@ -7,8 +7,11 @@ const pad = (n) => String(n).padStart(2, "0");
 // Les habitudes répétées ne comptent que jusqu'à aujourd'hui (sinon une
 // habitude quotidienne gonflerait les mois à venir), et leurs jours
 // facultatifs non faits sont ignorés.
+// Un voyage sur plusieurs jours ne compte qu'une fois (son premier jour).
 const counts = (item, today) =>
-  !isCancelled(item) && !(item.occurrence && (item.date > today || (item.occurrence.optional && !item.done)));
+  !isCancelled(item) &&
+  !(item.span && item.date !== item.span.start) &&
+  !(item.occurrence && (item.date > today || (item.occurrence.optional && !item.done)));
 
 export const yearView = {
   id: "year",

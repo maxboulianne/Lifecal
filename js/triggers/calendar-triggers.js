@@ -5,6 +5,7 @@ import { getModule } from "../config/modules.js";
 import { addDays, diffDays, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
 import { isCancelled } from "../data/item.js";
 import { FREQ, doneInWeek, occurrencesBetween } from "../data/recurrence.js";
+import { getChecklist, progress } from "../data/checklist.js";
 import { fmt } from "../i18n/index.js";
 
 const upcoming = (items, today, moduleId, maxDays) =>
@@ -13,13 +14,45 @@ const upcoming = (items, today, moduleId, maxDays) =>
     .map((i) => ({ item: i, days: diffDays(today, i.date) }))
     .filter(({ days }) => days >= 0 && days <= maxDays);
 
-// Un voyage dans 3 semaines ou moins lance sa préparation.
+// Valise pas encore prête à quelques jours du départ : un rappel doux.
+export const packingReminder = {
+  id: "voyage-valise",
+  kind: "calendar",
+  windowDays: 3,
+  applies(item, days) {
+    const p = progress(getChecklist(item));
+    return days <= this.windowDays && p.total > 0 && !p.complete;
+  },
+  evaluate({ items, today }) {
+    return upcoming(items, today, "voyage", this.windowDays)
+      .filter(({ item, days }) => this.applies(item, days))
+      .map(({ item, days }) => {
+        const p = progress(getChecklist(item));
+        return {
+          id: `voyage-valise:${item.id}:${today}`,
+          tone: "info",
+          icon: "🧳",
+          messageKey: "nudge.packing",
+          params: { title: item.title, when: fmt.inDays(days), percent: fmt.percent(p.done / p.total) },
+          itemIds: [item.id],
+          actionKey: "nudge.travelAction",
+          action: "open-trip",
+          actionId: item.id,
+        };
+      });
+  },
+};
+
+// Un voyage dans 3 semaines ou moins lance sa préparation
+// (sauf si le rappel de valise, plus précis, s'en charge déjà).
 export const travelPreparation = {
   id: "voyage-preparation",
   kind: "calendar",
   windowDays: 21,
   evaluate({ items, today }) {
-    return upcoming(items, today, "voyage", this.windowDays).map(({ item, days }) => ({
+    return upcoming(items, today, "voyage", this.windowDays)
+      .filter(({ item, days }) => !packingReminder.applies(item, days))
+      .map(({ item, days }) => ({
       id: `voyage-preparation:${item.id}`,
       tone: "info",
       icon: getModule("voyage").icon,
@@ -27,7 +60,8 @@ export const travelPreparation = {
       params: { title: item.title, when: fmt.inDays(days) },
       itemIds: [item.id],
       actionKey: "nudge.travelAction",
-      actionItemId: item.id,
+      action: "open-trip",
+      actionId: item.id,
     }));
   },
 };
@@ -151,5 +185,5 @@ export const backupReminder = {
 };
 
 export const calendarTriggers = [
-  travelPreparation, specialEventPreparation, missedHabitEncouragement, flexibleWeekReview, eveningJournal, backupReminder,
+  packingReminder, travelPreparation, specialEventPreparation, missedHabitEncouragement, flexibleWeekReview, eveningJournal, backupReminder,
 ];

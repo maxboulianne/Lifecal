@@ -71,3 +71,29 @@ test("rappel de copie : le dimanche, s'il n'y a pas de copie récente", () => {
   assert.equal(backupReminder.evaluate({ items, today: sunday, settings: { lastExport: "2026-09-01" } }).length, 1);
   assert.equal(backupReminder.evaluate({ items: items.slice(0, 3), today: sunday, settings: {} }).length, 0); // peu de données
 });
+
+test("valise pas prête à 2 jours du départ : rappel doux à la place de la préparation", () => {
+  const checklist = [
+    { id: "a", text: "Passeport", done: true },
+    { id: "b", text: "Chargeur", done: false },
+  ];
+  const items = [item({ title: "Lisbonne", module: "voyage", date: "2026-10-25", data: { checklist } })];
+  const nudges = engine.evaluate({ items, today, settings: {} });
+  assert.equal(nudges.length, 1);
+  assert.equal(nudges[0].messageKey, "nudge.packing");
+  assert.equal(nudges[0].params.when, "après-demain");
+  assert.match(nudges[0].params.percent, /^50\s?%$/);
+  assert.equal(nudges[0].action, "open-trip");
+  assert.equal(nudges[0].actionId, "Lisbonne");
+});
+
+test("valise prête ou départ lointain : pas de rappel de valise", () => {
+  const ready = [{ id: "a", text: "Passeport", done: true }];
+  const todo = [{ id: "a", text: "Passeport", done: false }];
+  const items = [
+    item({ title: "Prêt", module: "voyage", date: "2026-10-24", data: { checklist: ready } }),
+    item({ title: "Loin", module: "voyage", date: "2026-11-05", data: { checklist: todo } }),
+  ];
+  const keys = engine.evaluate({ items, today, settings: {} }).map((n) => n.messageKey);
+  assert.deepEqual(keys, ["nudge.travel", "nudge.travel"]);
+});

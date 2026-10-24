@@ -61,6 +61,9 @@ export function itemForm(item, { date, module = "rdv", repeat } = {}) {
       <label>${t("form.date")} <input type="date" name="date" value="${esc(v.date)}" required></label>
       <label>${t("form.time")} <input type="time" name="time" value="${esc(v.time)}"></label>
     </div>
+    <label data-role="end-date" ${hasFeature(v.module, "range") ? "" : "hidden"}>${t("form.endDate")} <span class="hint">${t("form.optional")}</span>
+      <input type="date" name="endDate" value="${esc(item?.data?.endDate ?? "")}" min="${esc(v.date ?? "")}">
+    </label>
 
     <label>${t("form.place")} <span class="hint">${t("form.optional")}</span>
       <input name="place" value="${esc(v.place)}" placeholder="${esc(t("form.placePlaceholder"))}" autocomplete="off">
@@ -95,6 +98,8 @@ function parseDay(iso) {
 export function syncRepeatFields(form) {
   const module = form.elements.module.value;
   form.querySelector("[data-role=checklist]").hidden = !hasFeature(module, "checklist");
+  form.querySelector("[data-role=end-date]").hidden = !hasFeature(module, "range");
+  form.elements.endDate.min = form.elements.date.value;
   const section = form.querySelector("[data-role=repeat]");
   section.hidden = !hasFeature(module, "recurrence");
   const freq = section.hidden ? "none" : form.elements.repeat.value;
@@ -129,5 +134,7 @@ export function readItemForm(form, existing = null) {
     recurrence,
     // Texte brut ; converti en liste par l'appelant (qui connaît la liste existante).
     checklistText: hasFeature(module, "checklist") ? f.get("checklist") ?? "" : null,
+    // Date de retour (voyage) : "" = un seul jour ; null = le module n'en a pas.
+    endDate: hasFeature(module, "range") ? f.get("endDate") ?? "" : null,
   };
 }
