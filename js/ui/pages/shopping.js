@@ -2,24 +2,19 @@
 //  - Liste d'épicerie : regroupée par épicerie la moins chère (prix au kg, au L, à l'unité)
 //  - Carnet de prix : les prix notés, la recherche « où est-ce le moins cher », mes épiceries
 //  - Liste personnalisée : les articles courants par catégorie, à cocher (ils
-//    vont dans la liste d'épicerie), mes propres articles, et les commissions
-//    du calendrier (quincaillerie, pharmacie…)
+//    vont dans la liste d'épicerie, visible aussi dans le calendrier) et mes
+//    propres articles
 
-import { getModule } from "../../config/modules.js";
 import { parseISODate } from "../../core/dates.js";
 import { esc } from "../../core/dom.js";
-import { getChecklist, pending } from "../../data/checklist.js";
-import { isCancelled } from "../../data/item.js";
 import { fmt, getLanguage, t } from "../../i18n/index.js";
 import { catalog, resolveCategory, sortNames } from "../../grocery/catalog.js";
 import {
   KG_PER_LB, UNIT_IDS, isExpired, isListed, productKey, isStale, knownProducts, nextFlyerEnd, planList, priceBook, unitPrice,
 } from "../../grocery/grocery.js";
 import { STORES, flyerUrl, getStore } from "../../grocery/stores.js";
-import { checklistSection } from "../components/item-detail.js";
 
 export const SHOPPING_TABS = ["grocery", "prices", "lists"];
-const PAST_LISTS = 8;
 
 // ---- Textes de prix ------------------------------------------------------------
 
@@ -109,7 +104,6 @@ function groceryTab(grocery, today) {
         <span class="hint">${t("grocery.summary", { count: total })} · ${t("grocery.storesCount", { count: plan.groups.length })}</span>
         <div class="actions start">
           <button type="button" class="btn soft" data-action="grocery-print">🖨️ ${t("grocery.print")}</button>
-          <button type="button" class="btn soft" data-action="grocery-calendar">📅 ${t("grocery.toCalendar")}</button>
           ${grocery.list.some((e) => e.done) ? `<button type="button" class="btn soft" data-action="grocery-clear">${t("grocery.clearDone")}</button>` : ""}
         </div>
       </div>
@@ -203,29 +197,6 @@ function pricesTab(grocery, today, options) {
     ${storesCard(grocery)}`;
 }
 
-// ---- Autres listes (commissions du calendrier) -------------------------------------
-
-const when = (item) => `${fmt.longDate(parseISODate(item.date))}${item.time ? ` · ${fmt.time(item.time)}` : ""}`;
-
-function listCard(item) {
-  const m = getModule(item.module);
-  const left = pending(getChecklist(item)).length;
-  return `<article class="card list-card" style="--c:${m.color}">
-    <header class="list-head">
-      <div>
-        <h2>${esc(item.title)}</h2>
-        <p class="hint">📅 ${esc(when(item))}${item.place ? ` · 📍 ${esc(item.place)}` : ""}</p>
-      </div>
-      <button type="button" class="btn link" data-action="edit-item" data-id="${esc(item.id)}">${t("detail.edit")}</button>
-    </header>
-    ${left ? `<p class="list-left">${t("shopping.left", { count: left })}</p>` : ""}
-    ${checklistSection(item)}
-    <div class="actions start">
-      <button type="button" class="btn soft" data-action="toggle-done" data-id="${esc(item.id)}">✓ ${t("shopping.finish")}</button>
-    </div>
-  </article>`;
-}
-
 // ---- Liste personnalisée : catalogue à cocher -------------------------------------
 
 function catalogItem(name, list, customId = null) {
@@ -243,6 +214,7 @@ function customTab(repo, open) {
   const list = grocery.list;
   const lang = getLanguage();
   const categories = catalog(lang);
+  const everywhere = new Set(categories.flatMap((c) => c.items).map(productKey)); // déjà au catalogue
   const checked = list.filter((e) => !e.done).length;
   return `<p class="hint catalog-intro">${t("grocery.custom.intro")}</p>
     <div class="grocery-tools">
@@ -256,9 +228,9 @@ function customTab(repo, open) {
     <input type="search" class="grocery-search" data-role="catalog-search" placeholder="${esc(t("grocery.custom.search"))}"
       aria-label="${esc(t("grocery.custom.search"))}" autocomplete="off">
     ${categories.map((c) => {
-      // Mes articles, mêlés au catalogue (sauf s'ils y sont déjà) et triés avec lui.
-      const known = new Set(c.items.map(productKey));
-      const own = grocery.custom.filter((x) => resolveCategory(x.category) === c.id && !known.has(productKey(x.name)));
+      // Mes articles, mêlés au catalogue (sauf s'ils y sont déjà, dans n'importe
+      // quelle catégorie) et triés avec lui.
+      const own = grocery.custom.filter((x) => resolveCategory(x.category) === c.id && !everywhere.has(productKey(x.name)));
       const ownId = new Map(own.map((x) => [x.name, x.id]));
       const names = sortNames([...c.items, ...own.map((x) => x.name)], lang);
       const count = names.filter((n) => isListed(list, n)).length;
@@ -281,21 +253,7 @@ function customTab(repo, open) {
         </div>
       </article>`;
     }).join("")}
-    <p class="empty-msg small" data-role="catalog-no-match" hidden>${t("grocery.noMatch")}</p>
-    <h2 class="section-title">${t("grocery.custom.calendarLists")}</h2>
-    ${listsTab(repo)}`;
-}
-
-function listsTab(repo) {
-  const lists = repo.all().filter((i) => i.module === "commission" && !i.recurrence && !isCancelled(i));
-  const active = lists.filter((i) => !i.done).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-  const done = lists.filter((i) => i.done).sort((a, b) => b.date.localeCompare(a.date)).slice(0, PAST_LISTS);
-  return `${active.length ? active.map(listCard).join("") : `<p class="empty-msg">${t("shopping.empty")}</p>
-      <div class="actions center"><button type="button" class="btn primary" data-action="new-item" data-module="commission">🛒 ${t("shopping.add")}</button></div>`}
-    ${done.length ? `<h2 class="section-title">${t("shopping.done")}</h2>
-      <div class="card past-list">${done.map((i) => `<button type="button" class="past-row" data-action="open-item" data-id="${esc(i.id)}">
-        <span>✓ ${esc(i.title)}</span><span class="hint">${esc(fmt.date(parseISODate(i.date)))}</span>
-      </button>`).join("")}</div>` : ""}`;
+    <p class="empty-msg small" data-role="catalog-no-match" hidden>${t("grocery.noMatch")}</p>`;
 }
 
 export const shoppingPage = {

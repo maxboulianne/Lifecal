@@ -195,6 +195,35 @@ export function addCustomItem(custom, name, category) {
 
 export const removeCustomItem = (custom, id) => custom.filter((c) => c.id !== id);
 
+// ---- Lien avec le calendrier ---------------------------------------------------------
+//
+// La liste d'épicerie apparaît dans le calendrier comme une commission
+// « Liste d'épicerie » (item.data.grocery = true). Sa liste à cocher est le
+// reflet de grocery.list : mêmes identifiants, même état « pris ».
+
+const entryText = (e) => (e.qty ? `${e.product} (${e.qty})` : e.product);
+
+// grocery.list -> liste à cocher de la commission du calendrier.
+export const toChecklist = (list) => list.map((e) => ({ id: e.id, text: entryText(e), done: e.done }));
+
+// Liste à cocher modifiée dans le calendrier -> nouvelle grocery.list.
+// Cochée, retirée, ajoutée ou renommée là-bas : pareil ici.
+export function fromChecklist(list, checklist) {
+  const byId = new Map(list.map((e) => [e.id, e]));
+  return checklist.map((c) => {
+    const e = byId.get(c.id);
+    if (e && entryText(e) === c.text) return { ...e, done: Boolean(c.done) };
+    return { id: c.id, product: c.text, key: productKey(c.text), qty: "", done: Boolean(c.done) };
+  });
+}
+
+// Une ancienne commission du calendrier qui sert déjà de liste d'épicerie
+// (ex. « Liste d'épicerie », « Épicerie ») : on la reprend au lieu d'en créer une 2e.
+export function looksLikeGroceryList(item, names) {
+  const keys = names.map(productKey);
+  return item.module === "commission" && !item.recurrence && !item.done && keys.includes(productKey(item.title));
+}
+
 // Noms de produits connus (pour proposer des suggestions en tapant).
 export function knownProducts(grocery) {
   const names = new Map();

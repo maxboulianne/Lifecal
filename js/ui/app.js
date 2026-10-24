@@ -11,6 +11,7 @@ import { $, esc } from "../core/dom.js";
 import { currentStreak } from "../data/habit-stats.js";
 import { FREQ, doneInWeek } from "../data/recurrence.js";
 import { ValidationError } from "../data/repository.js";
+import { isCancelled } from "../data/item.js";
 import { addEntry, fromLines, getChecklist, progress, removeEntry, toggleEntry } from "../data/checklist.js";
 import { getCurrentPosition, watchPosition } from "../geo/geo.js";
 import { getLanguage, setLanguage, t, tList } from "../i18n/index.js";
@@ -29,7 +30,7 @@ import { meditationStatsPage } from "./pages/meditation-stats.js";
 import { tripPage } from "./pages/trip.js";
 import { tripsPage } from "./pages/trips.js";
 import { SHOPPING_TABS, perText, shoppingPage } from "./pages/shopping.js";
-import { addCustomItem, removeCustomItem, toggleListed, addToList, clearDone, createPrice, planList, productKey, removeListEntry, toggleListEntry } from "../grocery/grocery.js";
+import { addCustomItem, fromChecklist, looksLikeGroceryList, removeCustomItem, toChecklist, toggleListed, addToList, clearDone, createPrice, planList, productKey, removeListEntry, toggleListEntry } from "../grocery/grocery.js";
 import { getStore } from "../grocery/stores.js";
 import { mountMap } from "../travel/map.js";
 import { geocode } from "../travel/geocode.js";
@@ -111,6 +112,7 @@ export class App {
       if (this.page === "settings") this.render();
     });
     this.#readHash();
+    this.#linkGroceryList().catch((err) => console.error(err));
     document.addEventListener("click", (e) => this.#onClick(e));
     document.addEventListener("change", (e) => this.#onChange(e));
     document.addEventListener("submit", (e) => this.#onSubmit(e));
@@ -196,7 +198,7 @@ export class App {
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
     $("#fab").dataset.module = fabModule;
     $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip"].includes(this.page)
-      || (this.page === "shopping" && this.shoppingTab !== "lists"); // l'épicerie a ses propres champs
+      || this.page === "shopping"; // l'épicerie a ses propres champs
     this.#map?.remove();
     this.#map = null;
 
@@ -318,6 +320,8 @@ export class App {
     const before = progress(getChecklist(item));
     const list = change(getChecklist(item));
     await this.#updateData(id, { checklist: list }, focusSelector);
+    // La « Liste d'épicerie » du calendrier : la liste d'épicerie suit.
+    if (item.data?.grocery) await this.repo.updateGrocery({ list: fromChecklist(this.repo.grocery().list, list) });
     if (!before.complete && progress(list).complete) toast(t("checklist.allDone"));
   }
 
@@ -344,6 +348,7 @@ export class App {
   async #updateGrocery(patch, focusSelector) {
     const top = window.scrollY;
     await this.repo.updateGrocery(patch);
+    if (patch.list) await this.#syncGroceryToCalendar();
     window.scrollTo(0, top);
     if (focusSelector) $(focusSelector)?.focus();
   }
@@ -427,23 +432,44 @@ export class App {
     if (none) none.hidden = shown > 0;
   }
 
-  // Une liste « Épicerie Super C » par épicerie dans le calendrier (aujourd'hui),
-  // avec les articles à acheter et leur meilleur prix.
-  async #groceryToCalendar() {
-    const plan = planList(this.repo.grocery(), todayISO());
-    let added = 0;
-    for (const { store, entries } of plan.groups) {
-      const lines = entries.filter((l) => !l.entry.done)
-        .map(({ entry, best }) => `${entry.product}${entry.qty ? ` (${entry.qty})` : ""} — ${perText(best.per).split(" · ")[0]}`);
-      if (!lines.length) continue;
-      const name = getStore(store).name;
-      await this.repo.add({
-        title: t("grocery.calendarTitle", { store: name }), module: "commission", date: todayISO(), place: name,
-        data: { checklist: fromLines(lines.join("\n")) },
-      });
-      added++;
+  // La commission « Liste d'épicerie » du calendrier qui reflète la liste d'épicerie.
+  #groceryItem() {
+    return this.repo.all()
+      .filter((i) => i.data?.grocery && !i.done && !isCancelled(i))
+      .sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
+  }
+
+  // Met la « Liste d'épicerie » du calendrier à jour (la crée au besoin, pour
+  // aujourd'hui ; une liste d'un jour passé est ramenée à aujourd'hui).
+  async #syncGroceryToCalendar() {
+    const list = this.repo.grocery().list;
+    const linked = this.#groceryItem();
+    const today = todayISO();
+    const checklist = toChecklist(list);
+    if (!linked) {
+      if (!list.some((e) => !e.done)) return;
+      await this.repo.add({ title: t("grocery.tab.grocery"), module: "commission", date: today, data: { grocery: true, checklist } });
+      return;
     }
-    toast(added ? t("grocery.addedToCalendar", { count: added }) : t("grocery.nothingToAdd"));
+    const date = linked.date < today ? today : linked.date;
+    if (date === linked.date && JSON.stringify(checklist) === JSON.stringify(getChecklist(linked))) return;
+    await this.repo.update(linked.id, { date, data: { ...linked.data, checklist } });
+  }
+
+  // Au démarrage : une ancienne commission « Liste d'épicerie » est reprise (ses
+  // articles rejoignent la liste d'épicerie) plutôt que d'avoir deux listes.
+  async #linkGroceryList() {
+    if (!this.#groceryItem()) {
+      const names = [t("grocery.tab.grocery"), "Liste d'épicerie", "Épicerie", "Grocery list", "Groceries"];
+      const old = this.repo.all().find((i) => looksLikeGroceryList(i, names));
+      if (old) {
+        let list = this.repo.grocery().list;
+        for (const c of getChecklist(old)) if (!c.done) list = addToList(list, c.text);
+        await this.repo.updateGrocery({ list });
+        await this.repo.update(old.id, { data: { ...old.data, grocery: true, checklist: toChecklist(list) } });
+      }
+    }
+    await this.#syncGroceryToCalendar();
   }
 
   openTrip(id) {
@@ -590,6 +616,12 @@ export class App {
       this.openNewItem(el.dataset.date ? { date: el.dataset.date } : {});
     },
     "open-shopping": () => this.openPage("shopping"),
+    "open-grocery": () => {
+      closeModal();
+      this.shoppingTab = "grocery";
+      if (this.page === "shopping") this.#openShoppingTab("grocery");
+      else this.openPage("shopping");
+    },
     "shopping-tab": (el) => this.#openShoppingTab(el.dataset.tab),
     "grocery-remove": (el) => this.#updateGrocery({ list: removeListEntry(this.repo.grocery().list, el.dataset.entry) }),
     "catalog-fold": (el) => this.#foldCategory(el.dataset.category, !this.catalogOpen.has(el.dataset.category)),
@@ -609,7 +641,7 @@ export class App {
     },
     "grocery-price-remove": (el) => this.#updateGrocery({ prices: this.repo.grocery().prices.filter((p) => p.id !== el.dataset.id) }),
     "grocery-print": () => window.print(),
-    "grocery-calendar": () => this.#groceryToCalendar(),
+
     "open-trips": () => this.openPage("trips"),
     "new-habit": () => this.openNewItem({ date: todayISO(), module: "habitude", repeat: FREQ.DAILY }),
     "open-item": (el) => this.openItem(el.dataset.id, el.dataset.date),
@@ -679,6 +711,9 @@ export class App {
 
   async #toggleDone(id, date) {
     const item = await this.repo.toggleDone(id, date);
+    // « Liste terminée » sur la liste d'épicerie : les articles pris sont retirés ;
+    // ceux qui restent iront dans la prochaine liste.
+    if (item.data?.grocery && item.done) await this.repo.updateGrocery({ list: clearDone(this.repo.grocery().list) });
     closeModal();
     const done = item.recurrence ? Boolean(item.data.completions?.[date]) : item.done;
     if (!done) return;
@@ -804,6 +839,9 @@ export class App {
     try {
       if (existing) await this.repo.update(existing.id, data);
       else await this.repo.add(data);
+      if (existing?.data?.grocery && data.data?.checklist) {
+        await this.repo.updateGrocery({ list: fromChecklist(this.repo.grocery().list, data.data.checklist) });
+      }
       closeModal();
       // Montrer l'élément là où il a été placé (sauf depuis une page ou une vue large).
       if (!this.page && (this.view === "day" || this.view === "week")) this.navigate(this.view, parseISODate(data.date));
