@@ -22,6 +22,7 @@ export class SessionRunner {
   #startedAt = null;
   #offset = 0; // décalage dû aux déplacements dans la barre d'avancement
   #pendingSeek = null;
+  #replay = null; // phrase à redire après un saut dans un silence
   #resumeWaiters = [];
   #spoken = { chars: 0, seconds: 0 };
 
@@ -58,21 +59,19 @@ export class SessionRunner {
     let into = 0; // secondes déjà passées dans l'élément (après un saut)
     for (;;) {
       if (this.state === "stopped") return;
-      if (i >= this.script.length) {
+      if (this.#replay !== null) {
+        const text = this.#replay;
+        this.#replay = null;
+        await this.#say(text); // puis l'élément `i` reprend là où on l'a mis
+      } else if (i >= this.script.length) {
         await this.#wait(FINAL_RING - into);
-        if (this.#pendingSeek) {
-          ({ i, into } = this.#takeSeek());
-          continue;
-        }
-        break;
+        if (!this.#pendingSeek) break;
+      } else {
+        await this.#play(i, into);
+        into = 0;
+        if (!this.#pendingSeek) i++;
       }
-      await this.#play(i, into);
-      into = 0;
-      if (this.#pendingSeek) {
-        ({ i, into } = this.#takeSeek());
-        continue;
-      }
-      i++;
+      if (this.#pendingSeek) ({ i, into } = this.#takeSeek());
     }
     if (this.state === "stopped") return;
     this.#setState("done");
@@ -101,7 +100,9 @@ export class SessionRunner {
   }
 
   // Se déplacer dans la séance (en secondes depuis le début). Une phrase
-  // reprend à son début ; un silence ou une pause reprend à l'endroit choisi.
+  // reprend à son début ; un silence ou une pause reprend à l'endroit choisi,
+  // après avoir redit la consigne qui le précède (on entend tout de suite
+  // que la séance a repris, et on sait quoi faire pendant ce silence).
   // En pause, la séance reste en pause à la nouvelle position.
   seek(seconds) {
     if (this.state !== "running" && this.state !== "paused") return;
@@ -114,9 +115,11 @@ export class SessionRunner {
     const resumesInside = type === "pause" || type === "breathe" || type === "silence" || type === "ring";
     const position = resumesInside ? target : start;
     this.#offset += position - this.elapsed;
-    this.#pendingSeek = { index, into: resumesInside ? target - start : 0 };
+    const context = this.#contextBefore(index);
+    const replay = type === "pause" || type === "silence" ? context.line : null;
+    this.#pendingSeek = { index, into: resumesInside ? target - start : 0, replay };
     this.voice.cancel();
-    this.onEvent({ type: "seek", position, ...this.#contextBefore(index) });
+    this.onEvent({ type: "seek", position, ...context });
   }
 
   // Estimation de la place de chaque élément dans la séance : [{ start, end }].
@@ -147,6 +150,7 @@ export class SessionRunner {
   #takeSeek() {
     const seek = this.#pendingSeek;
     this.#pendingSeek = null;
+    this.#replay = seek.replay;
     return { i: seek.index, into: seek.into };
   }
 

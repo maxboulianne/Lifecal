@@ -70,3 +70,18 @@ test("une erreur de la voix fait passer à la phrase suivante (pas de boucle)", 
   assert.equal(await p, true);
   mock.timers.reset();
 });
+
+import { encodeWav } from "../js/meditation/audio.js";
+
+test("sons : fichier WAV mono 16 bits valide", () => {
+  const samples = Float32Array.from([0, 0.5, -0.5, 1, -1, 2]);
+  const view = new DataView(encodeWav(samples, 44100));
+  const text = (o, n) => String.fromCharCode(...Array.from({ length: n }, (_, k) => view.getUint8(o + k)));
+  assert.equal(text(0, 4), "RIFF");
+  assert.equal(text(8, 8), "WAVEfmt ");
+  assert.equal(view.getUint32(24, true), 44100);
+  assert.equal(view.getUint16(34, true), 16);
+  assert.equal(view.getUint32(40, true), samples.length * 2);
+  assert.equal(view.getInt16(44 + 2, true), Math.round(0.5 * 0x7fff - 0.5));
+  assert.equal(view.getInt16(44 + 5 * 2, true), 0x7fff, "écrêté sans déborder");
+});
