@@ -127,6 +127,8 @@ function itemActions(item) {
   return [
     item.module === "meditation" && !item.done
       ? `<button type="button" class="btn primary" data-action="open-meditation">${t("med.startNow")}</button>` : "",
+    item.data?.grocery
+      ? `<button type="button" class="btn primary" data-action="open-grocery">🛒 ${t("grocery.custom.seeList")}</button>` : "",
     item.module === "voyage"
       ? `<button type="button" class="btn primary" data-action="open-trip" data-id="${esc(item.id)}">🗺️ ${t("trip.open")}</button>` : "",
     item.module === "journal"

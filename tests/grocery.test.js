@@ -149,3 +149,30 @@ test("catalogue : chaque article a ses 7 langues, sans doublon dans une langue",
   assert.equal(catalog("xx")[0].items[0], "Abricots", "langue inconnue : français");
   assert.ok(catalog("fr").find((c) => c.id === "herbs").items.includes("Persil"));
 });
+
+import { fromChecklist, looksLikeGroceryList, toChecklist } from "../js/grocery/grocery.js";
+
+test("liste du calendrier : reflet de la liste d'épicerie, dans les deux sens", () => {
+  let list = addToList(addToList([], "Lait"), "Bœuf haché", "2 lb");
+  const checklist = toChecklist(list);
+  assert.deepEqual(checklist.map((c) => c.text), ["Lait", "Bœuf haché (2 lb)"]);
+  assert.equal(checklist[0].id, list[0].id);
+  // Coché au magasin, un article retiré, un autre ajouté dans le calendrier.
+  const edited = [{ ...checklist[1], done: true }, { id: "n1", text: "Persil", done: false }];
+  list = fromChecklist(list, edited);
+  assert.deepEqual(list.map((e) => [e.product, e.qty, e.done]), [["Bœuf haché", "2 lb", true], ["Persil", "", false]]);
+  assert.equal(list[1].key, productKey("persil"));
+  // Renommé dans le calendrier.
+  list = fromChecklist(list, [{ id: list[0].id, text: "Steak haché", done: false }]);
+  assert.deepEqual([list[0].product, list[0].key], ["Steak haché", productKey("Bœuf haché")]);
+});
+
+test("ancienne commission « Liste d'épicerie » reconnue", () => {
+  const names = ["Liste d'épicerie", "Épicerie"];
+  const item = (o) => ({ module: "commission", recurrence: null, done: false, title: "Liste d’épicerie", ...o });
+  assert.equal(looksLikeGroceryList(item({}), names), true, "apostrophe typographique");
+  assert.equal(looksLikeGroceryList(item({ title: "epicerie" }), names), true);
+  assert.equal(looksLikeGroceryList(item({ title: "Quincaillerie" }), names), false);
+  assert.equal(looksLikeGroceryList(item({ done: true }), names), false);
+  assert.equal(looksLikeGroceryList(item({ module: "rdv" }), names), false);
+});
