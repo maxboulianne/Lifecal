@@ -7,6 +7,7 @@
 //             « price $ pour qty unit » (ex. 4,99 $ pour 1 lb, 3,49 $ pour 450 g)
 //             until : dernier jour du rabais (AAAA-MM-JJ) ; null = prix régulier
 //   list    [{ id, product, key, qty, done }]
+//   custom  [{ id, name, category }]   articles ajoutés au catalogue (liste personnalisée)
 // Fonctions pures : elles retournent toujours de nouvelles valeurs.
 
 import { addDays, diffDays, parseISODate, toISODate } from "../core/dates.js";
@@ -28,7 +29,7 @@ const DIM_ORDER = ["mass", "volume", "count"];
 export const STALE_DAYS = 60;
 
 export function emptyGrocery() {
-  return { stores: [...ALL_STORE_IDS], prices: [], list: [] };
+  return { stores: [...ALL_STORE_IDS], prices: [], list: [], custom: [] };
 }
 
 export function normalizeGrocery(raw) {
@@ -37,6 +38,9 @@ export function normalizeGrocery(raw) {
     stores: Array.isArray(g.stores) ? g.stores.filter((s) => ALL_STORE_IDS.includes(s)) : [...ALL_STORE_IDS],
     prices: Array.isArray(g.prices) ? g.prices.map(normalizePrice).filter(Boolean) : [],
     list: Array.isArray(g.list) ? g.list.filter((e) => e && e.product).map((e) => ({ id: e.id ?? newId(), product: String(e.product), key: productKey(e.product), qty: String(e.qty ?? ""), done: Boolean(e.done) })) : [],
+    custom: Array.isArray(g.custom)
+      ? g.custom.filter((c) => c && String(c.name ?? "").trim() && c.category).map((c) => ({ id: c.id ?? newId(), name: String(c.name).trim(), category: String(c.category) }))
+      : [],
   };
 }
 
@@ -62,7 +66,8 @@ function baseKey(name) {
     .replace(/œ/g, "oe").replace(/æ/g, "ae") // ligatures : pas décomposées par NFD
     .normalize("NFD").replace(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .normalize("NFC")
+    .replace(/[^\p{L}\p{N}]+/gu, " ") // lettres de toutes les langues (coréen, vietnamien…)
     .trim();
 }
 
@@ -170,6 +175,25 @@ export function addToList(list, product, qty = "") {
 export const toggleListEntry = (list, id) => list.map((e) => (e.id === id ? { ...e, done: !e.done } : e));
 export const removeListEntry = (list, id) => list.filter((e) => e.id !== id);
 export const clearDone = (list) => list.filter((e) => !e.done);
+
+// ---- Liste personnalisée (catalogue à cocher) -------------------------------------
+
+// Un article du catalogue est « coché » s'il est dans la liste et pas encore pris.
+export const isListed = (list, name) => list.some((e) => e.key === productKey(name) && !e.done);
+
+// Cocher l'ajoute à la liste d'épicerie ; décocher l'en retire.
+export function toggleListed(list, name) {
+  const key = productKey(name);
+  return isListed(list, name) ? list.filter((e) => !(e.key === key && !e.done)) : addToList(list, name);
+}
+
+export function addCustomItem(custom, name, category) {
+  const clean = String(name ?? "").trim();
+  if (!clean || custom.some((c) => c.category === category && productKey(c.name) === productKey(clean))) return custom;
+  return [...custom, { id: newId(), name: clean, category }];
+}
+
+export const removeCustomItem = (custom, id) => custom.filter((c) => c.id !== id);
 
 // Noms de produits connus (pour proposer des suggestions en tapant).
 export function knownProducts(grocery) {

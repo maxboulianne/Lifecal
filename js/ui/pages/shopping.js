@@ -1,16 +1,19 @@
 // Page « Mes commissions », en trois onglets :
 //  - Liste d'épicerie : regroupée par épicerie la moins chère (prix au kg, au L, à l'unité)
 //  - Carnet de prix : les prix notés, la recherche « où est-ce le moins cher », mes épiceries
-//  - Autres listes : les commissions du calendrier (quincaillerie, pharmacie…)
+//  - Liste personnalisée : les articles courants par catégorie, à cocher (ils
+//    vont dans la liste d'épicerie), mes propres articles, et les commissions
+//    du calendrier (quincaillerie, pharmacie…)
 
 import { getModule } from "../../config/modules.js";
 import { parseISODate } from "../../core/dates.js";
 import { esc } from "../../core/dom.js";
 import { getChecklist, pending } from "../../data/checklist.js";
 import { isCancelled } from "../../data/item.js";
-import { fmt, t } from "../../i18n/index.js";
+import { fmt, getLanguage, t } from "../../i18n/index.js";
+import { catalog } from "../../grocery/catalog.js";
 import {
-  KG_PER_LB, UNIT_IDS, isExpired, isStale, knownProducts, nextFlyerEnd, planList, priceBook, unitPrice,
+  KG_PER_LB, UNIT_IDS, isExpired, isListed, isStale, knownProducts, nextFlyerEnd, planList, priceBook, unitPrice,
 } from "../../grocery/grocery.js";
 import { STORES, flyerUrl, getStore } from "../../grocery/stores.js";
 import { checklistSection } from "../components/item-detail.js";
@@ -223,6 +226,47 @@ function listCard(item) {
   </article>`;
 }
 
+// ---- Liste personnalisée : catalogue à cocher -------------------------------------
+
+function catalogItem(name, list, customId = null) {
+  const on = isListed(list, name);
+  return `<li class="catalog-item ${on ? "is-on" : ""}">
+    <label><input type="checkbox" data-action="catalog-toggle" data-name="${esc(name)}" ${on ? "checked" : ""}><span>${esc(name)}</span></label>
+    ${customId ? `<button type="button" class="check-remove" data-action="catalog-remove" data-id="${esc(customId)}"
+      aria-label="${esc(t("grocery.remove", { name }))}">×</button>` : ""}
+  </li>`;
+}
+
+function customTab(repo) {
+  const grocery = repo.grocery();
+  const list = grocery.list;
+  const categories = catalog(getLanguage());
+  const checked = list.filter((e) => !e.done).length;
+  return `<p class="hint catalog-intro">${t("grocery.custom.intro")}</p>
+    <div class="grocery-tools">
+      <span class="hint">${t("grocery.custom.checked", { count: checked })}</span>
+      ${checked ? `<div class="actions start"><button type="button" class="btn soft" data-action="shopping-tab" data-tab="grocery">🧺 ${t("grocery.custom.seeList")}</button></div>` : ""}
+    </div>
+    ${categories.map((c) => {
+      const own = grocery.custom.filter((x) => x.category === c.id);
+      const count = [...c.items, ...own.map((x) => x.name)].filter((n) => isListed(list, n)).length;
+      return `<article class="card catalog-cat">
+        <header class="store-head"><h2><span aria-hidden="true">${c.icon}</span> ${esc(c.name)}</h2>
+          ${count ? `<span class="hint">✓ ${count}</span>` : ""}</header>
+        <ul class="catalog-grid">
+          ${c.items.map((name) => catalogItem(name, list)).join("")}
+          ${own.map((x) => catalogItem(x.name, list, x.id)).join("")}
+        </ul>
+        <form class="check-add" data-role="catalog-add" data-category="${c.id}">
+          <input name="name" placeholder="${esc(t("grocery.custom.addPlaceholder"))}" aria-label="${esc(t("grocery.custom.addPlaceholder"))} · ${esc(c.name)}" autocomplete="off">
+          <button type="submit" class="btn soft">${t("checklist.add")}</button>
+        </form>
+      </article>`;
+    }).join("")}
+    <h2 class="section-title">${t("grocery.custom.calendarLists")}</h2>
+    ${listsTab(repo)}`;
+}
+
 function listsTab(repo) {
   const lists = repo.all().filter((i) => i.module === "commission" && !i.recurrence && !isCancelled(i));
   const active = lists.filter((i) => !i.done).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
@@ -247,7 +291,7 @@ export const shoppingPage = {
       ${tabs(tab)}
       ${tab === "grocery" ? groceryTab(grocery, today)
         : tab === "prices" ? pricesTab(grocery, today, { prefill: groceryPrefill, store: lastStore })
-        : listsTab(repo)}
+        : customTab(repo)}
     </section>`;
   },
 };

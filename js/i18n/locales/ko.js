@@ -366,7 +366,7 @@ export default {
   // Épicerie : liste, carnet de prix, comparaison
   "grocery.tab.grocery": "장보기 목록",
   "grocery.tab.prices": "가격 수첩",
-  "grocery.tab.lists": "다른 목록",
+  "grocery.tab.lists": "맞춤 목록",
   "grocery.perUnit": "/개",
   "grocery.units": { other: "{count}개" },
   "grocery.priceFor": "{qty}에 {price}",
@@ -424,4 +424,9 @@ export default {
   "grocery.calendarTitle": "장보기 {store}",
   "grocery.addedToCalendar": { other: "캘린더에 목록 {count}개를 추가했어요" },
   "grocery.nothingToAdd": "추가할 가격 있는 항목이 없어요.",
+  "grocery.custom.intro": "필요한 것을 체크하세요. 장보기 목록에 추가되고, 각 품목은 가장 싼 마트에 배치돼요.",
+  "grocery.custom.checked": { other: "장보기 목록에 {count}개" },
+  "grocery.custom.seeList": "내 장보기 목록 보기",
+  "grocery.custom.addPlaceholder": "내 품목 추가…",
+  "grocery.custom.calendarLists": "캘린더 목록",
 };

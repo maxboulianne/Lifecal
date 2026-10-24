@@ -55,7 +55,7 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
     - **Liste d'épicerie** : chaque produit est placé dans l'épicerie où il est le moins cher (prix au kg, au litre ou à l'unité), avec l'économie par rapport à l'épicerie suivante et le détail de la comparaison. On coche au magasin. « Imprimer ou PDF » donne une liste avec des cases à cocher ; « Ajouter au calendrier » crée une liste « Épicerie Super C », « Épicerie Maxi »… pour aujourd'hui.
     - **Carnet de prix** : on note un prix (« 4,99 $ pour 1 lb », « 3,49 $ pour 450 g »), en rabais jusqu'au mercredi de la circulaire ou en prix régulier. La recherche montre où un produit est le moins cher (« steak haché » trouve aussi « bœuf haché »). Les rabais terminés ne comptent plus.
     - **Mes épiceries** (dans le carnet) : Maxi, Super C, IGA, Metro, Mayrand, 5 Saveurs, Aubut, Bourassa et Walmart, à cocher, avec un lien vers leur circulaire.
-    - **Autres listes** : les commissions du calendrier (quincaillerie, pharmacie…), avec « Liste terminée ».
+    - **Liste personnalisée** : 93 articles courants en 10 catégories (fruits et légumes, produits laitiers et œufs, viandes, poissons, boulangerie, garde-manger, surgelés, collations, boissons, hygiène et entretien), dans les 7 langues. Cocher un article l'ajoute à la liste d'épicerie, le décocher l'en retire. On peut ajouter ses propres articles dans chaque catégorie. En bas : les commissions du calendrier (quincaillerie, pharmacie…), avec « Liste terminée ».
   - On tape les articles dans le formulaire, un par ligne, ou on les ajoute un à un dans la fiche de l'élément.
   - On les coche au magasin. Un compteur s'affiche dans le calendrier (☑ 2/5).
   - Le rappel de proximité montre les articles qui restent à acheter.
@@ -105,7 +105,7 @@ js/data/storage/           Adaptateurs de stockage (localStorage, mémoire)
 js/triggers/               Moteur de déclencheurs + déclencheurs calendrier et proximité
 js/geo/geo.js              Position, distances, lien vers la carte
 js/sync/                   Fournisseurs externes (Google, Outlook, Yahoo) + fusion
-js/grocery/                Épicerie : épiceries suivies, prix unitaires, comparaison, liste par épicerie
+js/grocery/                Épicerie : épiceries suivies, catalogue d'articles (7 langues), prix unitaires, comparaison, liste par épicerie
 js/travel/                 Voyages : dates, lieux à visiter, recherche d'un lieu, carte
 js/journal/                Journal : entrée du jour, question du jour, humeur et tendance
 js/meditation/             Catalogue, scripts des séances (7 langues), lecteur, voix, sons, progrès

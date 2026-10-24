@@ -388,7 +388,7 @@ export default {
   // Épicerie : liste, carnet de prix, comparaison
   "grocery.tab.grocery": "Liste d'épicerie",
   "grocery.tab.prices": "Carnet de prix",
-  "grocery.tab.lists": "Autres listes",
+  "grocery.tab.lists": "Liste personnalisée",
   "grocery.perUnit": "/unité",
   "grocery.units": { one: "{count} unité", other: "{count} unités" },
   "grocery.priceFor": "{price} pour {qty}",
@@ -446,4 +446,9 @@ export default {
   "grocery.calendarTitle": "Épicerie {store}",
   "grocery.addedToCalendar": { one: "{count} liste ajoutée au calendrier", other: "{count} listes ajoutées au calendrier" },
   "grocery.nothingToAdd": "Aucun article avec un prix à ajouter.",
+  "grocery.custom.intro": "Coche ce dont tu as besoin : ça s'ajoute à ta liste d'épicerie, où chaque article est placé dans l'épicerie la moins chère.",
+  "grocery.custom.checked": { one: "{count} article dans ta liste d'épicerie", other: "{count} articles dans ta liste d'épicerie" },
+  "grocery.custom.seeList": "Voir ma liste d'épicerie",
+  "grocery.custom.addPlaceholder": "Ajouter mon article…",
+  "grocery.custom.calendarLists": "Mes listes du calendrier",
 };
