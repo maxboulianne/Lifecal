@@ -280,4 +280,16 @@ export default {
   "mood.level.4": "En paz",
   "nudge.journal": "¿Un momentito para escribir unas líneas en tu diario?",
   "nudge.journalAction": "Escribir",
+
+  // Listes à cocher
+  "checklist.title": "Lista",
+  "checklist.title.commission": "Mi lista",
+  "checklist.title.voyage": "Para llevar",
+  "checklist.formLabel": "Lista",
+  "checklist.formHint": "(un artículo por línea)",
+  "checklist.formPlaceholder": "p. ej. leche, pan, huevos… uno por línea",
+  "checklist.placeholder": "Añadir un artículo…",
+  "checklist.add": "Añadir",
+  "checklist.remove": "Quitar «{text}»",
+  "checklist.allDone": "Toda la lista está marcada, ¡bravo! 🎉",
 };

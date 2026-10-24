@@ -277,4 +277,16 @@ export default {
   "mood.level.4": "Bình yên",
   "nudge.journal": "Dành một chút thời gian viết vài dòng nhật ký nhé?",
   "nudge.journalAction": "Viết",
+
+  // Listes à cocher
+  "checklist.title": "Danh sách",
+  "checklist.title.commission": "Danh sách của tôi",
+  "checklist.title.voyage": "Đồ cần mang",
+  "checklist.formLabel": "Danh sách",
+  "checklist.formHint": "(mỗi dòng một món)",
+  "checklist.formPlaceholder": "vd. sữa, bánh mì, trứng… mỗi dòng một món",
+  "checklist.placeholder": "Thêm một món…",
+  "checklist.add": "Thêm",
+  "checklist.remove": "Xóa “{text}”",
+  "checklist.allDone": "Đã đánh dấu xong cả danh sách, tuyệt vời 🎉",
 };

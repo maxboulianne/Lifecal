@@ -11,6 +11,7 @@ import { $, esc } from "../core/dom.js";
 import { currentStreak } from "../data/habit-stats.js";
 import { FREQ, doneInWeek } from "../data/recurrence.js";
 import { ValidationError } from "../data/repository.js";
+import { addEntry, fromLines, getChecklist, progress, removeEntry, toggleEntry } from "../data/checklist.js";
 import { getCurrentPosition, watchPosition } from "../geo/geo.js";
 import { getLanguage, setLanguage, t, tList } from "../i18n/index.js";
 import { itemDetail } from "./components/item-detail.js";
@@ -217,6 +218,24 @@ export class App {
     openModal(itemDetail(item, { today: todayISO() }), { labelledBy: "detail-title" });
   }
 
+  // Redessine la fiche ouverte sans perdre la position de défilement.
+  #refreshDetail(id, focusSelector) {
+    const sheet = $("#modal .sheet");
+    const top = sheet.scrollTop;
+    this.openItem(id);
+    sheet.scrollTop = top;
+    if (focusSelector) $(focusSelector, sheet)?.focus();
+  }
+
+  async #updateChecklist(id, change, focusSelector) {
+    const item = this.repo.get(id);
+    const before = progress(getChecklist(item));
+    const list = change(getChecklist(item));
+    await this.repo.update(id, { data: { ...item.data, checklist: list } });
+    this.#refreshDetail(id, focusSelector);
+    if (!before.complete && progress(list).complete) toast(t("checklist.allDone"));
+  }
+
   openEdit(id) {
     openModal(itemForm(this.repo.get(id)), { labelledBy: "form-title" });
   }
@@ -347,6 +366,7 @@ export class App {
       }
     },
     "clear-position": (el) => this.#setFormCoords(el.closest("form"), null),
+    "check-remove": (el) => this.#updateChecklist(el.dataset.id, (list) => removeEntry(list, el.dataset.entry)),
     export: () => this.#exportData(),
     close: () => closeModal(),
   };
@@ -387,6 +407,10 @@ export class App {
       }
       syncRepeatFields(form);
     }
+    if (el.dataset.action === "check-toggle") {
+      await this.#updateChecklist(el.dataset.id, (list) => toggleEntry(list, el.dataset.entry));
+      return;
+    }
     if (el.dataset.action === "pick-voice") {
       const prefs = this.repo.settings.meditation ?? {};
       await this.repo.updateSettings({ meditation: { ...prefs, voices: { ...prefs.voices, [getLanguage()]: el.value } } });
@@ -408,11 +432,21 @@ export class App {
 
   async #onSubmit(e) {
     if (e.target.id === "med-setup") return this.#startMeditation(e);
+    if (e.target.classList.contains("check-add")) {
+      e.preventDefault();
+      const input = $("[data-role=checklist-input]", e.target);
+      const text = input.value;
+      if (!text.trim()) return;
+      return this.#updateChecklist(e.target.dataset.id, (list) => addEntry(list, text), "[data-role=checklist-input]");
+    }
     if (e.target.id !== "item-form") return;
     e.preventDefault();
     const form = e.target;
     const existing = form.dataset.id ? this.repo.get(form.dataset.id) : null;
-    const data = readItemForm(form, existing);
+    const { checklistText, ...data } = readItemForm(form, existing);
+    if (checklistText !== null) {
+      data.data = { ...(existing?.data ?? {}), checklist: fromLines(checklistText, getChecklist(existing)) };
+    }
     try {
       if (existing) await this.repo.update(existing.id, data);
       else await this.repo.add(data);

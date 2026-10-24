@@ -2,6 +2,7 @@ import { getModule, moduleLabel } from "../../config/modules.js";
 import { esc } from "../../core/dom.js";
 import { isCancelled } from "../../data/item.js";
 import { fmt, t } from "../../i18n/index.js";
+import { getChecklist, progress } from "../../data/checklist.js";
 
 const stateClass = (item) =>
   [item.done && "is-done", isCancelled(item) && "is-cancelled", item.occurrence?.optional && "is-optional"]
@@ -23,12 +24,14 @@ export function itemChip(item, { detailed = false } = {}) {
   const time = item.time ? `<span class="chip-time">${fmt.time(item.time)}</span>` : "";
   const place = detailed && item.place ? `<span class="chip-place">📍 ${esc(item.place)}</span>` : "";
   const repeat = item.recurrence ? '<span class="chip-repeat" aria-hidden="true">↻</span>' : "";
+  const list = progress(getChecklist(item));
+  const count = list.total ? `<span class="chip-count">☑ ${list.done}/${list.total}</span>` : "";
   const state = stateLabel(item);
   const label = `${moduleLabel(item.module)} : ${item.title}${state ? ` (${state})` : ""}`;
   return `<button type="button" class="chip ${stateClass(item)}" style="--c:${m.color}"
     data-action="open-item" data-id="${esc(item.id)}" data-date="${esc(item.date)}" aria-label="${esc(label)}">
     ${item.done ? '<span class="chip-check" aria-hidden="true">✓</span>' : ""}${time}
-    <span class="chip-title">${esc(item.title)}</span>${repeat}${place}
+    <span class="chip-title">${esc(item.title)}</span>${repeat}${count}${place}
   </button>`;
 }
 

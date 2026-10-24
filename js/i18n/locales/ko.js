@@ -277,4 +277,16 @@ export default {
   "mood.level.4": "평온함",
   "nudge.journal": "잠시 일기에 몇 줄 적어 볼까요?",
   "nudge.journalAction": "쓰기",
+
+  // Listes à cocher
+  "checklist.title": "목록",
+  "checklist.title.commission": "나의 목록",
+  "checklist.title.voyage": "챙길 것",
+  "checklist.formLabel": "목록",
+  "checklist.formHint": "(한 줄에 하나씩)",
+  "checklist.formPlaceholder": "예: 우유, 빵, 달걀… 한 줄에 하나씩",
+  "checklist.placeholder": "항목 추가…",
+  "checklist.add": "추가",
+  "checklist.remove": "“{text}” 삭제",
+  "checklist.allDone": "목록을 모두 체크했어요, 잘했어요 🎉",
 };

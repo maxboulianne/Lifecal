@@ -299,4 +299,16 @@ export default {
   "mood.level.4": "Paisible",
   "nudge.journal": "Un petit moment pour écrire quelques lignes dans ton journal ?",
   "nudge.journalAction": "Écrire",
+
+  // Listes à cocher
+  "checklist.title": "Liste",
+  "checklist.title.commission": "Ma liste",
+  "checklist.title.voyage": "À emporter",
+  "checklist.formLabel": "Liste",
+  "checklist.formHint": "(un article par ligne)",
+  "checklist.formPlaceholder": "ex. lait, pain, œufs… un par ligne",
+  "checklist.placeholder": "Ajouter un article…",
+  "checklist.add": "Ajouter",
+  "checklist.remove": "Retirer « {text} »",
+  "checklist.allDone": "Toute la liste est cochée, bravo 🎉",
 };

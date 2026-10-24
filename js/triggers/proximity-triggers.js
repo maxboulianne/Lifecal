@@ -4,6 +4,7 @@ import { getModule, hasFeature } from "../config/modules.js";
 import { distanceMeters } from "../geo/geo.js";
 import { hasCoordinates, isCancelled } from "../data/item.js";
 import { fmt } from "../i18n/index.js";
+import { getChecklist, pending } from "../data/checklist.js";
 
 // Regroupe les commissions à faire (aujourd'hui ou en retard) situées près
 // de la position actuelle, par lieu.
@@ -35,7 +36,11 @@ export const nearbyErrands = {
       tone: "info",
       icon: getModule("commission").icon,
       messageKey: "nudge.nearby",
-      params: { place, list: fmt.list(list.map((i) => i.title)) },
+      // Les articles à cocher s'il y en a, sinon le titre de la commission.
+      params: { place, list: fmt.list(list.flatMap((i) => {
+        const left = pending(getChecklist(i)).map((e) => e.text);
+        return left.length ? left : [i.title];
+      })) },
       itemIds: list.map((i) => i.id),
     }));
   },

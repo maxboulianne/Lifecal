@@ -4,6 +4,7 @@ import { FREQ } from "../../data/recurrence.js";
 import { isGeolocationSupported } from "../../geo/geo.js";
 import { fmt, t } from "../../i18n/index.js";
 import { MONDAY_FIRST } from "./habit-text.js";
+import { getChecklist, toLines } from "../../data/checklist.js";
 
 // Formulaire d'ajout / de modification. `item` est null pour un nouvel élément.
 export function itemForm(item, { date, module = "rdv", repeat } = {}) {
@@ -51,6 +52,11 @@ export function itemForm(item, { date, module = "rdv", repeat } = {}) {
       <p class="hint" data-role="repeat-hint" ${freq === "none" ? "hidden" : ""}>${t("form.repeatHint")}</p>
     </fieldset>
 
+    <label data-role="checklist" ${hasFeature(v.module, "checklist") ? "" : "hidden"}>${t("checklist.formLabel")}
+      <span class="hint">${t("checklist.formHint")}</span>
+      <textarea name="checklist" rows="4" placeholder="${esc(t("checklist.formPlaceholder"))}">${esc(toLines(getChecklist(item)))}</textarea>
+    </label>
+
     <div class="row">
       <label>${t("form.date")} <input type="date" name="date" value="${esc(v.date)}" required></label>
       <label>${t("form.time")} <input type="time" name="time" value="${esc(v.time)}"></label>
@@ -88,6 +94,7 @@ function parseDay(iso) {
 // Affiche ou masque les options de répétition selon les choix en cours.
 export function syncRepeatFields(form) {
   const module = form.elements.module.value;
+  form.querySelector("[data-role=checklist]").hidden = !hasFeature(module, "checklist");
   const section = form.querySelector("[data-role=repeat]");
   section.hidden = !hasFeature(module, "recurrence");
   const freq = section.hidden ? "none" : form.elements.repeat.value;
@@ -120,5 +127,7 @@ export function readItemForm(form, existing = null) {
     lng: f.get("lng"),
     notes: f.get("notes"),
     recurrence,
+    // Texte brut ; converti en liste par l'appelant (qui connaît la liste existante).
+    checklistText: hasFeature(module, "checklist") ? f.get("checklist") ?? "" : null,
   };
 }

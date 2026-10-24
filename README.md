@@ -43,6 +43,10 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Chaque jour, on coche l'habitude, ou on saute le jour (un jour sauté ne casse pas la série).
   - Page 🌱 **Mes habitudes** : série en cours, meilleure série, bilans de la semaine, du mois et de l'année, grille des 12 dernières semaines et un mot d'encouragement.
   - Une habitude arrêtée garde tout son historique.
+- **Listes à cocher** pour les commissions (« Ma liste ») et les voyages (« À emporter ») :
+  - On tape les articles dans le formulaire, un par ligne, ou on les ajoute un à un dans la fiche de l'élément.
+  - On les coche au magasin. Un compteur s'affiche dans le calendrier (☑ 2/5).
+  - Le rappel de proximité montre les articles qui restent à acheter.
 - **Journal** (bouton 📓) :
   - Une page d'écriture par jour, enregistrée automatiquement, qui apparaît dans le calendrier.
   - L'humeur du jour (5 visages), une question pour s'inspirer (12 questions, une différente chaque jour) et « trois petites choses qui ont fait du bien ».
@@ -70,6 +74,7 @@ js/main.js                 Assemblage : stockage → dépôt → déclencheurs �
 js/config/modules.js       Registre des modules (couleur, icône, fonctions futures)
 js/core/                   Dates (heure locale), DOM, bus d'événements
 js/data/item.js            Modèle d'un élément, normalisation, validation
+js/data/checklist.js       Listes à cocher (commissions, voyages)
 js/data/recurrence.js      Règles de répétition et occurrences calculées
 js/data/habit-stats.js     Séries, bilans par période, grille d'historique
 js/data/repository.js      Dépôt : seule porte d'entrée vers les données
@@ -123,4 +128,4 @@ Les données sont stockées dans un document versionné, `{ schemaVersion, items
 
 ## Prochaines étapes (après le pilote)
 
-Listes à cocher pour les commissions, préparation des voyages (lieux, carte, choses à emporter), notifications en arrière-plan (cela demandera un service worker ou l'app native).
+Fonctionnement sans Internet, sauvegarde automatique et rappels (notifications), préparation des voyages (lieux à visiter, carte), suite des parcours de méditation, synchronisation avec Google, Outlook et Yahoo.
