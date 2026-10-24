@@ -4,8 +4,6 @@
 
 export default {
   // Navigation
-  "nav.prev": "Précédent",
-  "nav.next": "Suivant",
   "nav.today": "Aujourd'hui",
   "nav.views": "Choix de la vue",
   "nav.add": "Ajouter un élément",
@@ -457,9 +455,6 @@ export default {
   "event.kind.anniversary": "Anniversaire",
   "event.kind.event": "Événement",
   "event.yearly": "Chaque année",
-  "event.yearUnknown": "Je ne connais pas l'année",
-  "event.dateHint.birthday": "Indique la date de naissance, avec l'année : l'âge s'affichera.",
-  "event.dateHint.anniversary": "Indique la date du premier jour (mariage, rencontre…), avec l'année : le nombre d'années s'affichera.",
   "event.budget": "Budget cadeau ($)",
   "event.age.birthday": { one: "{count} an", other: "{count} ans" },
   "event.age.anniversary": { one: "{count} an", other: "{count} ans" },
@@ -499,4 +494,27 @@ export default {
   "trip.hotelsSource": "Données OpenStreetMap : la liste peut être incomplète. Vérifie les prix et la disponibilité sur le site de l'hôtel.",
   "trip.hotelDistance": "à {km} km du centre",
   "trip.website": "Site web",
+
+  // Flèches du calendrier, selon la vue
+  "nav.prev.day": "Jour précédent",
+  "nav.next.day": "Jour suivant",
+  "nav.prev.week": "Semaine précédente",
+  "nav.next.week": "Semaine suivante",
+  "nav.prev.month": "Mois précédent",
+  "nav.next.month": "Mois suivant",
+  "nav.prev.year": "Année précédente",
+  "nav.next.year": "Année suivante",
+  "nav.prev": "Précédent",
+  "nav.next": "Suivant",
+  "event.yearLabel.birthday": "Année de naissance",
+  "event.yearLabel.anniversary": "Année du mariage (ou de la rencontre)",
+  "event.dateLabel.birthday": "Date de la fête",
+  "event.dateLabel.anniversary": "Date de l'anniversaire",
+  "event.dateHint.birthday": "Choisis le jour et le mois de la fête plus bas. L'année de naissance sert à afficher l'âge : laisse-la vide si tu ne la connais pas.",
+  "event.dateHint.anniversary": "Choisis le jour et le mois de l'anniversaire plus bas. L'année sert à afficher le nombre d'années : laisse-la vide si tu ne la connais pas.",
+  "errors.birthYear": "Indique l'année avec 4 chiffres (ex. 1964), ou laisse le champ vide.",
+  "trip.packingIdeas": "🧳 Idées d'articles à emporter",
+  "trip.packingHint": "Coche ce que tu veux emporter : ça s'ajoute à ta liste « À emporter ». Décoche pour le retirer.",
+  "trip.share": "Partager",
+  "trip.copied": "Liste copiée : tu peux la coller dans Notes ou dans un message.",
 };

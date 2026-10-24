@@ -108,13 +108,36 @@ test("hôtels : chaîne reconnue par la marque ou le nom, 25 km, triés par dist
   assert.equal(hotels[1].url, "https://hilton.example/milan");
   assert.equal(hotels[0].url, "https://www.hilton.com", "sans site : le site de la chaîne");
   assert.ok(hotels[0].km < hotels[1].km);
-  const q = hotelsQuery(["hilton", "accor"], milan);
-  assert.match(q, /around:25000,45.4642,9.19/);
-  assert.match(q, /DoubleTree/);
-  assert.match(q, /Novotel/);
-  let body = "";
-  await fetchHotels(["hilton"], milan, { fetchImpl: async (u, o) => { body = o.body; return { ok: true, json: async () => json }; } });
-  assert.match(decodeURIComponent(body), /tourism"="hotel/);
+  const q = hotelsQuery(milan);
+  assert.match(q, /nwr\["tourism"="hotel"\]\(around:25000,45.4642,9.19\)/);
+  assert.doesNotMatch(q, /~/, "aucune comparaison de noms côté serveur (trop lente)");
+  // Un serveur qui dépasse son temps limite (200 + remarque) : on essaie le suivant.
+  const asked = [];
+  const answers = [{ remark: "runtime error: Query timed out in \"query\" at line 2 after 61 seconds.", elements: [] }, json];
+  const found = await fetchHotels(["hilton"], milan, {
+    servers: ["https://a.example", "https://b.example"],
+    fetchImpl: async (u, o) => { asked.push(u); assert.match(decodeURIComponent(o.body), /tourism"="hotel/); return { ok: true, json: async () => answers.shift() }; },
+  });
+  assert.deepEqual(asked, ["https://a.example", "https://b.example"]);
+  assert.equal(found.length, 2);
+  await assert.rejects(fetchHotels(["hilton"], milan, { servers: ["https://a.example"], fetchImpl: async () => ({ ok: false, status: 504 }) }));
   assert.equal(HOTEL_CHAINS.length, 9);
   for (const c of HOTEL_CHAINS) assert.doesNotThrow(() => new RegExp(c.brands), c.id);
+});
+
+import { RAW_PACKING, packingCatalog } from "../js/travel/packing.js";
+import { productKey } from "../js/grocery/grocery.js";
+
+test("liste à emporter : 7 langues, sans doublon, triée", () => {
+  for (const c of RAW_PACKING) {
+    assert.equal(c.name.length, 7, c.id);
+    for (const item of c.items) assert.equal(item.length, 7, item[0]);
+  }
+  for (const lang of ["fr", "en", "es", "pt", "de", "vi", "ko"]) {
+    const keys = packingCatalog(lang).flatMap((c) => c.items).map(productKey);
+    assert.equal(new Set(keys).size, keys.length, `doublon en ${lang}`);
+  }
+  const docs = packingCatalog("fr").find((c) => c.id === "documents").items;
+  assert.ok(docs.includes("Passeport"));
+  assert.deepEqual(docs, [...docs].sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" })));
 });

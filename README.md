@@ -35,7 +35,7 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
 
 ## Ce qui fonctionne
 
-- Vues Jour, **Semaine** (par défaut), Mois et Année, avec les flèches ‹ › et le bouton « Aujourd'hui ».
+- Vues Jour, **Semaine** (par défaut), Mois et Année. Les boutons flèches en haut, un glissement du doigt vers la gauche ou la droite sur le calendrier, ou les flèches du clavier font avancer ou reculer d'un jour, d'une semaine, d'un mois ou d'une année selon la vue ; « Aujourd'hui » y revient.
 - Un toucher sur l'en-tête d'un jour ouvre la vue Jour. Le bouton « retour » du navigateur ramène à la vue précédente.
 - Un toucher sur un élément ouvre ses détails. On peut alors le marquer comme fait, le modifier, l'annuler (il reste visible, barré) ou le supprimer.
 - Le bouton « + » ajoute un élément. Le lieu est facultatif et le bouton « Utiliser ma position » enregistre les coordonnées.
@@ -80,15 +80,16 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Page ✈️ **Mes voyages** : les voyages à venir (compte à rebours, valise, lieux visités) et les souvenirs de voyage. Le bouton + y crée directement un voyage.
   - Une **date de retour** (facultative) : le voyage s'étend sur chaque jour du séjour dans le calendrier (« 2/5 »).
   - Page du voyage (« 🗺️ Ouvrir le voyage ») : dates, compte à rebours (« Départ dans 9 jours »), puis « Jour 2 sur 5 » pendant le séjour.
-  - Préparation : la liste « À emporter ».
+  - Préparation : la liste « À emporter », avec 90 idées d'articles courants par catégorie (documents, vêtements, toilette, santé, électronique, pratique, plage) à cocher, dans les 7 langues ; « Imprimer ou PDF » n'imprime que cette liste, « Partager » l'envoie dans Notes, Messages ou un courriel.
+  - Chaque section de la page (carte, lieux, lieux célèbres, hôtels, préparation, catégories d'idées) s'ouvre ou se ferme avec sa flèche ; l'état est retenu sur l'appareil.
   - **Lieux à visiter** : on les ajoute, on les coche une fois visités, 📍 les place sur la carte (recherche par nom avec OpenStreetMap), ↗ les ouvre dans une carte.
   - **Carte** centrée sur la destination (le lieu du voyage, sinon son titre : « Milan », « Calgary »), avec les lieux et les hôtels (Leaflet et OpenStreetMap, chargés seulement à l'ouverture). Sans Internet, un petit message et « Réessayer » ; les lieux restent enregistrés.
   - **Lieux célèbres à proximité** : suggérés automatiquement d'après Wikipédia (les articles géolocalisés les plus lus des 30 derniers jours, sans gares, rues ni la ville elle-même) ; « Ajouter » les met dans les lieux, déjà placés sur la carte.
-  - **Hôtels** : une ou deux grandes chaînes au choix (Marriott, Hilton, IHG, Hyatt, Accor, Best Western, Radisson, Wyndham, Choice) ; leurs hôtels à moins de 25 km (OpenStreetMap) s'affichent sur la carte et en liste, avec la distance et le lien vers le site web.
+  - **Hôtels** : une ou deux grandes chaînes au choix (Marriott, Hilton, IHG, Hyatt, Accor, Best Western, Radisson, Wyndham, Choice) ; leurs hôtels à moins de 25 km (OpenStreetMap : tous les hôtels autour, reconnus par marque ou nom ; un 2e serveur prend le relais si le 1er est saturé) s'affichent sur la carte et en liste, avec la distance et le lien vers le site web.
   - La destination, les suggestions et les hôtels trouvés sont gardés dans le voyage : pas de nouvelle recherche en revenant.
 - **Événements et anniversaires** (bouton 🎂) :
   - Trois types : 🎂 Fête, 💍 Anniversaire (mariage, rencontre…) et 🎉 Événement.
-  - Une fête ou un anniversaire revient chaque année ; avec l'année de naissance (ou du mariage), l'âge s'affiche (« 62 ans »). Le 29 février tombe le 28 les autres années.
+  - Une fête ou un anniversaire revient chaque année. Le formulaire demande la « Date de la fête » (jour et mois) et, à part, l'« Année de naissance » (ou du mariage), facultative : avec elle, l'âge s'affiche (« 62 ans »). Le 29 février tombe le 28 les autres années.
   - Dans la fiche : 🎁 idées cadeaux (cochées une fois achetées), budget cadeau, 👥 invités (cochés quand ils confirment) et ✅ à préparer.
   - Page « À venir » : les 12 prochains mois, mois par mois, avec le compte à rebours.
 - **Langues** : choix à l'accueil au premier lancement, puis dans ⚙︎ **Paramètres**. Les dates et les heures suivent la langue choisie.

@@ -9,7 +9,7 @@ import { MODULES, MODULE_IDS, moduleLabel } from "../config/modules.js";
 import { isISODate, parseISODate, toISODate, todayISO } from "../core/dates.js";
 import { $, esc } from "../core/dom.js";
 import { currentStreak } from "../data/habit-stats.js";
-import { FREQ, doneInWeek } from "../data/recurrence.js";
+import { FREQ, doneInWeek, yearlyDate } from "../data/recurrence.js";
 import { ValidationError } from "../data/repository.js";
 import { isCancelled } from "../data/item.js";
 import { addEntry, fromLines, getChecklist, progress, removeEntry, toggleEntry } from "../data/checklist.js";
@@ -20,6 +20,8 @@ import { itemForm, readItemForm, syncRepeatFields } from "./components/item-form
 import { closeModal, openModal, setupModal } from "./components/modal.js";
 import { nudgesBar } from "./components/nudges.js";
 import { cheer, toast } from "./components/toast.js";
+import { CHEVRON_LEFT, CHEVRON_RIGHT } from "./components/icons.js";
+import { setFoldOpen } from "./components/fold.js";
 import { welcome } from "./components/welcome.js";
 import { MeditationPlayer } from "./meditation/player.js";
 import { habitsPage } from "./pages/habits.js";
@@ -62,6 +64,8 @@ function saveCatalogOpen(open) {
     /* préférence non retenue : sans conséquence */
   }
 }
+
+const SWIPE_MIN_PX = 60;
 
 // Mots d'une recherche, écrits comme les clés de produits (sans accents).
 const productKeyWords = (query) => productKey(query).split(" ").filter(Boolean);
@@ -119,6 +123,14 @@ export class App {
     document.addEventListener("click", (e) => this.#onClick(e));
     document.addEventListener("change", (e) => this.#onChange(e));
     document.addEventListener("submit", (e) => this.#onSubmit(e));
+    this.#listenSwipe();
+    // Flèches du clavier (iPad avec clavier, ordinateur) : jour, semaine, mois ou année d'avant ou d'après.
+    document.addEventListener("keydown", (e) => {
+      if (this.page || !$("#modal").hidden || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
+      if (e.key === "ArrowLeft") this.#actions.prev();
+      if (e.key === "ArrowRight") this.#actions.next();
+    });
     document.addEventListener("input", (e) => {
       if (e.target.dataset.journal) this.#scheduleJournalSave();
       if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
@@ -150,6 +162,24 @@ export class App {
   }
 
   // ---- Navigation --------------------------------------------------------
+
+  // Glisser le doigt vers la gauche ou la droite sur le calendrier : période
+  // suivante ou précédente (un geste surtout horizontal, d'au moins 60 px).
+  #listenSwipe() {
+    const area = $("#calendar");
+    let start = null;
+    area.addEventListener("touchstart", (e) => {
+      start = !this.page && e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    }, { passive: true });
+    area.addEventListener("touchend", (e) => {
+      if (!start || this.page) return;
+      const dx = e.changedTouches[0].clientX - start.x;
+      const dy = e.changedTouches[0].clientY - start.y;
+      start = null;
+      if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      this.#actions[dx < 0 ? "next" : "prev"]();
+    }, { passive: true });
+  }
 
   #readHash() {
     const [, first, second] = location.hash.match(/^#\/(\w+)(?:\/([\w-]+))?/) ?? [];
@@ -275,9 +305,9 @@ export class App {
     const title = VIEWS[this.view].title(this.cursor);
     $("#topbar").innerHTML = `
       <div class="nav">
-        <button type="button" class="icon-btn" data-action="prev" aria-label="${esc(t("nav.prev"))}">‹</button>
+        <button type="button" class="nav-arrow" data-action="prev" aria-label="${esc(t(`nav.prev.${this.view}`))}" title="${esc(t(`nav.prev.${this.view}`))}">${CHEVRON_LEFT}</button>
         <h1 id="title" aria-live="polite">${esc(title)}</h1>
-        <button type="button" class="icon-btn" data-action="next" aria-label="${esc(t("nav.next"))}">›</button>
+        <button type="button" class="nav-arrow" data-action="next" aria-label="${esc(t(`nav.next.${this.view}`))}" title="${esc(t(`nav.next.${this.view}`))}">${CHEVRON_RIGHT}</button>
         <button type="button" class="btn soft" data-action="today">${t("nav.today")}</button>
       </div>
       <div class="nav">
@@ -570,7 +600,13 @@ export class App {
       status.hotelsKey = hKey;
       try {
         const items = await fetchHotels(trip.data.hotelChains, getDest(trip));
-        if (hotelsKey(this.repo.get(id)) === hKey) await this.#updateData(id, { hotels: { key: hKey, items } });
+        if (hotelsKey(this.repo.get(id)) !== hKey) return;
+        // Aucun hôtel : rien n'est gardé (on pourra réessayer plus tard).
+        if (items.length) await this.#updateData(id, { hotels: { key: hKey, items } });
+        else {
+          status.hotels = "none";
+          this.#rerenderTrip(id);
+        }
       } catch {
         status.hotels = "offline";
         this.#rerenderTrip(id);
@@ -626,6 +662,44 @@ export class App {
       const list = addPlace(getPlaces(trip), s.name);
       toast(t("trip.located", { name: s.name }));
       return this.#updateData(trip.id, { places: setPlaceCoords(list, list.at(-1).id, s) });
+    },
+    // Ouvrir ou fermer une section (flèche ▸), sans redessiner la page.
+    fold: (el) => {
+      const section = el.closest("[data-fold-id]");
+      const open = !section.classList.contains("is-open");
+      section.classList.toggle("is-open", open);
+      el.setAttribute("aria-expanded", String(open));
+      section.querySelector(":scope > .fold-body").hidden = !open;
+      setFoldOpen(section.dataset.foldId, open);
+      // Une carte qui réapparaît doit recalculer sa taille.
+      if (open && section.querySelector("#trip-map")) this.#map?.invalidateSize();
+    },
+    // Imprimer (ou enregistrer en PDF) seulement la liste « À emporter ».
+    "packing-print": () => {
+      document.body.classList.add("print-packing");
+      const done = () => {
+        document.body.classList.remove("print-packing");
+        window.removeEventListener("afterprint", done);
+        document.removeEventListener("pointerdown", done);
+      };
+      window.addEventListener("afterprint", done);
+      document.addEventListener("pointerdown", done);
+      window.print();
+    },
+    // Partager la liste (Notes, Messages, courriel…) ou la copier.
+    "packing-share": async (el) => {
+      const trip = this.repo.get(el.dataset.id);
+      const text = [`🧳 ${trip.title} — ${t("checklist.title.voyage")}`,
+        ...getChecklist(trip).map((e) => `${e.done ? "☑" : "☐"} ${e.text}`)].join("\n");
+      try {
+        if (navigator.share) await navigator.share({ title: trip.title, text });
+        else {
+          await navigator.clipboard.writeText(text);
+          toast(t("trip.copied"));
+        }
+      } catch (err) {
+        if (err?.name !== "AbortError") toast(t("toast.error"));
+      }
     },
     "trip-retry": (el) => {
       delete this.#tripStatus[el.dataset.id];
@@ -864,6 +938,13 @@ export class App {
       el.form.querySelector("[data-role=until]").hidden = !el.checked;
       return;
     }
+    if (el.dataset.action === "packing-toggle") {
+      // Coché : ajouté à « À emporter » ; décoché : retiré de la liste.
+      const key = productKey(el.dataset.name);
+      return this.#updateChecklist(el.dataset.id, (list) => (list.some((e) => productKey(e.text) === key)
+        ? list.filter((e) => productKey(e.text) !== key)
+        : addEntry(list, el.dataset.name)));
+    }
     if (el.dataset.action === "hotel-chain") {
       const chosen = [...document.querySelectorAll("[data-action=hotel-chain]:checked")].map((c) => c.value);
       if (chosen.length > MAX_CHAINS) {
@@ -941,7 +1022,19 @@ export class App {
       data.data = { ...(existing?.data ?? {}), checklist: fromLines(checklistText, getChecklist(existing)) };
     }
     if (event) {
-      data.data = { ...(data.data ?? existing?.data ?? {}), kind: event.kind, yearUnknown: event.yearUnknown, budget: parseAmount(event.budget) };
+      // Fête ou anniversaire : le jour et le mois viennent de « Date de la fête »,
+      // l'année d'origine (pour l'âge) de son propre champ ; vide = année inconnue.
+      const yearlyKind = data.recurrence?.freq === FREQ.YEARLY && event.kind !== "event";
+      let yearUnknown = false;
+      if (yearlyKind && event.birthYear) {
+        const y = Number(event.birthYear);
+        if (!/^\d{4}$/.test(event.birthYear) || y < 1900 || y > Number(todayISO().slice(0, 4))) {
+          $("[data-role=errors]", form).textContent = t("errors.birthYear");
+          return;
+        }
+        if (isISODate(data.date)) data.date = yearlyDate(data.date, y);
+      } else if (yearlyKind) yearUnknown = true;
+      data.data = { ...(data.data ?? existing?.data ?? {}), kind: event.kind, yearUnknown, budget: parseAmount(event.budget) };
     }
     if (endDate !== null) {
       if (endDate && endDate < data.date) {
