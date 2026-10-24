@@ -432,4 +432,7 @@ export default {
   "grocery.custom.seeList": "Ver mi lista de compras",
   "grocery.custom.addPlaceholder": "Añadir mi artículo…",
   "grocery.custom.calendarLists": "Mis listas del calendario",
+  "grocery.custom.openAll": "Abrir todo",
+  "grocery.custom.closeAll": "Cerrar todo",
+  "grocery.custom.search": "Buscar un artículo (ej. perejil)",
 };

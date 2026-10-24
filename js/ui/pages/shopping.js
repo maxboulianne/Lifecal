@@ -11,9 +11,9 @@ import { esc } from "../../core/dom.js";
 import { getChecklist, pending } from "../../data/checklist.js";
 import { isCancelled } from "../../data/item.js";
 import { fmt, getLanguage, t } from "../../i18n/index.js";
-import { catalog } from "../../grocery/catalog.js";
+import { catalog, resolveCategory, sortNames } from "../../grocery/catalog.js";
 import {
-  KG_PER_LB, UNIT_IDS, isExpired, isListed, isStale, knownProducts, nextFlyerEnd, planList, priceBook, unitPrice,
+  KG_PER_LB, UNIT_IDS, isExpired, isListed, productKey, isStale, knownProducts, nextFlyerEnd, planList, priceBook, unitPrice,
 } from "../../grocery/grocery.js";
 import { STORES, flyerUrl, getStore } from "../../grocery/stores.js";
 import { checklistSection } from "../components/item-detail.js";
@@ -237,32 +237,51 @@ function catalogItem(name, list, customId = null) {
   </li>`;
 }
 
-function customTab(repo) {
+// Catégories ouvertes : `open` (Set d'identifiants), retenu par l'application.
+function customTab(repo, open) {
   const grocery = repo.grocery();
   const list = grocery.list;
-  const categories = catalog(getLanguage());
+  const lang = getLanguage();
+  const categories = catalog(lang);
   const checked = list.filter((e) => !e.done).length;
   return `<p class="hint catalog-intro">${t("grocery.custom.intro")}</p>
     <div class="grocery-tools">
       <span class="hint">${t("grocery.custom.checked", { count: checked })}</span>
-      ${checked ? `<div class="actions start"><button type="button" class="btn soft" data-action="shopping-tab" data-tab="grocery">🧺 ${t("grocery.custom.seeList")}</button></div>` : ""}
+      <div class="actions start">
+        ${checked ? `<button type="button" class="btn soft" data-action="shopping-tab" data-tab="grocery">🧺 ${t("grocery.custom.seeList")}</button>` : ""}
+        <button type="button" class="btn soft" data-action="catalog-fold-all" data-open="true">${t("grocery.custom.openAll")}</button>
+        <button type="button" class="btn soft" data-action="catalog-fold-all" data-open="false">${t("grocery.custom.closeAll")}</button>
+      </div>
     </div>
+    <input type="search" class="grocery-search" data-role="catalog-search" placeholder="${esc(t("grocery.custom.search"))}"
+      aria-label="${esc(t("grocery.custom.search"))}" autocomplete="off">
     ${categories.map((c) => {
-      const own = grocery.custom.filter((x) => x.category === c.id);
-      const count = [...c.items, ...own.map((x) => x.name)].filter((n) => isListed(list, n)).length;
-      return `<article class="card catalog-cat">
-        <header class="store-head"><h2><span aria-hidden="true">${c.icon}</span> ${esc(c.name)}</h2>
-          ${count ? `<span class="hint">✓ ${count}</span>` : ""}</header>
-        <ul class="catalog-grid">
-          ${c.items.map((name) => catalogItem(name, list)).join("")}
-          ${own.map((x) => catalogItem(x.name, list, x.id)).join("")}
-        </ul>
-        <form class="check-add" data-role="catalog-add" data-category="${c.id}">
-          <input name="name" placeholder="${esc(t("grocery.custom.addPlaceholder"))}" aria-label="${esc(t("grocery.custom.addPlaceholder"))} · ${esc(c.name)}" autocomplete="off">
-          <button type="submit" class="btn soft">${t("checklist.add")}</button>
-        </form>
+      // Mes articles, mêlés au catalogue (sauf s'ils y sont déjà) et triés avec lui.
+      const known = new Set(c.items.map(productKey));
+      const own = grocery.custom.filter((x) => resolveCategory(x.category) === c.id && !known.has(productKey(x.name)));
+      const ownId = new Map(own.map((x) => [x.name, x.id]));
+      const names = sortNames([...c.items, ...own.map((x) => x.name)], lang);
+      const count = names.filter((n) => isListed(list, n)).length;
+      const isOpen = open.has(c.id);
+      return `<article class="card catalog-cat ${isOpen ? "is-open" : ""}" data-category="${c.id}">
+        <h2 class="catalog-head">
+          <button type="button" class="catalog-fold" data-action="catalog-fold" data-category="${c.id}"
+            aria-expanded="${isOpen}" aria-controls="catalog-${c.id}">
+            <span class="catalog-arrow" aria-hidden="true">▸</span>
+            <span aria-hidden="true">${c.icon}</span> <span class="catalog-name">${esc(c.name)}</span>
+            <span class="hint catalog-count">${count ? `✓ ${count} · ` : ""}${names.length}</span>
+          </button>
+        </h2>
+        <div class="catalog-body" id="catalog-${c.id}" ${isOpen ? "" : "hidden"}>
+          <ul class="catalog-grid">${names.map((name) => catalogItem(name, list, ownId.get(name))).join("")}</ul>
+          <form class="check-add" data-role="catalog-add" data-category="${c.id}">
+            <input name="name" placeholder="${esc(t("grocery.custom.addPlaceholder"))}" aria-label="${esc(t("grocery.custom.addPlaceholder"))} · ${esc(c.name)}" autocomplete="off">
+            <button type="submit" class="btn soft">${t("checklist.add")}</button>
+          </form>
+        </div>
       </article>`;
     }).join("")}
+    <p class="empty-msg small" data-role="catalog-no-match" hidden>${t("grocery.noMatch")}</p>
     <h2 class="section-title">${t("grocery.custom.calendarLists")}</h2>
     ${listsTab(repo)}`;
 }
@@ -284,14 +303,14 @@ export const shoppingPage = {
 
   title: () => t("nav.shopping"),
 
-  render({ repo, today, shoppingTab = "grocery", groceryPrefill = null, lastStore = null }) {
+  render({ repo, today, shoppingTab = "grocery", groceryPrefill = null, lastStore = null, catalogOpen = new Set() }) {
     const grocery = repo.grocery();
     const tab = SHOPPING_TABS.includes(shoppingTab) ? shoppingTab : "grocery";
     return `<section class="page lists">
       ${tabs(tab)}
       ${tab === "grocery" ? groceryTab(grocery, today)
         : tab === "prices" ? pricesTab(grocery, today, { prefill: groceryPrefill, store: lastStore })
-        : customTab(repo)}
+        : customTab(repo, catalogOpen)}
     </section>`;
   },
 };

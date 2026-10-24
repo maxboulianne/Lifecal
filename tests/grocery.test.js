@@ -140,6 +140,12 @@ test("catalogue : chaque article a ses 7 langues, sans doublon dans une langue",
     const keys = catalog(lang).flatMap((c) => c.items).map(productKey);
     assert.equal(new Set(keys).size, keys.length, `doublon en ${lang}`);
   }
-  assert.equal(catalog("fr")[0].items[0], "Pommes");
-  assert.equal(catalog("xx")[0].items[0], "Pommes", "langue inconnue : français");
+  const total = RAW_CATALOG.reduce((n, c) => n + c.items.length, 0);
+  assert.ok(total >= 300, `${total} articles`);
+  // Triés par ordre alphabétique de la langue, accents compris.
+  const veg = catalog("fr").find((c) => c.id === "vegetables").items;
+  assert.ok(veg.indexOf("Échalotes") > veg.indexOf("Courgettes") && veg.indexOf("Échalotes") < veg.indexOf("Épinards"));
+  for (const c of catalog("fr")) assert.deepEqual(c.items, [...c.items].sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" })), c.id);
+  assert.equal(catalog("xx")[0].items[0], "Abricots", "langue inconnue : français");
+  assert.ok(catalog("fr").find((c) => c.id === "herbs").items.includes("Persil"));
 });

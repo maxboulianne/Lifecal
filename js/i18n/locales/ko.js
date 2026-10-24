@@ -429,4 +429,7 @@ export default {
   "grocery.custom.seeList": "내 장보기 목록 보기",
   "grocery.custom.addPlaceholder": "내 품목 추가…",
   "grocery.custom.calendarLists": "캘린더 목록",
+  "grocery.custom.openAll": "모두 펼치기",
+  "grocery.custom.closeAll": "모두 접기",
+  "grocery.custom.search": "품목 검색 (예: 파슬리)",
 };

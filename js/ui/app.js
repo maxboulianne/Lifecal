@@ -42,6 +42,24 @@ import { breathingScript, timerScript } from "../meditation/runner.js";
 import { sessionContent } from "../meditation/scripts/index.js";
 import { loadVoices, pickVoice, SpeechVoice } from "../meditation/voice.js";
 
+// Catégories ouvertes de la liste personnalisée : une préférence de cet
+// appareil (le stockage peut être indisponible, ex. navigation privée).
+const CATALOG_OPEN_KEY = "lifecal:catalogOpen";
+function readCatalogOpen() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(CATALOG_OPEN_KEY) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+}
+function saveCatalogOpen(open) {
+  try {
+    localStorage.setItem(CATALOG_OPEN_KEY, JSON.stringify([...open]));
+  } catch {
+    /* préférence non retenue : sans conséquence */
+  }
+}
+
 // Mots d'une recherche, écrits comme les clés de produits (sans accents).
 const productKeyWords = (query) => productKey(query).split(" ").filter(Boolean);
 
@@ -68,6 +86,8 @@ export class App {
   #journalTimer = null;
   promptShift = 0;
   shoppingTab = "grocery";
+  catalogOpen = readCatalogOpen(); // catégories ouvertes de la liste personnalisée
+  catalogQuery = "";
   groceryPrefill = null;
   lastStore = null;
   statsPeriod = "week";
@@ -97,6 +117,10 @@ export class App {
     document.addEventListener("input", (e) => {
       if (e.target.dataset.journal) this.#scheduleJournalSave();
       if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
+      if (e.target.dataset.role === "catalog-search") {
+        this.catalogQuery = e.target.value;
+        this.#filterCatalog(this.catalogQuery);
+      }
     });
     window.addEventListener("hashchange", () => {
       this.#flushJournal();
@@ -193,11 +217,17 @@ export class App {
         shoppingTab: this.shoppingTab,
         groceryPrefill: this.groceryPrefill,
         lastStore: this.lastStore,
+        catalogOpen: this.catalogOpen,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
       $("#nudges").innerHTML = "";
       if (this.page === "trip") this.#mountTripMap();
+      if (this.page === "shopping" && this.catalogQuery) {
+        const search = $("[data-role=catalog-search]");
+        if (search) search.value = this.catalogQuery;
+        this.#filterCatalog(this.catalogQuery);
+      }
     } else {
       main.innerHTML = VIEWS[this.view].render({ cursor: this.cursor, repo: this.repo, today });
       this.#renderNudges(today);
@@ -345,6 +375,43 @@ export class App {
     await this.#updateGrocery({ prices: [...this.repo.grocery().prices, price] });
     toast(t("grocery.saved", { name: price.product, store: getStore(price.store)?.name ?? "" }));
     $("[data-role=price-add] [name=product]")?.focus();
+  }
+
+  // Ouvre ou ferme une catégorie de la liste personnalisée, sans redessiner
+  // la page ; l'état est retenu (aussi après un rechargement).
+  #foldCategory(id, open) {
+    if (open) this.catalogOpen.add(id);
+    else this.catalogOpen.delete(id);
+    saveCatalogOpen(this.catalogOpen);
+    const card = $(`.catalog-cat[data-category="${id}"]`);
+    if (!card) return;
+    card.classList.toggle("is-open", open);
+    $(".catalog-fold", card).setAttribute("aria-expanded", String(open));
+    $(".catalog-body", card).hidden = !open;
+  }
+
+  // Recherche dans la liste personnalisée : seuls les articles qui
+  // correspondent restent visibles, dans leurs catégories ouvertes.
+  #filterCatalog(query) {
+    const words = productKeyWords(query);
+    let shown = 0;
+    document.querySelectorAll(".catalog-cat").forEach((card) => {
+      let matches = 0;
+      card.querySelectorAll(".catalog-item").forEach((item) => {
+        const key = productKey(item.textContent);
+        const match = words.every((w) => key.includes(w));
+        item.hidden = !match;
+        if (match) matches++;
+      });
+      const open = words.length ? matches > 0 : this.catalogOpen.has(card.dataset.category);
+      card.hidden = words.length > 0 && matches === 0;
+      card.classList.toggle("is-open", open);
+      $(".catalog-body", card).hidden = !open;
+      $(".catalog-fold", card).setAttribute("aria-expanded", String(open));
+      if (!card.hidden) shown++;
+    });
+    const none = $("[data-role=catalog-no-match]");
+    if (none) none.hidden = shown > 0;
   }
 
   // Recherche dans le carnet de prix, sans redessiner la page.
@@ -525,6 +592,10 @@ export class App {
     "open-shopping": () => this.openPage("shopping"),
     "shopping-tab": (el) => this.#openShoppingTab(el.dataset.tab),
     "grocery-remove": (el) => this.#updateGrocery({ list: removeListEntry(this.repo.grocery().list, el.dataset.entry) }),
+    "catalog-fold": (el) => this.#foldCategory(el.dataset.category, !this.catalogOpen.has(el.dataset.category)),
+    "catalog-fold-all": (el) => {
+      document.querySelectorAll(".catalog-cat").forEach((c) => this.#foldCategory(c.dataset.category, el.dataset.open === "true"));
+    },
     "catalog-remove": (el) => this.#updateGrocery({ custom: removeCustomItem(this.repo.grocery().custom, el.dataset.id) }),
     "grocery-clear": () => this.#updateGrocery({ list: clearDone(this.repo.grocery().list) }),
     "grocery-add-product": async (el) => {
