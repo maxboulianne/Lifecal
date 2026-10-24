@@ -9,11 +9,13 @@ import { $, esc } from "../../core/dom.js";
 import { isCancelled } from "../../data/item.js";
 import { getLanguage, t } from "../../i18n/index.js";
 import { BREATH_PATTERNS, MOODS } from "../../meditation/catalog.js";
+import { DEFAULT_AMBIENCE_VOLUME } from "../../meditation/audio.js";
 import { MEDITATION_MODULE } from "../../meditation/progress.js";
 import { SessionRunner } from "../../meditation/runner.js";
 import { SpeechVoice, TextVoice, isSpeechSupported, loadVoices, pickVoice, unlockSpeech } from "../../meditation/voice.js";
 
 const MIN_SECONDS_TO_LOG = 60;
+const AMBIENCE_ICONS = { rain: "🌧️", ocean: "🌊", forest: "🌲" };
 // Une séance compte comme « terminée au complet » si elle est allée jusqu'au
 // bout et qu'au moins 80 % de sa durée a vraiment été écoutée (sauter à la fin
 // avec la barre d'avancement ne suffit pas).
@@ -63,6 +65,7 @@ export class MeditationPlayer {
   #itemId = null;
   #startTime = "";
   #scrubbing = false;
+  #heldForSeek = false; // séance mise en attente pendant que le doigt est sur la barre
 
   constructor({ repo, audio }) {
     this.repo = repo;
@@ -71,26 +74,57 @@ export class MeditationPlayer {
     this.root.addEventListener("click", (e) => this.#onClick(e));
     // Barre d'avancement : on suit le doigt, puis on saute au relâchement.
     this.root.addEventListener("input", (e) => {
+      if (e.target.matches(".player-volume-range")) return this.#showVolume(e.target);
       if (!e.target.matches(".player-seek")) return;
       this.#scrubbing = true;
       this.#showPosition(Number(e.target.value));
     });
     this.root.addEventListener("change", (e) => {
+      if (e.target.matches(".player-volume-range")) return this.#setVolume(Number(e.target.value) / 100);
       if (!e.target.matches(".player-seek")) return;
       this.audio.unlock(); // relancer le son au besoin (iOS)
       this.#runner?.seek(Number(e.target.value));
-      this.#scrubbing = false;
+      this.#releaseSeek();
     });
+    // Le doigt se pose sur la barre : la voix se tait tout de suite et la
+    // séance attend. Elle reprend au relâchement, à la nouvelle position ;
+    // la voix repart ainsi pendant le toucher, ce que Safari préfère.
     this.root.addEventListener("pointerdown", (e) => {
-      if (e.target.matches(".player-seek")) this.#scrubbing = true;
+      if (!e.target.matches(".player-seek")) return;
+      this.#scrubbing = true;
+      if (this.#runner?.state === "running") {
+        this.#heldForSeek = true;
+        this.#runner.pause();
+      }
     });
     // Un simple toucher sans glisser ne déclenche pas « change » : on libère la barre.
-    const release = () => setTimeout(() => (this.#scrubbing = false), 50);
+    const release = () => setTimeout(() => this.#releaseSeek(), 300);
     this.root.addEventListener("pointerup", release);
     this.root.addEventListener("pointercancel", release);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && this.#runner?.state === "running") this.#keepAwake();
     });
+  }
+
+  #releaseSeek() {
+    this.#scrubbing = false;
+    if (!this.#heldForSeek) return;
+    this.#heldForSeek = false;
+    this.#runner?.resume();
+  }
+
+  get #volume() {
+    return this.repo.settings.meditation?.ambienceVolume ?? DEFAULT_AMBIENCE_VOLUME;
+  }
+
+  #showVolume(range) {
+    range.style.setProperty("--pct", `${range.value}%`);
+  }
+
+  #setVolume(volume) {
+    this.audio.setVolume(volume);
+    const prefs = this.repo.settings.meditation ?? {};
+    this.repo.updateSettings({ meditation: { ...prefs, ambienceVolume: volume } }).catch(() => {});
   }
 
   get isOpen() {
@@ -163,6 +197,11 @@ export class MeditationPlayer {
         <button type="button" class="player-btn" data-player="pause" aria-label="${esc(t("med.pause"))}">❚❚</button>
         ${this.#voice.speech ? `<button type="button" class="player-btn small" data-player="voice" aria-label="${esc(t("med.voiceOn"))}">${this.#voice.on ? "🔊" : "🔇"}</button>` : ""}
       </div>
+      ${this.#config.ambience && this.#config.ambience !== "none" ? `<label class="player-volume">
+        <span aria-hidden="true">${AMBIENCE_ICONS[this.#config.ambience] ?? "🎵"}</span>
+        <input type="range" class="player-volume-range" min="0" max="100" step="5" value="${Math.round(this.#volume * 100)}"
+          aria-label="${esc(t("med.ambienceVolume"))}" style="--pct:${Math.round(this.#volume * 100)}%">
+      </label>` : ""}
     </div>`;
   }
 
@@ -192,7 +231,7 @@ export class MeditationPlayer {
     const c = this.#config;
     this.#startTime = new Date().toTimeString().slice(0, 5);
     this.#renderRunning();
-    this.audio.startAmbience(c.ambience);
+    this.audio.startAmbience(c.ambience, this.#volume);
     this.#keepAwake();
     this.#runner = new SessionRunner({
       script: c.script,
@@ -348,9 +387,11 @@ export class MeditationPlayer {
         await this.#start();
       } else if (action === "pause") {
         const r = this.#runner;
-        if (r.state === "running") r.pause();
-        else {
-          this.audio.unlock();
+        if (r.state === "running") {
+          r.pause();
+          this.audio.pause();
+        } else {
+          this.audio.resume(); // pendant le toucher (iOS)
           r.resume();
         }
         el.textContent = r.state === "paused" ? "▶" : "❚❚";

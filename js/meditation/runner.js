@@ -100,7 +100,7 @@ export class SessionRunner {
   }
 
   // Se déplacer dans la séance (en secondes depuis le début). Une phrase
-  // reprend à son début ; un silence ou une pause reprend à l'endroit choisi,
+  // reprend à son début ; un silence, une pause ou une respiration reprend à l'endroit choisi,
   // après avoir redit la consigne qui le précède (on entend tout de suite
   // que la séance a repris, et on sait quoi faire pendant ce silence).
   // En pause, la séance reste en pause à la nouvelle position.
@@ -116,7 +116,7 @@ export class SessionRunner {
     const position = resumesInside ? target : start;
     this.#offset += position - this.elapsed;
     const context = this.#contextBefore(index);
-    const replay = type === "pause" || type === "silence" ? context.line : null;
+    const replay = type === "pause" || type === "silence" || type === "breathe" ? context.line : null;
     this.#pendingSeek = { index, into: resumesInside ? target - start : 0, replay };
     this.voice.cancel();
     this.onEvent({ type: "seek", position, ...context });

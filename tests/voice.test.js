@@ -56,9 +56,9 @@ test("une phrase bloquée est relancée, puis la séance avance quand même", as
 
   const log2 = fakeSpeech(() => "stuck");
   const q = new SpeechVoice({ lang: "fr-CA" }).speak("Toujours bloquée.");
-  await settle(15000);
+  await settle(25000);
   assert.equal(await q, true, "la séance ne reste pas figée");
-  assert.equal(log2.length, 2);
+  assert.equal(log2.length, 3, "deux nouvelles tentatives, puis on avance");
   mock.timers.reset();
 });
 

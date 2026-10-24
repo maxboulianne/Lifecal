@@ -361,4 +361,5 @@ export default {
   "trips.empty": "아직 계획된 여행이 없어요. 어디로 가 보고 싶나요?",
   "trips.past": "여행 추억",
   "trips.bag": "짐 {done}/{total}",
+  "med.ambienceVolume": "배경음 볼륨",
 };

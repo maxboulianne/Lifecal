@@ -570,22 +570,22 @@ body.player-open { overflow: hidden; }
 .player-line.show { opacity: 1; }
 .player-progress { width: 100%; display: flex; align-items: center; gap: 10px; }
 /* Barre d'avancement : on la fait glisser avec le doigt pour reculer ou avancer. */
-.player-seek {
+.player-seek, .player-volume-range {
   flex: 1; min-width: 0; height: var(--tap); margin: 0; background: transparent; cursor: pointer;
   -webkit-appearance: none; appearance: none; touch-action: none;
 }
-.player-seek::-webkit-slider-runnable-track {
+.player-seek::-webkit-slider-runnable-track, .player-volume-range::-webkit-slider-runnable-track {
   height: 6px; border-radius: 3px;
   background: linear-gradient(to right, rgb(255 255 255 / 0.85) var(--pct), rgb(255 255 255 / 0.18) var(--pct));
 }
-.player-seek::-moz-range-track { height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.18); }
-.player-seek::-moz-range-progress { height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.85); }
-.player-seek::-webkit-slider-thumb {
+.player-seek::-moz-range-track, .player-volume-range::-moz-range-track { height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.18); }
+.player-seek::-moz-range-progress, .player-volume-range::-moz-range-progress { height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.85); }
+.player-seek::-webkit-slider-thumb, .player-volume-range::-webkit-slider-thumb {
   -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%;
   background: #fff; box-shadow: 0 1px 6px rgb(0 0 0 / 0.4);
 }
-.player-seek::-moz-range-thumb { width: 22px; height: 22px; border: none; border-radius: 50%; background: #fff; }
-.player-seek:focus-visible { outline: 2px solid rgb(255 255 255 / 0.7); outline-offset: 2px; border-radius: 8px; }
+.player-seek::-moz-range-thumb, .player-volume-range::-moz-range-thumb { width: 22px; height: 22px; border: none; border-radius: 50%; background: #fff; }
+.player-seek:focus-visible, .player-volume-range:focus-visible { outline: 2px solid rgb(255 255 255 / 0.7); outline-offset: 2px; border-radius: 8px; }
 .player-badge { margin: 0; padding: 4px 12px; border-radius: 999px; background: rgb(255 255 255 / 0.12); font-size: 0.9rem; }
 .player-badge.complete { background: rgb(45 212 191 / 0.25); }
 .player-time { font-variant-numeric: tabular-nums; opacity: 0.8; font-size: 0.9rem; }
@@ -812,3 +812,7 @@ body.player-open { overflow: hidden; }
 .trip-card-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 0.9rem; }
 .trip-card-meta:empty { display: none; }
 .trip-card-go { font-size: 1.6rem; color: var(--muted); }
+
+/* Volume de l'ambiance, sous les boutons du lecteur. */
+.player-volume { display: flex; align-items: center; gap: 10px; width: min(100%, 260px); font-size: 1.1rem; }
+.player-volume .player-volume-range { flex: 1; }

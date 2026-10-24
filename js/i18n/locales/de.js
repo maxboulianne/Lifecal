@@ -364,4 +364,5 @@ export default {
   "trips.empty": "Noch keine Reise geplant. Wohin möchtest du?",
   "trips.past": "Reiseerinnerungen",
   "trips.bag": "Koffer {done}/{total}",
+  "med.ambienceVolume": "Lautstärke der Klangkulisse",
 };
