@@ -92,6 +92,11 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Une fête ou un anniversaire revient chaque année. Le formulaire demande la « Date de la fête » (jour et mois) et, à part, l'« Année de naissance » (ou du mariage), facultative : avec elle, l'âge s'affiche (« 62 ans »). Le 29 février tombe le 28 les autres années.
   - Dans la fiche : 🎁 idées cadeaux (cochées une fois achetées), budget cadeau, 👥 invités (cochés quand ils confirment) et ✅ à préparer.
   - Page « À venir » : les 12 prochains mois, mois par mois, avec le compte à rebours.
+- **Mes heures** (bouton ⏱️) : feuille de temps pour facturer.
+  - **Clients** (nom, contact, courriel, adresse ; TPS 5 % et TVQ 9,975 % à facturer ou non) et **projets** (numéro, nom, client, taux horaire).
+  - **Ma journée** : choisir le projet, écrire les heures (« 2,5 », « 2:30 », « 2h30 ») ou toucher +¼, +½, +1, ajouter une note. Total du jour en grand, total de la semaine à côté. Les heures se corrigent directement dans la liste. Un jour vide propose de reprendre la dernière journée travaillée.
+  - Rappel doux en semaine à partir de 16 h si rien n'est noté.
+  - **Exporter en Excel** : cette semaine, la semaine dernière, ce mois-ci, le mois dernier ou d'autres dates, pour tous les clients ou un seul. Le fichier `.xlsx` contient l'onglet « Heures » (jour par jour, total de chaque jour) et « Par projet » (heures × taux = montant), avec de vraies formules Excel. Sur iPhone et iPad, il s'ouvre dans la feuille de partage (Fichiers, Mail…).
 - **Langues** : choix à l'accueil au premier lancement, puis dans ⚙︎ **Paramètres**. Les dates et les heures suivent la langue choisie.
 - Paramètres : langue, rappels de proximité, calendriers externes, exporter et importer une copie des données (JSON).
 - **Les données du prototype `calendrier.html` sont récupérées automatiquement** à la première ouverture, si l'application est servie depuis la même adresse. La copie d'origine sous la clé `items` est conservée.
@@ -115,6 +120,8 @@ js/triggers/               Moteur de déclencheurs + déclencheurs calendrier et
 js/geo/geo.js              Position, distances, lien vers la carte
 js/sync/                   Fournisseurs externes (Google, Outlook, Yahoo) + fusion
 js/grocery/                Épicerie : épiceries suivies, catalogue d'articles (7 langues), prix unitaires, comparaison, liste par épicerie
+js/timesheet/              Mes heures : clients, projets, heures, totaux, contenu du classeur Excel
+js/export/xlsx.js          Création d'un fichier Excel (.xlsx) sans bibliothèque externe
 js/events/                 Événements : types, âge, prochains événements, moments de rappel
 js/travel/                 Voyages : dates, lieux à visiter, recherche d'un lieu, carte
 js/journal/                Journal : entrée du jour, question du jour, humeur et tendance

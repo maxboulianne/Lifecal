@@ -162,6 +162,18 @@ export class Repository extends Emitter {
     await this.#commit("grocery", null);
   }
 
+  // ---- Feuille de temps -------------------------------------------------------
+
+  timesheet() {
+    return this.#doc.timesheet;
+  }
+
+  // ts : la feuille de temps complète, modifiée (voir timesheet.js)
+  async updateTimesheet(ts) {
+    this.#doc.timesheet = ts;
+    await this.#commit("timesheet", null);
+  }
+
   async updateSettings(patch) {
     Object.assign(this.#doc.settings, patch);
     await this.#commit("settings", this.#doc.settings);
