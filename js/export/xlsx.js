@@ -93,7 +93,10 @@ export const excelDate = (iso) => {
   return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000;
 };
 
-// Styles : [police, remplissage, bordure, format de nombre]
+// Styles : [police, remplissage, bordure, format de nombre, alignement]
+// Polices : 0 normale, 1 grasse, 2 titre, 3 petite, 4 grande grasse.
+// Bordures : 1 haut et bas, 2 cadre. Formats : 164 heures, 165 argent, 166 date,
+// 167 pourcentage, 168 argent avec « - » pour zéro.
 const STYLES = {
   default: [0, 0, 0, 0],
   bold: [1, 0, 0, 0],
@@ -109,18 +112,43 @@ const STYLES = {
   total: [1, 2, 1, 165],
   totalHours: [1, 2, 1, 164],
   totalText: [1, 2, 1, 0],
+  right: [0, 0, 0, 0, "right"],
+  boldRight: [1, 0, 0, 0, "right"],
+  small: [3, 0, 0, 0],
+  smallBold: [5, 0, 0, 0],
+  center: [0, 0, 0, 0, "center"],
+  big: [4, 0, 0, 0],
+  headerCenter: [1, 2, 2, 0, "wrapCenter"],
+  box: [0, 0, 2, 0],
+  boxBold: [1, 0, 2, 0],
+  boxHours: [0, 0, 2, 164],
+  boxMoney: [0, 0, 2, 168],
+  boxTotal: [1, 2, 2, 168],
+  boxTotalHours: [1, 2, 2, 164],
+  boxTotalText: [1, 2, 2, 0],
+  labelBox: [1, 2, 2, 0, "right"],
+  moneyBox: [0, 0, 2, 165],
+  grandTotal: [4, 2, 2, 165],
+  dateBox: [0, 0, 2, 166],
+  boxRight: [0, 0, 2, 0, "right"],
+  boxBoldRight: [1, 0, 2, 0, "right"],
 };
 const STYLE_INDEX = Object.fromEntries(Object.keys(STYLES).map((k, i) => [k, i]));
+const ALIGN = {
+  right: '<alignment horizontal="right"/>',
+  center: '<alignment horizontal="center"/>',
+  wrapCenter: '<alignment horizontal="center" vertical="center" wrapText="1"/>',
+};
 
 const stylesXml = () => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<numFmts count="4"><numFmt numFmtId="164" formatCode="0.00"/><numFmt numFmtId="165" formatCode="#,##0.00\\ &quot;$&quot;"/><numFmt numFmtId="166" formatCode="yyyy-mm-dd"/><numFmt numFmtId="167" formatCode="0.000%"/></numFmts>
-<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="16"/><name val="Calibri"/></font></fonts>
+<numFmts count="5"><numFmt numFmtId="164" formatCode="0.00"/><numFmt numFmtId="165" formatCode="#,##0.00\\ &quot;$&quot;"/><numFmt numFmtId="166" formatCode="yyyy-mm-dd"/><numFmt numFmtId="167" formatCode="0.000%"/><numFmt numFmtId="168" formatCode="#,##0.00\\ &quot;$&quot;;-#,##0.00\\ &quot;$&quot;;&quot;-&quot;"/></numFmts>
+<fonts count="6"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="16"/><name val="Calibri"/></font><font><sz val="9"/><color rgb="FF555555"/><name val="Calibri"/></font><font><b/><sz val="13"/><name val="Calibri"/></font><font><b/><sz val="9"/><color rgb="FF555555"/><name val="Calibri"/></font></fonts>
 <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE8EEF4"/><bgColor indexed="64"/></patternFill></fill></fills>
-<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top style="thin"/><bottom style="thin"/><diagonal/></border></borders>
+<borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top style="thin"/><bottom style="thin"/><diagonal/></border><border><left style="thin"><color rgb="FFB0B7BF"/></left><right style="thin"><color rgb="FFB0B7BF"/></right><top style="thin"><color rgb="FFB0B7BF"/></top><bottom style="thin"><color rgb="FFB0B7BF"/></bottom><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="${Object.keys(STYLES).length}">${Object.values(STYLES).map(([font, fill, border, fmt]) =>
-  `<xf numFmtId="${fmt}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0"${font ? ' applyFont="1"' : ""}${fill ? ' applyFill="1"' : ""}${border ? ' applyBorder="1"' : ""}${fmt ? ' applyNumberFormat="1"' : ""}/>`).join("")}</cellXfs>
+<cellXfs count="${Object.keys(STYLES).length}">${Object.values(STYLES).map(([font, fill, border, fmt, align]) =>
+  `<xf numFmtId="${fmt}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0"${font ? ' applyFont="1"' : ""}${fill ? ' applyFill="1"' : ""}${border ? ' applyBorder="1"' : ""}${fmt ? ' applyNumberFormat="1"' : ""}${align ? ' applyAlignment="1">' + ALIGN[align] + "</xf>" : "/>"}`).join("")}</cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`;
 
@@ -133,19 +161,27 @@ function cellXml(cell, ref) {
     const value = typeof c.v === "number" ? `<v>${c.v}</v>` : "";
     return `<c r="${ref}"${s}><f>${xml(c.f)}</f>${value}</c>`;
   }
-  if ((c.s === "date" || c.s === "dateBold") && typeof c.v === "string") return `<c r="${ref}"${s}><v>${excelDate(c.v)}</v></c>`;
+  if (["date", "dateBold", "dateBox"].includes(c.s) && typeof c.v === "string") return `<c r="${ref}"${s}><v>${excelDate(c.v)}</v></c>`;
   if (typeof c.v === "number" && Number.isFinite(c.v)) return `<c r="${ref}"${s}><v>${c.v}</v></c>`;
   return `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${xml(c.v)}</t></is></c>`;
 }
 
-function sheetXml({ columns = [], rows = [], merges = [] }) {
+// columns : largeurs, ou { width, hidden } ; print : mise en page pour l'impression (une page de large).
+function sheetXml({ columns = [], rows = [], merges = [], print = null }) {
   const cols = columns.length
-    ? `<cols>${columns.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>`
+    ? `<cols>${columns.map((col, i) => {
+      const { width, hidden } = typeof col === "object" ? col : { width: col };
+      return `<col min="${i + 1}" max="${i + 1}" width="${width}" customWidth="1"${hidden ? ' hidden="1"' : ""}/>`;
+    }).join("")}</cols>`
+    : "";
+  const sheetPr = print ? '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' : "";
+  const page = print
+    ? `<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup paperSize="1" orientation="${print.orientation ?? "portrait"}" fitToWidth="1" fitToHeight="0"/>`
     : "";
   const data = rows.map((row, r) => `<row r="${r + 1}">${(row ?? []).map((cell, c) => cellXml(cell, `${colName(c)}${r + 1}`)).join("")}</row>`).join("");
   const merged = merges.length ? `<mergeCells count="${merges.length}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join("")}</mergeCells>` : "";
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${cols}<sheetData>${data}</sheetData>${merged}</worksheet>`;
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${sheetPr}${cols}<sheetData>${data}</sheetData>${merged}${page}</worksheet>`;
 }
 
 // Nom de feuille permis par Excel : 31 caractères, sans []:*?/\

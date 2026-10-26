@@ -43,9 +43,10 @@ import { settingsPage } from "./pages/settings.js";
 import { rangeDates, timesheetPage } from "./pages/timesheet.js";
 import {
   addClient, addEntry as addTsEntry, addProject, copyDay, deleteClient, deleteProject, getClient, getProject, parseHours, projectEntryCount,
-  projectLabel, removeEntry as removeTsEntry, updateClient, updateEntry as updateTsEntry, updateProject,
+  nextInvoiceNumber, projectLabel, removeEntry as removeTsEntry, updateBusiness, updateClient, updateEntry as updateTsEntry, updateProject,
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
+import { invoiceSheet } from "../timesheet/invoice.js";
 import { XLSX_TYPE, buildXlsx } from "../export/xlsx.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
 import { MeditationAudio } from "../meditation/audio.js";
@@ -145,6 +146,11 @@ export class App {
     document.addEventListener("input", (e) => {
       if (e.target.dataset.journal) this.#scheduleJournalSave();
       if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
+      // Un code de tâche déjà utilisé : sa description suit.
+      if (e.target.name === "taskCode" && e.target.form?.dataset.role === "ts-add") {
+        const known = [...document.querySelectorAll("#ts-task-codes option")].find((o) => o.value === e.target.value.trim());
+        if (known) e.target.form.elements.task.value = known.dataset.task ?? "";
+      }
       if (e.target.dataset.role === "catalog-search") {
         this.catalogQuery = e.target.value;
         this.#filterCatalog(this.catalogQuery);
@@ -876,7 +882,8 @@ export class App {
       this.timesheetExport = { ...this.timesheetExport, range: el.dataset.range, from, to };
       this.#renderKeepingScroll();
     },
-    "ts-export": (el) => this.#exportTimesheet(el.dataset.from, el.dataset.to),
+    "ts-export": (el) => this.#exportTimesheet(el.dataset.from, el.dataset.to, el.dataset.client),
+    "ts-invoice": (el) => this.#createInvoice(el.closest("[data-role=ts-invoice]")),
     "new-habit": () => this.openNewItem({ date: todayISO(), module: "habitude", repeat: FREQ.DAILY }),
     "open-item": (el) => this.openItem(el.dataset.id, el.dataset.date),
     "edit-item": (el) => this.openEdit(el.dataset.id),
@@ -990,6 +997,12 @@ export class App {
       syncRepeatFields(form);
     }
     if (el.dataset.action?.startsWith("ts-")) return this.#onTimesheetChange(el);
+    // Choisir un projet propose sa dernière tâche (code et description).
+    if (el.name === "projectId" && el.form?.dataset.role === "ts-add") {
+      el.form.elements.taskCode.value = el.dataset.taskCode ?? "";
+      el.form.elements.task.value = el.dataset.task ?? "";
+      return;
+    }
     if (el.dataset.action === "grocery-toggle") {
       return this.#updateGrocery({ list: toggleListEntry(this.repo.grocery().list, el.dataset.entry) });
     }
@@ -1258,8 +1271,20 @@ export class App {
         }
         return this.#updateTimesheet(updateTsEntry(ts, id, { hours }));
       }
-      case "ts-note":
-        return this.#updateTimesheet(updateTsEntry(ts, id, { note: el.value.trim() }));
+      case "ts-entry-field":
+        return this.#updateTimesheet(updateTsEntry(ts, id, { [el.dataset.field]: el.value.trim() }));
+      case "ts-business-field": {
+        const { field } = el.dataset;
+        if (field === "terms") {
+          const days = Number(el.value.trim());
+          if (!Number.isInteger(days) || days < 0) {
+            el.value = ts.business.terms;
+            return toast(t("ts.errors.terms"));
+          }
+          return this.#updateTimesheet(updateBusiness(ts, { terms: days }));
+        }
+        return this.#updateTimesheet(updateBusiness(ts, { [field]: el.value.trim() }));
+      }
       case "ts-entry-ot":
         return this.#updateTimesheet(updateTsEntry(ts, id, { overtime: el.checked }));
       case "ts-client-field": {
@@ -1313,7 +1338,8 @@ export class App {
       if (!projectId) return (errors.textContent = t("ts.pickProject"));
       this.timesheetProject = projectId;
       const overtime = text("overtime") === "1";
-      return this.#updateTimesheet(addTsEntry(ts, { date: form.dataset.date, projectId, hours, overtime, note: text("note") }), "[data-role=ts-add] [name=hours]");
+      const entry = { date: form.dataset.date, projectId, hours, overtime, taskCode: text("taskCode"), task: text("task"), note: text("note") };
+      return this.#updateTimesheet(addTsEntry(ts, entry), "[data-role=ts-add] [name=hours]");
     }
     if (form.dataset.role === "ts-new-project") {
       if (!text("number") && !text("name")) return (errors.textContent = t("ts.errors.project"));
@@ -1340,22 +1366,50 @@ export class App {
     }
   }
 
+  #timesheetLabels() {
+    const columns = Object.fromEntries(["date", "day", "number", "project", "type", "taskCode", "task", "client", "hours", "note", "rate", "amount"]
+      .map((k) => [k, t(`ts.col.${k}`)]));
+    return {
+      title: t("ts.sheetTitle"), period: t("ts.period"), regular: t("ts.regular"), overtime: t("ts.overtime"), dayTotal: t("ts.dayTotal"),
+      total: t("ts.total"), sheetHours: t("ts.sheetHours"), sheetProjects: t("ts.sheetProjects"), columns,
+    };
+  }
+
   // Classeur Excel de la période : partagé (iPhone, iPad) ou téléchargé.
-  async #exportTimesheet(from, to) {
-    const columns = Object.fromEntries(["date", "day", "number", "project", "type", "client", "hours", "note", "rate", "amount"].map((k) => [k, t(`ts.col.${k}`)]));
+  async #exportTimesheet(from, to, clientId) {
     const sheets = timesheetSheets(this.repo.timesheet(), {
-      from, to, clientId: this.timesheetExport.clientId || null,
-      weekday: (iso) => fmt.weekdayShort(parseISODate(iso)),
-      labels: {
-        title: t("ts.sheetTitle"), period: t("ts.period"), regular: t("ts.regular"), overtime: t("ts.overtime"), dayTotal: t("ts.dayTotal"), total: t("ts.total"),
-        sheetHours: t("ts.sheetHours"), sheetProjects: t("ts.sheetProjects"), columns,
-      },
+      from, to, clientId: clientId || null, weekday: (iso) => fmt.weekdayShort(parseISODate(iso)), labels: this.#timesheetLabels(),
     });
-    const name = `${t("ts.fileName")}-${from}_${to}.xlsx`;
-    const file = new File([buildXlsx({ sheets })], name, { type: XLSX_TYPE });
+    await this.#shareFile(new File([buildXlsx({ sheets })], `${t("ts.fileName")}-${from}_${to}.xlsx`, { type: XLSX_TYPE }));
+  }
+
+  // Facture Excel (modèle de Max) + le détail des heures du client.
+  async #createInvoice(box) {
+    const read = (name) => $(`[name=${name}]`, box).value.trim();
+    const { client: clientId, from, to } = box.dataset;
+    const number = read("number");
+    const date = read("date") || todayISO();
+    const po = read("po");
+    if (!number) {
+      $("[name=number]", box).focus();
+      return toast(t("ts.errors.invoiceNumber"));
+    }
+    let ts = this.repo.timesheet();
+    const { sheet, totals } = invoiceSheet(ts, { from, to, clientId, number, date, po });
+    const details = timesheetSheets(ts, { from, to, clientId, weekday: (iso) => fmt.weekdayShort(parseISODate(iso)), labels: this.#timesheetLabels() });
+    // Retenir le PO du client et proposer le numéro suivant la prochaine fois.
+    ts = updateClient(ts, clientId, { po });
+    ts = updateBusiness(ts, { nextInvoice: nextInvoiceNumber(number) });
+    await this.#updateTimesheet(ts);
+    const name = `${t("ts.invoiceFile")}-${number.replace(/[^\w.-]+/g, "_")}.xlsx`;
+    await this.#shareFile(new File([buildXlsx({ sheets: [sheet, ...details] })], name, { type: XLSX_TYPE }));
+    toast(t("ts.invoiceReady", { total: fmt.money(totals.total) }));
+  }
+
+  async #shareFile(file) {
     if (navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: name });
+        await navigator.share({ files: [file], title: file.name });
         return;
       } catch (err) {
         if (err?.name === "AbortError") return;
@@ -1363,7 +1417,7 @@ export class App {
     }
     const a = document.createElement("a");
     a.href = URL.createObjectURL(file);
-    a.download = name;
+    a.download = file.name;
     document.body.append(a);
     a.click();
     a.remove();
