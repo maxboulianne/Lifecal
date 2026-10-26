@@ -91,8 +91,8 @@ import { buildXlsx, colName, crc32, excelDate } from "../js/export/xlsx.js";
 import { timesheetSheets } from "../js/timesheet/export.js";
 
 const LABELS = {
-  title: "Feuille de temps", period: "Période", dayTotal: "Total du jour", total: "Total", sheetHours: "Heures", sheetProjects: "Par projet",
-  columns: { date: "Date", day: "Jour", number: "N° projet", project: "Projet", client: "Client", hours: "Heures", note: "Note", rate: "Taux", amount: "Montant" },
+  title: "Feuille de temps", period: "Période", regular: "Régulier", overtime: "Surtemps", dayTotal: "Total du jour", total: "Total", sheetHours: "Heures", sheetProjects: "Par projet",
+  columns: { date: "Date", day: "Jour", number: "N° projet", project: "Projet", type: "Type", client: "Client", hours: "Heures", note: "Note", rate: "Taux", amount: "Montant" },
 };
 
 test("Excel : zip valide (CRC), colonnes, dates", () => {
@@ -106,12 +106,12 @@ test("Excel : zip valide (CRC), colonnes, dates", () => {
 test("export de la feuille de temps : jours, sous-totaux, projets, formules", () => {
   const { ts, client } = sample();
   const [hours, projects] = timesheetSheets(ts, { from: "2026-10-19", to: "2026-10-25", clientId: client.id, labels: LABELS, weekday: () => "lun." });
-  const days = hours.rows.filter((r) => r[4]?.v === "Total du jour").map((r) => [r[5].f, r[5].v]);
-  assert.deepEqual(days, [["SUM(F5:F6)", 8], ["SUM(F9:F9)", 7.5]]);
+  const days = hours.rows.filter((r) => r[5]?.v === "Total du jour").map((r) => [r[6].f, r[6].v]);
+  assert.deepEqual(days, [["SUM(G5:G6)", 8], ["SUM(G9:G9)", 7.5]]);
   const total = hours.rows.at(-1);
-  assert.deepEqual([total[0].v, total[5].f, total[5].v], ["Total", "F7+F10", 15.5]);
-  assert.deepEqual(projects.rows.slice(4, 6).map((r) => [r[0], r[3].v, r[5].f, r[5].v]), [["CA15624", 2, "D5*E5", 136], ["CA15713", 13.5, "D6*E6", 918]]);
-  assert.deepEqual([projects.rows.at(-1)[5].f, projects.rows.at(-1)[5].v], ["SUM(F5:F6)", 1054]);
+  assert.deepEqual([total[0].v, total[6].f, total[6].v], ["Total", "G7+G10", 15.5]);
+  assert.deepEqual(projects.rows.slice(4, 6).map((r) => [r[0], r[2], r[4].v, r[6].f, r[6].v]), [["CA15624", "Régulier", 2, "E5*F5", 136], ["CA15713", "Régulier", 13.5, "E6*F6", 918]]);
+  assert.deepEqual([projects.rows.at(-1)[6].f, projects.rows.at(-1)[6].v], ["SUM(G5:G6)", 1054]);
   assert.match(hours.rows[0][0].v, /Camfil/);
   assert.ok(buildXlsx({ sheets: [hours, projects] }).length > 1000);
 });
@@ -126,4 +126,31 @@ test("rappel : heures pas notées en semaine après 16 h", async () => {
   const logged = { ...ts, entries: [{ id: "e", date: "2026-10-26", projectId: "p1", hours: 2, note: "" }] };
   assert.equal(timesheetReminder.evaluate({ timesheet: logged, today: "2026-10-26", hour: 17 }).length, 0);
   assert.equal(timesheetReminder.evaluate({ timesheet: emptyTimesheet(), today: "2026-10-26", hour: 17 }).length, 0);
+});
+
+test("surtemps : taux distinct (ou 1,5 × le régulier), lignes séparées", async () => {
+  const { rateFor, deleteProject, deleteClient, updateProject } = await import("../js/timesheet/timesheet.js");
+  let { ts, client } = sample();
+  const p = ts.projects.find((x) => x.number === "CA15713");
+  assert.equal(rateFor(p, true), 102);
+  ts = addEntry(ts, { date: "2026-10-20", projectId: p.id, hours: 2, overtime: true });
+  let s = periodSummary(ts, "2026-10-19", "2026-10-25");
+  assert.deepEqual(s.projects.filter((r) => r.project.id === p.id).map((r) => [r.overtime, r.hours, r.rate, r.amount]), [[false, 13.5, 68, 918], [true, 2, 102, 204]]);
+  assert.equal(s.overtimeHours, 2);
+  ts = updateProject(ts, p.id, { overtimeRate: 95 });
+  s = periodSummary(ts, "2026-10-19", "2026-10-25");
+  assert.equal(s.projects.find((r) => r.overtime).amount, 190);
+  const [hours, projects] = timesheetSheets(ts, { from: "2026-10-19", to: "2026-10-25", labels: LABELS, weekday: () => "mar." });
+  assert.ok(hours.rows.some((r) => r[4] === "Surtemps"));
+  assert.deepEqual(projects.rows.find((r) => r[2] === "Surtemps").slice(4).map((c) => c.v), [2, 95, 190]);
+  // copier une journée garde le surtemps ; normaliser aussi
+  assert.ok(copyDay(ts, "2026-10-20", "2026-10-30").entries.some((e) => e.date === "2026-10-30" && e.overtime));
+  assert.equal(normalizeTimesheet(ts).entries.filter((e) => e.overtime).length, 1);
+  // supprimer
+  const without = deleteProject(ts, p.id);
+  assert.ok(!without.projects.some((x) => x.id === p.id) && !without.entries.some((e) => e.projectId === p.id));
+  const noClient = deleteClient(ts, client.id);
+  assert.equal(noClient.clients.length, 0);
+  assert.ok(noClient.projects.every((x) => x.clientId === null));
+  assert.equal(normalizeTimesheet({ projects: [{ number: "1", rate: 0 }] }).projects[0].rate, null);
 });

@@ -994,33 +994,58 @@ body.player-open { overflow: hidden; }
 .ts-day-head h2 { margin: 0; font-size: 1.1rem; flex: 1; text-align: center; }
 .ts-totals { display: flex; align-items: baseline; justify-content: center; gap: 12px; margin: 8px 0 12px; }
 .ts-total { font-size: 2.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Lignes d'heures de la journée */
 .ts-entries { list-style: none; margin: 0 0 12px; padding: 0; }
-.ts-entry { display: grid; grid-template-columns: 1fr 5.5em 2em; grid-template-areas: "p h x" "n n n"; gap: 4px 8px; align-items: center;
-  padding: 8px 0; border-top: 1px solid var(--line); }
+.ts-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto 2em; grid-template-areas: "p h x" "o o o" "n n n"; gap: 6px 8px; align-items: center;
+  padding: 10px 0; border-top: 1px solid var(--line); }
 .ts-entry-project { grid-area: p; min-width: 0; }
 .ts-entry-project .hint { display: block; }
-.ts-entry .ts-hours { grid-area: h; }
+.ts-entry-hours { grid-area: h; display: flex; align-items: center; gap: 6px; }
 .ts-entry .ts-note { grid-area: n; }
 .ts-entry .check-remove { grid-area: x; }
+.ts-ot-toggle { grid-area: o; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.9rem; }
+.ts-ot-toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
+.ts-entry.is-overtime .ts-ot-toggle { color: var(--ink); font-weight: 600; }
 .ts-hours { width: 5.5em; text-align: right; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .ts-note { width: 100%; }
-.ts-add { display: grid; gap: 8px; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
-.ts-add .hint { margin: 0; }
-.ts-projects { display: flex; flex-wrap: wrap; gap: 6px; }
+.ts-badge { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--soft); font-size: 0.8rem; font-weight: 600; }
+
+/* Ajouter des heures : étapes 1, 2, 3 */
+.ts-add { display: grid; gap: 10px; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ts-step { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; font-weight: 600; }
+.ts-step-n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 0.9rem; flex: none; }
+.ts-projects { display: flex; flex-wrap: wrap; gap: 8px; }
 .ts-project-chip input { position: absolute; opacity: 0; pointer-events: none; }
-.ts-project-chip span { display: inline-block; padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 999px; cursor: pointer; }
-.ts-project-chip input:checked + span { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.ts-project-chip span { display: inline-block; padding: 9px 14px; border: 1.5px solid var(--line); border-radius: 999px; cursor: pointer; background: var(--surface); }
+.ts-project-chip input:checked + span { border-color: var(--accent); background: var(--accent); color: #fff; }
+.ts-project-chip input:checked + span::before { content: "✓ "; font-weight: 700; }
 .ts-project-chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ts-add-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.ts-step { min-width: 3em; }
-.ts-project-list, .ts-client-list { list-style: none; margin: 0 0 12px; padding: 0; }
-.ts-project-list li { display: grid; grid-template-columns: 7em 1fr; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line); }
-.ts-project-list li select { grid-column: 1 / -1; }
-.ts-project-list li.is-archived { opacity: 0.55; }
-.ts-rate { display: flex; align-items: center; gap: 4px; }
-.ts-rate input { width: 5em; }
-.ts-client-list li { display: grid; gap: 4px; padding: 8px 0; border-top: 1px solid var(--line); }
-.ts-new h3 { margin: 8px 0 4px; font-size: 1rem; }
+.ts-step-btn { min-width: 3em; }
+.ts-kind { align-self: start; justify-self: start; }
+.ts-kind label { display: flex; }
+.ts-kind input { position: absolute; opacity: 0; pointer-events: none; }
+.ts-kind span { display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border-radius: 9px; cursor: pointer; }
+.ts-kind input:checked + span { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+.ts-kind input:focus-visible + span { outline: 2px solid var(--accent); }
+
+/* Fiches des projets et des clients, modifiables sur place */
+.ts-cards { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 10px; }
+.ts-card { padding: 12px; border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.ts-card.is-archived { opacity: 0.6; }
+.ts-card .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ts-card label { margin-bottom: 8px; }
+.ts-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 4px; }
+.btn.link.danger { color: var(--danger); }
+.ts-new-wrap > summary { list-style: none; display: inline-flex; cursor: pointer; }
+.ts-new-wrap > summary::-webkit-details-marker { display: none; }
+.ts-new-wrap[open] > summary { margin-bottom: 8px; }
+.ts-new-wrap .form { padding: 12px; border: 1.5px dashed var(--line); border-radius: 12px; }
+.ts-new .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.timesheet .form input::placeholder, .timesheet .form textarea::placeholder { color: var(--muted); opacity: 0.55; font-style: italic; }
+
+/* Export */
 .ts-ranges { margin-bottom: 8px; }
 .segmented.wrap { flex-wrap: wrap; }
 .ts-export-client { display: block; margin: 8px 0; }
@@ -1028,14 +1053,13 @@ body.player-open { overflow: hidden; }
 .ts-summary th, .ts-summary td { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: right; }
 .ts-summary th:first-child, .ts-summary td:first-child { text-align: left; }
 .ts-summary tfoot th { border-bottom: none; }
-/* Champs modifiables directement dans la liste (heures, notes, projets, export). */
-.timesheet :is(.ts-entry, .ts-add, .ts-project-list, .ts-export-row, .ts-export-client) :is(input:not([type=radio]):not([type=checkbox]), select) {
+.ts-empty-export { margin: 8px 0 0; padding: 12px; border-radius: 12px; background: var(--soft); }
+/* Champs modifiables directement dans la liste (heures, notes, export). */
+.timesheet :is(.ts-entry, .ts-add, .ts-export-row, .ts-export-client) :is(input:not([type=radio]):not([type=checkbox]), select) {
   min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px;
-  background: var(--bg); color: var(--ink); font: inherit; box-sizing: border-box; max-width: 100%;
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; box-sizing: border-box; max-width: 100%;
 }
 .timesheet .ts-add .ts-hours { flex: 0 0 7.5em; width: 7.5em; }
 .ts-export-row label, .ts-export-client { color: var(--muted); font-size: 0.9rem; }
 .ts-export-row input, .ts-export-client select { display: block; width: 100%; margin-top: 4px; }
 .timesheet input:disabled { opacity: 0.7; }
-.ts-project-list li > input, .ts-project-list li > select { width: 100%; min-width: 0; }
-.ts-project-list .ts-rate input { width: 5.5em; }
