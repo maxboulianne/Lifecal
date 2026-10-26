@@ -1,11 +1,14 @@
 // Feuille de temps : clients, projets et heures travaillées chaque jour.
 //
 // Rangée dans doc.timesheet :
-//   clients   [{ id, name, contact, email, address, tps, tvq }]   tps / tvq : taxes facturées
+//   clients   [{ id, name, contact, email, address, po, tps, tvq }]   tps / tvq : taxes facturées ; po : no PO du client
 //   projects  [{ id, number, name, clientId, rate, overtimeRate, archived }]
 //             rate : taux horaire régulier ($) ; overtimeRate : taux du surtemps
 //             (vide : 1,5 × le taux régulier)
-//   entries   [{ id, date, projectId, hours, overtime, note }]     une ligne d'heures d'une journée
+//   entries   [{ id, date, projectId, hours, overtime, taskCode, task, note }]
+//             une ligne d'heures d'une journée ; taskCode / task : code et description de la tâche
+//   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice }
+//             mon entreprise, pour la facture (terms : jours pour payer, ex. 10 = NET10)
 // Fonctions pures : elles retournent toujours de nouvelles valeurs.
 
 import { addDays, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
@@ -15,8 +18,15 @@ export const TPS_RATE = 0.05;
 export const TVQ_RATE = 0.09975;
 export const OVERTIME_FACTOR = 1.5;
 
+export const BUSINESS_FIELDS = ["name", "contact", "address", "phone", "email", "tpsNumber", "tvqNumber", "terms", "nextInvoice"];
+export const DEFAULT_TERMS = 10;
+
+export function emptyBusiness() {
+  return { name: "", contact: "", address: "", phone: "", email: "", tpsNumber: "", tvqNumber: "", terms: DEFAULT_TERMS, nextInvoice: "" };
+}
+
 export function emptyTimesheet() {
-  return { clients: [], projects: [], entries: [] };
+  return { clients: [], projects: [], entries: [], business: emptyBusiness() };
 }
 
 const str = (v) => String(v ?? "").trim();
@@ -31,7 +41,7 @@ const rateOrNull = (v) => (num(v) !== null && num(v) > 0 && v !== "" ? num(v) : 
 export function normalizeTimesheet(raw) {
   const ts = raw && typeof raw === "object" ? raw : {};
   const clients = (Array.isArray(ts.clients) ? ts.clients : []).filter((c) => c && str(c.name)).map((c) => ({
-    id: c.id ?? newId(), name: str(c.name), contact: str(c.contact), email: str(c.email), address: String(c.address ?? ""),
+    id: c.id ?? newId(), name: str(c.name), contact: str(c.contact), email: str(c.email), address: String(c.address ?? ""), po: str(c.po),
     tps: c.tps !== false, tvq: c.tvq !== false,
   }));
   const projects = (Array.isArray(ts.projects) ? ts.projects : []).filter((p) => p && (str(p.number) || str(p.name))).map((p) => ({
@@ -40,8 +50,18 @@ export function normalizeTimesheet(raw) {
   }));
   const entries = (Array.isArray(ts.entries) ? ts.entries : [])
     .filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.projectId && num(e.hours) !== null && num(e.hours) >= 0)
-    .map((e) => ({ id: e.id ?? newId(), date: e.date, projectId: e.projectId, hours: num(e.hours), overtime: Boolean(e.overtime), note: str(e.note) }));
-  return { clients, projects, entries };
+    .map((e) => ({
+      id: e.id ?? newId(), date: e.date, projectId: e.projectId, hours: num(e.hours), overtime: Boolean(e.overtime),
+      taskCode: str(e.taskCode), task: str(e.task), note: str(e.note),
+    }));
+  const b = ts.business && typeof ts.business === "object" ? ts.business : {};
+  const terms = num(b.terms);
+  const business = {
+    ...emptyBusiness(),
+    ...Object.fromEntries(BUSINESS_FIELDS.filter((k) => k !== "terms").map((k) => [k, k === "address" ? String(b[k] ?? "").trim() : str(b[k])])),
+    terms: terms !== null && terms >= 0 && b.terms !== "" ? Math.round(terms) : DEFAULT_TERMS,
+  };
+  return { clients, projects, entries, business };
 }
 
 // « 2,75 », « 2.75 », « 2:45 », « 2h45 », « 2 h 45 », « 45 min » -> heures décimales (ou null).
@@ -143,8 +163,9 @@ export function periodSummary(ts, from, to, clientId = null) {
 
 // ---- Modifications ------------------------------------------------------------------
 
-export function addEntry(ts, { date, projectId, hours, overtime = false, note = "" }) {
-  return { ...ts, entries: [...ts.entries, { id: newId(), date, projectId, hours: round(hours), overtime: Boolean(overtime), note: str(note) }] };
+export function addEntry(ts, { date, projectId, hours, overtime = false, taskCode = "", task = "", note = "" }) {
+  const entry = { id: newId(), date, projectId, hours: round(hours), overtime: Boolean(overtime), taskCode: str(taskCode), task: str(task), note: str(note) };
+  return { ...ts, entries: [...ts.entries, entry] };
 }
 
 export const updateEntry = (ts, id, patch) => ({ ...ts, entries: ts.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
@@ -152,7 +173,7 @@ export const removeEntry = (ts, id) => ({ ...ts, entries: ts.entries.filter((e) 
 
 // Recopier les lignes d'une journée (mêmes projets et heures) sur une autre.
 export function copyDay(ts, from, to) {
-  return dayEntries(ts, from).reduce((acc, e) => addEntry(acc, { date: to, projectId: e.projectId, hours: e.hours, overtime: e.overtime, note: e.note }), ts);
+  return dayEntries(ts, from).reduce((acc, e) => addEntry(acc, { ...e, date: to }), ts);
 }
 
 export function addProject(ts, { number, name, clientId = null, rate = null, overtimeRate = null }) {
@@ -161,6 +182,31 @@ export function addProject(ts, { number, name, clientId = null, rate = null, ove
 }
 
 export const updateProject = (ts, id, patch) => ({ ...ts, projects: ts.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+
+// Tâches déjà utilisées (code -> description la plus récente), pour les proposer.
+export function knownTasks(ts) {
+  const tasks = new Map();
+  for (const e of [...ts.entries].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (e.taskCode || e.task) tasks.set(e.taskCode || e.task, { code: e.taskCode, task: e.task });
+  }
+  return [...tasks.values()].sort((a, b) => (a.code || a.task).localeCompare(b.code || b.task, undefined, { numeric: true }));
+}
+
+// Dernière tâche notée sur un projet (pour la proposer à nouveau).
+export function lastTask(ts, projectId) {
+  const last = ts.entries.filter((e) => e.projectId === projectId && (e.taskCode || e.task)).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+  return { code: last?.taskCode ?? "", task: last?.task ?? "" };
+}
+
+export const updateBusiness = (ts, patch) => ({ ...ts, business: { ...ts.business, ...patch } });
+
+// « 2026-115 » -> « 2026-116 » ; « F009 » -> « F010 » ; sans chiffre : inchangé.
+export function nextInvoiceNumber(number) {
+  const m = String(number ?? "").match(/^(.*?)(\d+)(\D*)$/);
+  if (!m) return String(number ?? "");
+  const n = String(Number(m[2]) + 1).padStart(m[2].length, "0");
+  return `${m[1]}${n}${m[3]}`;
+}
 
 // Supprimer un projet efface aussi ses heures.
 export const deleteProject = (ts, id) => ({

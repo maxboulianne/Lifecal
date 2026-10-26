@@ -5,7 +5,7 @@ import { addDays, parseISODate, startOfWeek, toISODate } from "../../core/dates.
 import { esc } from "../../core/dom.js";
 import { fmt, t } from "../../i18n/index.js";
 import {
-  activeProjects, dayEntries, dayTotal, getClient, getProject, periodSummary, previousWorkday, rateFor, weekTotal,
+  activeProjects, dayEntries, dayTotal, getClient, getProject, knownTasks, lastTask, periodSummary, previousWorkday, rateFor, weekTotal,
 } from "../../timesheet/timesheet.js";
 import { foldSection, isFoldOpen } from "../components/fold.js";
 import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
@@ -39,8 +39,14 @@ function entryRow(ts, e) {
     <label class="ts-entry-hours"><span class="hint">${t("ts.hours")}</span>
       <input class="ts-hours" data-action="ts-hours" data-id="${esc(e.id)}" value="${esc(fmt.decimal(e.hours))}" inputmode="decimal" autocomplete="off"></label>
     <button type="button" class="check-remove" data-action="ts-remove" data-id="${esc(e.id)}" aria-label="${esc(t("ts.remove"))}">×</button>
+    <div class="ts-entry-task">
+      <input data-action="ts-entry-field" data-field="taskCode" data-id="${esc(e.id)}" value="${esc(e.taskCode)}" list="ts-task-codes"
+        placeholder="${esc(t("ts.taskCode"))}" aria-label="${esc(t("ts.taskCode"))}" autocomplete="off">
+      <input data-action="ts-entry-field" data-field="task" data-id="${esc(e.id)}" value="${esc(e.task)}"
+        placeholder="${esc(t("ts.taskDesc"))}" aria-label="${esc(t("ts.taskDesc"))}" autocomplete="off">
+    </div>
     <label class="ts-ot-toggle"><input type="checkbox" data-action="ts-entry-ot" data-id="${esc(e.id)}" ${e.overtime ? "checked" : ""}> ${t("ts.overtime")}</label>
-    <input class="ts-note" data-action="ts-note" data-id="${esc(e.id)}" value="${esc(e.note)}" placeholder="${esc(t("ts.notePlaceholder"))}"
+    <input class="ts-note" data-action="ts-entry-field" data-field="note" data-id="${esc(e.id)}" value="${esc(e.note)}" placeholder="${esc(t("ts.notePlaceholder"))}"
       aria-label="${esc(t("ts.note"))}" autocomplete="off">
   </li>`;
 }
@@ -49,6 +55,7 @@ function daySection(ts, date, today, selected) {
   const entries = dayEntries(ts, date);
   const projects = activeProjects(ts);
   const chosen = projects.some((p) => p.id === selected) ? selected : projects[0]?.id;
+  const task = chosen ? lastTask(ts, chosen) : { code: "", task: "" };
   const prev = entries.length ? null : previousWorkday(ts, date);
   const title = date === today ? t("nav.today") : fmt.longDate(parseISODate(date));
   return `<section class="card ts-day">
@@ -66,10 +73,12 @@ function daySection(ts, date, today, selected) {
     </div>
     ${entries.length ? `<ul class="ts-entries">${entries.map((e) => entryRow(ts, e)).join("")}</ul>` : ""}
     ${prev ? `<button type="button" class="btn soft" data-action="ts-copy" data-from="${prev}" data-date="${date}">📋 ${esc(t("ts.copyDay", { date: fmt.longDate(parseISODate(prev)) }))}</button>` : ""}
+    <datalist id="ts-task-codes">${knownTasks(ts).filter((x) => x.code).map((x) => `<option value="${esc(x.code)}" data-task="${esc(x.task)}">${esc(x.task)}</option>`).join("")}</datalist>
     ${projects.length ? `<form class="ts-add" data-role="ts-add" data-date="${date}">
         ${step(1, t("ts.step1"))}
         <div class="ts-projects">${projects.map((p) => `<label class="ts-project-chip">
-          <input type="radio" name="projectId" value="${esc(p.id)}" ${p.id === chosen ? "checked" : ""}>
+          <input type="radio" name="projectId" value="${esc(p.id)}" ${p.id === chosen ? "checked" : ""}
+            data-task-code="${esc(lastTask(ts, p.id).code)}" data-task="${esc(lastTask(ts, p.id).task)}">
           <span><strong>${esc(p.number)}</strong> ${esc(p.name)}</span></label>`).join("")}</div>
         ${step(2, t("ts.step2"))}
         <div class="ts-add-row">
@@ -80,7 +89,11 @@ function daySection(ts, date, today, selected) {
           <label><input type="radio" name="overtime" value="0" checked><span>${t("ts.regular")}</span></label>
           <label><input type="radio" name="overtime" value="1"><span>${t("ts.overtime")}</span></label>
         </div>
-        <input name="note" class="ts-note" placeholder="${esc(t("ts.notePlaceholder"))}" aria-label="${esc(t("ts.note"))}" autocomplete="off">
+        <div class="ts-task-row">
+          <label>${t("ts.taskCode")} <input name="taskCode" list="ts-task-codes" value="${esc(task.code)}" placeholder="${esc(t("ts.example", { value: "QA-01" }))}" autocomplete="off"></label>
+          <label>${t("ts.taskDesc")} <input name="task" value="${esc(task.task)}" placeholder="${esc(t("ts.taskDescPlaceholder"))}" autocomplete="off"></label>
+        </div>
+        <label class="ts-note-label">${t("ts.note")} <input name="note" class="ts-note" placeholder="${esc(t("ts.notePlaceholder"))}" autocomplete="off"></label>
         ${step(3, t("ts.step3"))}
         <p class="form-errors" data-role="errors" role="alert"></p>
         <button type="submit" class="btn primary">${t("ts.add")}</button>
@@ -154,6 +167,7 @@ function clientCard(c) {
       <label>${t("ts.email")} <input ${attrs("email")} type="email" value="${esc(c.email)}"></label>
     </div>
     <label>${t("ts.address")} <textarea ${attrs("address")} rows="3">${esc(c.address)}</textarea></label>
+    <label>${t("ts.po")} <input ${attrs("po")} value="${esc(c.po)}"></label>
     <label class="switch"><input type="checkbox" data-action="ts-client-tax" data-id="${esc(c.id)}" data-tax="tps" ${c.tps ? "checked" : ""}><span>${t("ts.chargeTps")}</span></label>
     <label class="switch"><input type="checkbox" data-action="ts-client-tax" data-id="${esc(c.id)}" data-tax="tvq" ${c.tvq ? "checked" : ""}><span>${t("ts.chargeTvq")}</span></label>
     <div class="ts-card-actions">
@@ -183,11 +197,47 @@ function clientsSection(ts) {
   });
 }
 
+function businessSection(ts) {
+  const b = ts.business;
+  const attrs = (f) => `data-action="ts-business-field" data-field="${f}" autocomplete="off"`;
+  const field = (f, label, extra = "") => `<label>${label} <input ${attrs(f)} value="${esc(b[f])}" ${extra}></label>`;
+  return foldSection("ts-business", {
+    title: esc(t("ts.business")),
+    open: isFoldOpen("ts-business", false),
+    body: `<p class="hint">${t("ts.businessHint")}</p>
+      <div class="form ts-card">
+        ${field("name", t("ts.businessName"))}
+        ${field("contact", t("ts.yourName"))}
+        <label>${t("ts.address")} <textarea ${attrs("address")} rows="3">${esc(b.address)}</textarea></label>
+        <div class="row">${field("phone", t("ts.phone"), 'type="tel"')}${field("email", t("ts.email"), 'type="email"')}</div>
+        <div class="row">${field("tpsNumber", t("ts.tpsNumber"))}${field("tvqNumber", t("ts.tvqNumber"))}</div>
+        <div class="row">${field("terms", t("ts.terms"), 'inputmode="numeric"')}${field("nextInvoice", t("ts.nextInvoice"), `placeholder="${esc(t("ts.example", { value: "2026-115" }))}"`)}</div>
+      </div>`,
+  });
+}
+
+function invoiceBlock(ts, today, clientId, from, to, hasHours) {
+  const client = getClient(ts, clientId);
+  if (!client) return `<div class="ts-invoice"><h3>🧾 ${t("ts.invoice")}</h3><p class="ts-empty-export">${t("ts.invoicePickClient")}</p></div>`;
+  return `<div class="ts-invoice form" data-role="ts-invoice" data-client="${esc(client.id)}" data-from="${from}" data-to="${to}">
+    <h3>🧾 ${t("ts.invoice")} — ${esc(client.name)}</h3>
+    <div class="row">
+      <label>${t("ts.invoiceNumber")} <input name="number" value="${esc(ts.business.nextInvoice)}" placeholder="${esc(t("ts.example", { value: "2026-115" }))}" autocomplete="off"></label>
+      <label>${t("ts.invoiceDate")} <input name="date" type="date" value="${today}"></label>
+    </div>
+    <label>${t("ts.po")} <input name="po" value="${esc(client.po)}" autocomplete="off"></label>
+    ${ts.business.name ? "" : `<p class="hint">⚠️ ${t("ts.businessMissing")}</p>`}
+    ${hasHours ? `<button type="button" class="btn primary" data-action="ts-invoice">🧾 ${t("ts.createInvoice")}</button>` : ""}
+  </div>`;
+}
+
 function exportSection(ts, today, exp) {
   const { from, to } = rangeDates(exp.range, today, exp);
-  const s = periodSummary(ts, from, to, exp.clientId || null);
+  // Un seul client : il est choisi d'office (la facture est pour un client).
+  const clientId = exp.clientId || (ts.clients.length === 1 ? ts.clients[0].id : "");
+  const s = periodSummary(ts, from, to, clientId || null);
   return foldSection("ts-export", {
-    title: esc(t("ts.export")),
+    title: esc(t("ts.exportInvoice")),
     open: isFoldOpen("ts-export", false),
     body: `<div class="segmented wrap ts-ranges">${EXPORT_RANGES.map((r) => `<button type="button" data-action="ts-range" data-range="${r}"
         class="${exp.range === r ? "active" : ""}" aria-pressed="${exp.range === r}">${t(`ts.range.${r}`)}</button>`).join("")}</div>
@@ -196,7 +246,7 @@ function exportSection(ts, today, exp) {
         <label>${t("ts.to")} <input type="date" data-action="ts-export-date" data-field="to" value="${to}" ${exp.range === "custom" ? "" : "disabled"}></label>
       </div>
       <label class="ts-export-client">${t("ts.client")}
-        <select data-action="ts-export-client"><option value="">${esc(t("ts.allClients"))}</option>${clientOptions(ts, exp.clientId, { none: false })}</select></label>
+        <select data-action="ts-export-client"><option value="">${esc(t("ts.allClients"))}</option>${clientOptions(ts, clientId, { none: false })}</select></label>
       ${s.projects.length ? `<table class="ts-summary">
           <thead><tr><th>${t("ts.project")}</th><th>${t("ts.hours")}</th><th>${t("ts.rate")}</th><th>${t("ts.amount")}</th></tr></thead>
           <tbody>${s.projects.map((r) => `<tr><td><strong>${esc(r.project?.number ?? "")}</strong> ${esc(r.project?.name ?? "")}
@@ -204,8 +254,9 @@ function exportSection(ts, today, exp) {
             <td>${esc(h(r.hours))}</td><td>${r.rate != null ? esc(fmt.money(r.rate)) : "—"}</td><td>${esc(money(r.amount))}</td></tr>`).join("")}</tbody>
           <tfoot><tr><th>${t("ts.total")}</th><th>${esc(h(s.hours))}</th><th></th><th>${esc(fmt.money(s.amount))}</th></tr></tfoot>
         </table>
-        <button type="button" class="btn primary" data-action="ts-export" data-from="${from}" data-to="${to}">📊 ${t("ts.exportExcel")}</button>`
-      : `<p class="ts-empty-export">${t("ts.nothingToExport")}</p>`}`,
+        <button type="button" class="btn soft" data-action="ts-export" data-from="${from}" data-to="${to}" data-client="${esc(clientId)}">📊 ${t("ts.exportExcel")}</button>`
+      : `<p class="ts-empty-export">${t("ts.nothingToExport")}</p>`}
+      ${invoiceBlock(ts, today, clientId, from, to, s.projects.length > 0)}`,
   });
 }
 
@@ -222,6 +273,7 @@ export const timesheetPage = {
       ${projectsSection(ts)}
       ${clientsSection(ts)}
       ${exportSection(ts, today, timesheetExport)}
+      ${businessSection(ts)}
     </section>`;
   },
 };

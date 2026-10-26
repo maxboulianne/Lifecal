@@ -997,7 +997,7 @@ body.player-open { overflow: hidden; }
 
 /* Lignes d'heures de la journée */
 .ts-entries { list-style: none; margin: 0 0 12px; padding: 0; }
-.ts-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto 2em; grid-template-areas: "p h x" "o o o" "n n n"; gap: 6px 8px; align-items: center;
+.ts-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto 2em; grid-template-areas: "p h x" "t t t" "o o o" "n n n"; gap: 6px 8px; align-items: center;
   padding: 10px 0; border-top: 1px solid var(--line); }
 .ts-entry-project { grid-area: p; min-width: 0; }
 .ts-entry-project .hint { display: block; }
@@ -1063,3 +1063,13 @@ body.player-open { overflow: hidden; }
 .ts-export-row label, .ts-export-client { color: var(--muted); font-size: 0.9rem; }
 .ts-export-row input, .ts-export-client select { display: block; width: 100%; margin-top: 4px; }
 .timesheet input:disabled { opacity: 0.7; }
+/* Tâche (code et description) et facture */
+.ts-entry-task { grid-area: t; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 6px; }
+.ts-entry-task input { width: 100%; min-width: 0; }
+.ts-task-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 8px; }
+.ts-add label:not(.ts-project-chip):not(.ts-kind label) { display: block; color: var(--muted); font-size: 0.9rem; }
+.ts-add label input:not([type=radio]) { display: block; width: 100%; margin-top: 4px; }
+.ts-invoice { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ts-invoice h3 { margin: 0 0 8px; font-size: 1.05rem; }
+.ts-invoice .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ts-export-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }

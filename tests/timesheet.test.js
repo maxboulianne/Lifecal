@@ -24,13 +24,13 @@ test("heures : virgule, point, 2:45, 2h45, 45 min", () => {
 
 function sample() {
   let ts = emptyTimesheet();
-  let r = addClient(ts, { name: "Camfil Power Systems", contact: "C. C.", tps: true, tvq: true });
+  let r = addClient(ts, { name: "Entreprise ABC", contact: "J. Dupont", tps: true, tvq: true });
   ts = r.ts;
   const client = r.client;
-  r = addProject(ts, { number: "CA15713", name: "MP Comanche", clientId: client.id, rate: 68 });
+  r = addProject(ts, { number: "P-200", name: "Projet A", clientId: client.id, rate: 68 });
   ts = r.ts;
   const a = r.project;
-  r = addProject(ts, { number: "CA15624", name: "Audit", clientId: client.id, rate: 68 });
+  r = addProject(ts, { number: "P-100", name: "Audit", clientId: client.id, rate: 68 });
   ts = r.ts;
   const b = r.project;
   r = addProject(ts, { number: "X1", name: "Autre client", rate: 50 });
@@ -48,7 +48,7 @@ test("totaux du jour et de la semaine, projets récents d'abord", () => {
   const { ts, a, b, c } = sample();
   assert.equal(dayTotal(ts, "2026-10-19"), 8);
   assert.equal(weekTotal(ts, "2026-10-21"), 16.5, "lundi 19 au dimanche 25");
-  assert.deepEqual(activeProjects(ts).map((p) => p.number), ["CA15713", "X1", "CA15624"]);
+  assert.deepEqual(activeProjects(ts).map((p) => p.number), ["P-200", "X1", "P-100"]);
   assert.equal(previousWorkday(ts, "2026-10-27"), "2026-10-21");
 });
 
@@ -57,9 +57,9 @@ test("résumé d'une période et filtre par client ; montants au taux du projet"
   const all = periodSummary(ts, "2026-10-19", "2026-10-25");
   assert.equal(all.hours, 16.5);
   assert.deepEqual(all.days.map((d) => [d.date, d.hours]), [["2026-10-19", 8], ["2026-10-20", 7.5], ["2026-10-21", 1]]);
-  const camfil = periodSummary(ts, "2026-10-01", "2026-10-31", client.id);
-  assert.deepEqual(camfil.projects.map((r) => [r.project.number, r.hours, r.amount]), [["CA15624", 2, 136], ["CA15713", 16.5, 1122]]);
-  assert.equal(camfil.amount, 1258);
+  const abc = periodSummary(ts, "2026-10-01", "2026-10-31", client.id);
+  assert.deepEqual(abc.projects.map((r) => [r.project.number, r.hours, r.amount]), [["P-100", 2, 136], ["P-200", 16.5, 1122]]);
+  assert.equal(abc.amount, 1258);
 });
 
 test("modifier, retirer, copier une journée", () => {
@@ -77,12 +77,12 @@ test("modifier, retirer, copier une journée", () => {
 test("migration v3 -> v4 et dépôt ; données invalides écartées", async () => {
   const doc = migrate({ schemaVersion: 3, items: [], settings: {}, grocery: {} });
   assert.equal(doc.schemaVersion, SCHEMA_VERSION);
-  assert.deepEqual(doc.timesheet, { clients: [], projects: [], entries: [] });
+  assert.deepEqual(doc.timesheet, emptyTimesheet());
   const repo = new Repository(new MemoryAdapter(null));
   await repo.init();
   await repo.updateTimesheet(sample().ts);
   assert.equal(repo.timesheet().entries.length, 5);
-  assert.match(repo.exportJSON(), /CA15713/);
+  assert.match(repo.exportJSON(), /P-200/);
   const clean = normalizeTimesheet({ entries: [{ date: "x", projectId: "p", hours: 1 }, { date: "2026-10-01", projectId: "p", hours: -2 }], projects: [{ name: "" }] });
   assert.deepEqual([clean.entries.length, clean.projects.length], [0, 0]);
 });
@@ -92,7 +92,7 @@ import { timesheetSheets } from "../js/timesheet/export.js";
 
 const LABELS = {
   title: "Feuille de temps", period: "Période", regular: "Régulier", overtime: "Surtemps", dayTotal: "Total du jour", total: "Total", sheetHours: "Heures", sheetProjects: "Par projet",
-  columns: { date: "Date", day: "Jour", number: "N° projet", project: "Projet", type: "Type", client: "Client", hours: "Heures", note: "Note", rate: "Taux", amount: "Montant" },
+  columns: { date: "Date", day: "Jour", number: "N° projet", project: "Projet", type: "Type", taskCode: "Code", task: "Tâche", client: "Client", hours: "Heures", note: "Note", rate: "Taux", amount: "Montant" },
 };
 
 test("Excel : zip valide (CRC), colonnes, dates", () => {
@@ -106,13 +106,13 @@ test("Excel : zip valide (CRC), colonnes, dates", () => {
 test("export de la feuille de temps : jours, sous-totaux, projets, formules", () => {
   const { ts, client } = sample();
   const [hours, projects] = timesheetSheets(ts, { from: "2026-10-19", to: "2026-10-25", clientId: client.id, labels: LABELS, weekday: () => "lun." });
-  const days = hours.rows.filter((r) => r[5]?.v === "Total du jour").map((r) => [r[6].f, r[6].v]);
-  assert.deepEqual(days, [["SUM(G5:G6)", 8], ["SUM(G9:G9)", 7.5]]);
+  const days = hours.rows.filter((r) => r[7]?.v === "Total du jour").map((r) => [r[8].f, r[8].v]);
+  assert.deepEqual(days, [["SUM(I5:I6)", 8], ["SUM(I9:I9)", 7.5]]);
   const total = hours.rows.at(-1);
-  assert.deepEqual([total[0].v, total[6].f, total[6].v], ["Total", "G7+G10", 15.5]);
-  assert.deepEqual(projects.rows.slice(4, 6).map((r) => [r[0], r[2], r[4].v, r[6].f, r[6].v]), [["CA15624", "Régulier", 2, "E5*F5", 136], ["CA15713", "Régulier", 13.5, "E6*F6", 918]]);
+  assert.deepEqual([total[0].v, total[8].f, total[8].v], ["Total", "I7+I10", 15.5]);
+  assert.deepEqual(projects.rows.slice(4, 6).map((r) => [r[0], r[2], r[4].v, r[6].f, r[6].v]), [["P-100", "Régulier", 2, "E5*F5", 136], ["P-200", "Régulier", 13.5, "E6*F6", 918]]);
   assert.deepEqual([projects.rows.at(-1)[6].f, projects.rows.at(-1)[6].v], ["SUM(G5:G6)", 1054]);
-  assert.match(hours.rows[0][0].v, /Camfil/);
+  assert.match(hours.rows[0][0].v, /ABC/);
   assert.ok(buildXlsx({ sheets: [hours, projects] }).length > 1000);
 });
 
@@ -131,7 +131,7 @@ test("rappel : heures pas notées en semaine après 16 h", async () => {
 test("surtemps : taux distinct (ou 1,5 × le régulier), lignes séparées", async () => {
   const { rateFor, deleteProject, deleteClient, updateProject } = await import("../js/timesheet/timesheet.js");
   let { ts, client } = sample();
-  const p = ts.projects.find((x) => x.number === "CA15713");
+  const p = ts.projects.find((x) => x.number === "P-200");
   assert.equal(rateFor(p, true), 102);
   ts = addEntry(ts, { date: "2026-10-20", projectId: p.id, hours: 2, overtime: true });
   let s = periodSummary(ts, "2026-10-19", "2026-10-25");
@@ -153,4 +153,45 @@ test("surtemps : taux distinct (ou 1,5 × le régulier), lignes séparées", asy
   assert.equal(noClient.clients.length, 0);
   assert.ok(noClient.projects.every((x) => x.clientId === null));
   assert.equal(normalizeTimesheet({ projects: [{ number: "1", rate: 0 }] }).projects[0].rate, null);
+});
+
+test("tâches : code et description, proposées à nouveau", async () => {
+  const { knownTasks, lastTask } = await import("../js/timesheet/timesheet.js");
+  let { ts } = sample();
+  const p = ts.projects[0];
+  ts = addEntry(ts, { date: "2026-10-20", projectId: p.id, hours: 1, taskCode: "QA-01", task: "Audit fournisseur" });
+  ts = addEntry(ts, { date: "2026-10-21", projectId: p.id, hours: 1, taskCode: "QA-02", task: "Rapport" });
+  assert.deepEqual(lastTask(ts, p.id), { code: "QA-02", task: "Rapport" });
+  assert.deepEqual(knownTasks(ts).map((x) => x.code), ["QA-01", "QA-02"]);
+  assert.equal(normalizeTimesheet(ts).entries.find((e) => e.taskCode === "QA-01").task, "Audit fournisseur");
+  assert.ok(copyDay(ts, "2026-10-21", "2026-10-22").entries.some((e) => e.date === "2026-10-22" && e.taskCode === "QA-02"));
+  const [hours] = timesheetSheets(ts, { from: "2026-10-20", to: "2026-10-21", labels: LABELS, weekday: () => "" });
+  assert.ok(hours.rows.some((r) => r[5] === "QA-01" && r[6] === "Audit fournisseur"));
+});
+
+test("facture : lignes par jour, sommaire par projet, TPS et TVQ, échéance", async () => {
+  const { invoiceSheet, lineDescription } = await import("../js/timesheet/invoice.js");
+  const { nextInvoiceNumber, updateBusiness } = await import("../js/timesheet/timesheet.js");
+  let { ts, client } = sample();
+  ts = updateBusiness(ts, { name: "Mon entreprise inc.", terms: 10, tpsNumber: "123 RT0001" });
+  const p = ts.projects.find((x) => x.number === "P-200");
+  ts = addEntry(ts, { date: "2026-10-20", projectId: p.id, hours: 2, overtime: true, taskCode: "QA", task: "Audit" });
+  const { sheet, totals } = invoiceSheet(ts, { from: "2026-10-19", to: "2026-10-25", clientId: client.id, number: "2026-115", date: "2026-10-26", po: "PO-9" });
+  // 15,5 h à 68 $ + 2 h de surtemps à 102 $
+  assert.deepEqual(totals, { hours: 17.5, subtotal: 1258, due: 1258, tps: 62.9, tvq: 125.49, total: 1446.39, dueDate: "2026-11-05" });
+  const cells = sheet.rows.flat().filter(Boolean);
+  const find = (v) => cells.find((c) => c.v === v || c === v);
+  assert.ok(find("2026-115") && find("PO-9") && find("Mon entreprise inc.") && find("NET10"));
+  assert.ok(cells.some((c) => typeof c === "string" && c === "P-200 — QA : Audit — Surtemps / Overtime"));
+  // une ligne de sommaire par projet du client (+ surtemps), avec SOMME.SI sur la clé cachée
+  const summary = sheet.rows.filter((r) => typeof r[0]?.v === "string" && /^P-\d/.test(r[0].v));
+  assert.deepEqual(summary.map((r) => [r[0].v, r[2].v, r[4].v]), [["P-100", 2, 136], ["P-200", 13.5, 918], ["P-200 OT", 2, 204]]);
+  assert.match(summary[0][2].f, /^SUMIF\(\$L\$\d+:\$L\$\d+,"[^"]+\|R",\$A\$\d+:\$A\$\d+\)$/);
+  assert.equal(sheet.columns.at(-1).hidden, true);
+  // client sans TVQ
+  const noTvq = invoiceSheet({ ...ts, clients: ts.clients.map((c) => ({ ...c, tvq: false })) }, { from: "2026-10-19", to: "2026-10-25", clientId: client.id, number: "1", date: "2026-10-26" });
+  assert.equal(noTvq.totals.tvq, 0);
+  assert.equal(lineDescription(p, { overtime: false }), "P-200 — Projet A");
+  assert.equal(nextInvoiceNumber("2026-115"), "2026-116");
+  assert.ok(buildXlsx({ sheets: [sheet] }).length > 1000);
 });
