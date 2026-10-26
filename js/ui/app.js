@@ -40,6 +40,12 @@ import { MAX_CHAINS, fetchHotels, fetchSuggestions, getChain } from "../travel/d
 import { geocode } from "../travel/geocode.js";
 import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited, cachedHotels, cachedSuggestions, destQuery, getDest, hotelsKey, suggestionsKey } from "../travel/trip.js";
 import { settingsPage } from "./pages/settings.js";
+import { rangeDates, timesheetPage } from "./pages/timesheet.js";
+import {
+  addClient, addEntry as addTsEntry, addProject, copyDay, getProject, parseHours, removeEntry as removeTsEntry, updateClient, updateEntry as updateTsEntry, updateProject,
+} from "../timesheet/timesheet.js";
+import { timesheetSheets } from "../timesheet/export.js";
+import { XLSX_TYPE, buildXlsx } from "../export/xlsx.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
 import { MeditationAudio } from "../meditation/audio.js";
 import { BREATHING_EXERCISES } from "../meditation/catalog.js";
@@ -79,6 +85,7 @@ const PAGES = {
   trip: tripPage,
   shopping: shoppingPage,
   habits: habitsPage,
+  timesheet: timesheetPage,
   settings: settingsPage,
 };
 const JOURNAL_SAVE_DELAY = 700;
@@ -101,6 +108,9 @@ export class App {
   statsPeriod = "week";
   statsOffset = 0;
   tripId = null;
+  timesheetDate = null; // null = aujourd'hui
+  timesheetProject = null; // dernier projet choisi pour ajouter des heures
+  timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
   #map = null;
 
   constructor({ repo, triggers, storageLabel }) {
@@ -230,7 +240,7 @@ export class App {
     $("#fab").setAttribute("aria-label", t({ habits: "habits.add", trips: "trips.add", events: "events.add" }[this.page] ?? "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
     $("#fab").dataset.module = fabModule;
-    $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip"].includes(this.page)
+    $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip", "timesheet"].includes(this.page)
       || this.page === "shopping"; // l'épicerie a ses propres champs
     this.#map?.remove();
     this.#map = null;
@@ -254,6 +264,9 @@ export class App {
         groceryPrefill: this.groceryPrefill,
         lastStore: this.lastStore,
         catalogOpen: this.catalogOpen,
+        timesheetDate: this.timesheetDate,
+        timesheetProject: this.timesheetProject,
+        timesheetExport: this.timesheetExport,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -281,6 +294,8 @@ export class App {
         aria-label="${esc(t("nav.events"))}" title="${esc(t("nav.events"))}">🎂</button>
       <button type="button" class="icon-btn ${["trips", "trip"].includes(this.page) ? "active" : ""}" data-action="open-trips"
         aria-label="${esc(t("nav.trips"))}" title="${esc(t("nav.trips"))}">✈️</button>
+      <button type="button" class="icon-btn ${this.page === "timesheet" ? "active" : ""}" data-action="open-timesheet"
+        aria-label="${esc(t("nav.timesheet"))}" title="${esc(t("nav.timesheet"))}">⏱️</button>
       <button type="button" class="icon-btn ${this.page === "journal" ? "active" : ""}" data-action="open-journal"
         aria-label="${esc(t("nav.journal"))}" title="${esc(t("nav.journal"))}">📓</button>
       <button type="button" class="icon-btn ${this.page === "meditation" ? "active" : ""}" data-action="open-meditation"
@@ -327,6 +342,7 @@ export class App {
       today,
       position: this.position,
       settings: this.repo.settings,
+      timesheet: this.repo.timesheet(),
       hour: new Date().getHours(),
     });
     this.#lastNudgeKey = nudges.map((n) => n.id).join("|");
@@ -812,6 +828,33 @@ export class App {
 
     "open-trips": () => this.openPage("trips"),
     "open-events": () => this.openPage("events"),
+    "open-timesheet": () => {
+      this.timesheetDate = null;
+      if (this.page === "timesheet") return this.render();
+      this.openPage("timesheet");
+    },
+    "ts-day": (el) => {
+      this.timesheetDate = el.dataset.date === todayISO() ? null : el.dataset.date;
+      this.render();
+    },
+    "ts-copy": (el) => this.#updateTimesheet(copyDay(this.repo.timesheet(), el.dataset.from, el.dataset.date)),
+    "ts-remove": (el) => this.#updateTimesheet(removeTsEntry(this.repo.timesheet(), el.dataset.id)),
+    // + ¼ h, + ½ h, + 1 h : ajoute au nombre déjà écrit, sans redessiner.
+    "ts-bump": (el) => {
+      const input = el.form.elements.hours;
+      const now = parseHours(input.value) ?? 0;
+      input.value = fmt.decimal(Math.round((now + Number(el.dataset.step)) * 100) / 100);
+    },
+    "ts-archive": (el) => {
+      const ts = this.repo.timesheet();
+      return this.#updateTimesheet(updateProject(ts, el.dataset.id, { archived: !getProject(ts, el.dataset.id)?.archived }));
+    },
+    "ts-range": (el) => {
+      const { from, to } = rangeDates(this.timesheetExport.range, todayISO(), this.timesheetExport);
+      this.timesheetExport = { ...this.timesheetExport, range: el.dataset.range, from, to };
+      this.#renderKeepingScroll();
+    },
+    "ts-export": (el) => this.#exportTimesheet(el.dataset.from, el.dataset.to),
     "new-habit": () => this.openNewItem({ date: todayISO(), module: "habitude", repeat: FREQ.DAILY }),
     "open-item": (el) => this.openItem(el.dataset.id, el.dataset.date),
     "edit-item": (el) => this.openEdit(el.dataset.id),
@@ -924,6 +967,7 @@ export class App {
       }
       syncRepeatFields(form);
     }
+    if (el.dataset.action?.startsWith("ts-")) return this.#onTimesheetChange(el);
     if (el.dataset.action === "grocery-toggle") {
       return this.#updateGrocery({ list: toggleListEntry(this.repo.grocery().list, el.dataset.entry) });
     }
@@ -984,6 +1028,7 @@ export class App {
   async #onSubmit(e) {
     if (e.target.id === "med-setup") return this.#startMeditation(e);
     if (e.target.dataset.role === "grocery-add") return this.#addGrocery(e);
+    if (e.target.dataset.role?.startsWith("ts-")) return this.#onTimesheetSubmit(e);
     if (e.target.dataset.role === "price-add") return this.#addPrice(e);
     if (e.target.dataset.role === "catalog-add") {
       e.preventDefault();
@@ -1161,6 +1206,128 @@ export class App {
       this.position = null;
       this.#renderNudges();
     }
+  }
+
+  // ---- Mes heures --------------------------------------------------------
+
+  async #updateTimesheet(ts, focusSelector) {
+    const top = window.scrollY;
+    await this.repo.updateTimesheet(ts);
+    window.scrollTo(0, top);
+    if (focusSelector) $(focusSelector)?.focus();
+  }
+
+  #renderKeepingScroll() {
+    const top = window.scrollY;
+    this.render();
+    window.scrollTo(0, top);
+  }
+
+  async #onTimesheetChange(el) {
+    const ts = this.repo.timesheet();
+    const { id } = el.dataset;
+    switch (el.dataset.action) {
+      case "ts-hours": {
+        const hours = parseHours(el.value);
+        if (hours === null || hours <= 0) {
+          toast(t("ts.errors.hours"));
+          el.value = fmt.decimal(ts.entries.find((e) => e.id === id)?.hours ?? 0);
+          return;
+        }
+        return this.#updateTimesheet(updateTsEntry(ts, id, { hours }));
+      }
+      case "ts-note":
+        return this.#updateTimesheet(updateTsEntry(ts, id, { note: el.value.trim() }));
+      case "ts-project-field": {
+        const { field } = el.dataset;
+        let value = field === "clientId" ? el.value || null : el.value.trim();
+        if (field === "rate") {
+          const raw = value.replace(/[$\s]/g, "");
+          value = raw ? parseAmount(raw) : null;
+          if (raw && value === null) return toast(t("ts.errors.rate"));
+        }
+        return this.#updateTimesheet(updateProject(ts, id, { [field]: value }));
+      }
+      case "ts-client-tax":
+        return this.#updateTimesheet(updateClient(ts, id, { [el.dataset.tax]: el.checked }));
+      case "ts-export-date":
+        this.timesheetExport = { ...this.timesheetExport, [el.dataset.field]: el.value };
+        return this.#renderKeepingScroll();
+      case "ts-export-client":
+        this.timesheetExport = { ...this.timesheetExport, clientId: el.value };
+        return this.#renderKeepingScroll();
+      default:
+    }
+  }
+
+  async #onTimesheetSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const f = new FormData(form);
+    const errors = $("[data-role=errors]", form);
+    const text = (name) => String(f.get(name) ?? "").trim();
+    const ts = this.repo.timesheet();
+    // Garder ouverte la section où l'on vient d'ajouter un projet ou un client.
+    const fold = form.closest("[data-fold-id]")?.dataset.foldId;
+    if (fold) setFoldOpen(fold, true);
+    if (form.dataset.role === "ts-add") {
+      const hours = parseHours(text("hours"));
+      if (hours === null || hours <= 0) return (errors.textContent = t("ts.errors.hours"));
+      const projectId = text("projectId");
+      if (!projectId) return (errors.textContent = t("ts.pickProject"));
+      this.timesheetProject = projectId;
+      return this.#updateTimesheet(addTsEntry(ts, { date: form.dataset.date, projectId, hours, note: text("note") }), "[data-role=ts-add] [name=hours]");
+    }
+    if (form.dataset.role === "ts-new-project") {
+      if (!text("number") && !text("name")) return (errors.textContent = t("ts.errors.project"));
+      const rawRate = text("rate").replace(/[$\s]/g, "");
+      const rate = rawRate ? parseAmount(rawRate) : null;
+      if (rawRate && rate === null) return (errors.textContent = t("ts.errors.rate"));
+      const { ts: next, project } = addProject(ts, { number: text("number"), name: text("name"), clientId: text("clientId") || null, rate });
+      this.timesheetProject = project.id;
+      await this.#updateTimesheet(next);
+      return toast(t("ts.projectAdded", { name: [project.number, project.name].filter(Boolean).join(" ") }));
+    }
+    if (form.dataset.role === "ts-new-client") {
+      if (!text("name")) return (errors.textContent = t("ts.errors.client"));
+      const { ts: next, client } = addClient(ts, {
+        name: text("name"), contact: text("contact"), email: text("email"), address: String(f.get("address") ?? "").trim(),
+        tps: f.get("tps") === "on", tvq: f.get("tvq") === "on",
+      });
+      await this.#updateTimesheet(next);
+      return toast(t("ts.clientAdded", { name: client.name }));
+    }
+  }
+
+  // Classeur Excel de la période : partagé (iPhone, iPad) ou téléchargé.
+  async #exportTimesheet(from, to) {
+    const columns = Object.fromEntries(["date", "day", "number", "project", "client", "hours", "note", "rate", "amount"].map((k) => [k, t(`ts.col.${k}`)]));
+    const sheets = timesheetSheets(this.repo.timesheet(), {
+      from, to, clientId: this.timesheetExport.clientId || null,
+      weekday: (iso) => fmt.weekdayShort(parseISODate(iso)),
+      labels: {
+        title: t("ts.sheetTitle"), period: t("ts.period"), dayTotal: t("ts.dayTotal"), total: t("ts.total"),
+        sheetHours: t("ts.sheetHours"), sheetProjects: t("ts.sheetProjects"), columns,
+      },
+    });
+    const name = `${t("ts.fileName")}-${from}_${to}.xlsx`;
+    const file = new File([buildXlsx({ sheets })], name, { type: XLSX_TYPE });
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: name });
+        return;
+      } catch (err) {
+        if (err?.name === "AbortError") return;
+      }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file);
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast(t("ts.exported"));
   }
 
   // ---- Sauvegarde --------------------------------------------------------

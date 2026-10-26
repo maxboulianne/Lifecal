@@ -163,6 +163,33 @@ export const eveningJournal = {
   },
 };
 
+// En semaine, à partir de 16 h : les heures du jour ne sont pas encore notées
+// (seulement si des projets sont en cours dans « Mes heures »).
+export const timesheetReminder = {
+  id: "heures-jour",
+  kind: "calendar",
+  fromHour: 16,
+  evaluate({ timesheet, today, hour }) {
+    if (!timesheet || hour === undefined || hour < this.fromHour) return [];
+    const day = parseISODate(today).getDay();
+    if (day === 0 || day === 6) return [];
+    if (!timesheet.projects.some((p) => !p.archived)) return [];
+    if (timesheet.entries.some((e) => e.date === today)) return [];
+    return [
+      {
+        id: `heures-jour:${today}`,
+        tone: "soft",
+        icon: "⏱️",
+        messageKey: "nudge.timesheet",
+        params: {},
+        itemIds: [],
+        actionKey: "nudge.timesheetAction",
+        action: "open-timesheet",
+      },
+    ];
+  },
+};
+
 // Le dimanche, si la dernière copie des données date de plus d'un mois
 // (ou n'existe pas) : un rappel doux d'en faire une. Les données ne vivent
 // que sur l'appareil ; une copie les met à l'abri.
@@ -191,5 +218,5 @@ export const backupReminder = {
 };
 
 export const calendarTriggers = [
-  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, backupReminder,
+  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, timesheetReminder, backupReminder,
 ];
