@@ -2,8 +2,10 @@
 //
 // Rangée dans doc.timesheet :
 //   clients   [{ id, name, contact, email, address, tps, tvq }]   tps / tvq : taxes facturées
-//   projects  [{ id, number, name, clientId, rate, archived }]     rate : taux horaire ($)
-//   entries   [{ id, date, projectId, hours, note }]               une ligne d'heures d'une journée
+//   projects  [{ id, number, name, clientId, rate, overtimeRate, archived }]
+//             rate : taux horaire régulier ($) ; overtimeRate : taux du surtemps
+//             (vide : 1,5 × le taux régulier)
+//   entries   [{ id, date, projectId, hours, overtime, note }]     une ligne d'heures d'une journée
 // Fonctions pures : elles retournent toujours de nouvelles valeurs.
 
 import { addDays, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
@@ -11,6 +13,7 @@ import { newId } from "../data/item.js";
 
 export const TPS_RATE = 0.05;
 export const TVQ_RATE = 0.09975;
+export const OVERTIME_FACTOR = 1.5;
 
 export function emptyTimesheet() {
   return { clients: [], projects: [], entries: [] };
@@ -22,6 +25,9 @@ const num = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
+// Un taux : un nombre plus grand que 0, sinon « pas de taux ».
+const rateOrNull = (v) => (num(v) !== null && num(v) > 0 && v !== "" ? num(v) : null);
+
 export function normalizeTimesheet(raw) {
   const ts = raw && typeof raw === "object" ? raw : {};
   const clients = (Array.isArray(ts.clients) ? ts.clients : []).filter((c) => c && str(c.name)).map((c) => ({
@@ -30,11 +36,11 @@ export function normalizeTimesheet(raw) {
   }));
   const projects = (Array.isArray(ts.projects) ? ts.projects : []).filter((p) => p && (str(p.number) || str(p.name))).map((p) => ({
     id: p.id ?? newId(), number: str(p.number), name: str(p.name), clientId: p.clientId ?? null,
-    rate: num(p.rate) !== null && num(p.rate) >= 0 ? num(p.rate) : null, archived: Boolean(p.archived),
+    rate: rateOrNull(p.rate), overtimeRate: rateOrNull(p.overtimeRate), archived: Boolean(p.archived),
   }));
   const entries = (Array.isArray(ts.entries) ? ts.entries : [])
     .filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.projectId && num(e.hours) !== null && num(e.hours) >= 0)
-    .map((e) => ({ id: e.id ?? newId(), date: e.date, projectId: e.projectId, hours: num(e.hours), note: str(e.note) }));
+    .map((e) => ({ id: e.id ?? newId(), date: e.date, projectId: e.projectId, hours: num(e.hours), overtime: Boolean(e.overtime), note: str(e.note) }));
   return { clients, projects, entries };
 }
 
@@ -63,6 +69,14 @@ export function hoursToClock(hours) {
 
 export const getProject = (ts, id) => ts.projects.find((p) => p.id === id) ?? null;
 export const getClient = (ts, id) => ts.clients.find((c) => c.id === id) ?? null;
+// Taux appliqué à une ligne : régulier, ou surtemps (1,5 × le régulier si non précisé).
+export function rateFor(project, overtime = false) {
+  if (!project) return null;
+  if (!overtime) return project.rate ?? null;
+  if (project.overtimeRate != null) return project.overtimeRate;
+  return project.rate != null ? round(project.rate * OVERTIME_FACTOR) : null;
+}
+
 export const projectLabel = (p) => (p ? [p.number, p.name].filter(Boolean).join(" · ") : "?");
 
 export const dayEntries = (ts, date) => ts.entries.filter((e) => e.date === date);
@@ -97,19 +111,24 @@ export function periodEntries(ts, from, to, clientId = null) {
     .sort((a, b) => a.date.localeCompare(b.date) || projectLabel(getProject(ts, a.projectId)).localeCompare(projectLabel(getProject(ts, b.projectId))));
 }
 
-// Résumé d'une période : par projet (heures, taux, montant) et par jour.
+// Résumé d'une période : par projet et par type d'heures (régulières, puis
+// surtemps : heures, taux, montant) et par jour.
 export function periodSummary(ts, from, to, clientId = null) {
   const entries = periodEntries(ts, from, to, clientId);
   const byProject = new Map();
   for (const e of entries) {
-    const p = getProject(ts, e.projectId);
-    const row = byProject.get(e.projectId) ?? { project: p, hours: 0 };
+    const key = `${e.projectId}|${e.overtime ? 1 : 0}`;
+    const row = byProject.get(key) ?? { project: getProject(ts, e.projectId), overtime: Boolean(e.overtime), hours: 0 };
     row.hours = round(row.hours + e.hours);
-    byProject.set(e.projectId, row);
+    byProject.set(key, row);
   }
   const projects = [...byProject.values()]
-    .map((r) => ({ ...r, rate: r.project?.rate ?? null, amount: r.project?.rate != null ? round(r.hours * r.project.rate) : null }))
-    .sort((a, b) => (a.project?.number ?? "").localeCompare(b.project?.number ?? "", undefined, { numeric: true }));
+    .map((r) => {
+      const rate = rateFor(r.project, r.overtime);
+      return { ...r, rate, amount: rate != null ? round(r.hours * rate) : null };
+    })
+    .sort((a, b) => (a.project?.number ?? "").localeCompare(b.project?.number ?? "", undefined, { numeric: true })
+      || (a.project?.name ?? "").localeCompare(b.project?.name ?? "") || Number(a.overtime) - Number(b.overtime));
   const byDay = new Map();
   for (const e of entries) byDay.set(e.date, round((byDay.get(e.date) ?? 0) + e.hours));
   return {
@@ -117,14 +136,15 @@ export function periodSummary(ts, from, to, clientId = null) {
     projects,
     days: [...byDay.entries()].map(([date, hours]) => ({ date, hours })),
     hours: sumHours(entries),
+    overtimeHours: sumHours(entries.filter((e) => e.overtime)),
     amount: round(projects.reduce((s, r) => s + (r.amount ?? 0), 0)),
   };
 }
 
 // ---- Modifications ------------------------------------------------------------------
 
-export function addEntry(ts, { date, projectId, hours, note = "" }) {
-  return { ...ts, entries: [...ts.entries, { id: newId(), date, projectId, hours: round(hours), note: str(note) }] };
+export function addEntry(ts, { date, projectId, hours, overtime = false, note = "" }) {
+  return { ...ts, entries: [...ts.entries, { id: newId(), date, projectId, hours: round(hours), overtime: Boolean(overtime), note: str(note) }] };
 }
 
 export const updateEntry = (ts, id, patch) => ({ ...ts, entries: ts.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
@@ -132,15 +152,26 @@ export const removeEntry = (ts, id) => ({ ...ts, entries: ts.entries.filter((e) 
 
 // Recopier les lignes d'une journée (mêmes projets et heures) sur une autre.
 export function copyDay(ts, from, to) {
-  return dayEntries(ts, from).reduce((acc, e) => addEntry(acc, { date: to, projectId: e.projectId, hours: e.hours, note: e.note }), ts);
+  return dayEntries(ts, from).reduce((acc, e) => addEntry(acc, { date: to, projectId: e.projectId, hours: e.hours, overtime: e.overtime, note: e.note }), ts);
 }
 
-export function addProject(ts, { number, name, clientId = null, rate = null }) {
-  const project = { id: newId(), number: str(number), name: str(name), clientId, rate: num(rate), archived: false };
+export function addProject(ts, { number, name, clientId = null, rate = null, overtimeRate = null }) {
+  const project = { id: newId(), number: str(number), name: str(name), clientId, rate: rateOrNull(rate), overtimeRate: rateOrNull(overtimeRate), archived: false };
   return { ts: { ...ts, projects: [...ts.projects, project] }, project };
 }
 
 export const updateProject = (ts, id, patch) => ({ ...ts, projects: ts.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+
+// Supprimer un projet efface aussi ses heures.
+export const deleteProject = (ts, id) => ({
+  ...ts, projects: ts.projects.filter((p) => p.id !== id), entries: ts.entries.filter((e) => e.projectId !== id),
+});
+export const projectEntryCount = (ts, id) => ts.entries.filter((e) => e.projectId === id).length;
+
+// Supprimer un client garde ses projets (sans client).
+export const deleteClient = (ts, id) => ({
+  ...ts, clients: ts.clients.filter((c) => c.id !== id), projects: ts.projects.map((p) => (p.clientId === id ? { ...p, clientId: null } : p)),
+});
 
 export function addClient(ts, fields) {
   const client = { id: newId(), name: str(fields.name), contact: str(fields.contact), email: str(fields.email), address: String(fields.address ?? ""), tps: fields.tps !== false, tvq: fields.tvq !== false };

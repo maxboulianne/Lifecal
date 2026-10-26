@@ -42,7 +42,8 @@ import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisite
 import { settingsPage } from "./pages/settings.js";
 import { rangeDates, timesheetPage } from "./pages/timesheet.js";
 import {
-  addClient, addEntry as addTsEntry, addProject, copyDay, getProject, parseHours, removeEntry as removeTsEntry, updateClient, updateEntry as updateTsEntry, updateProject,
+  addClient, addEntry as addTsEntry, addProject, copyDay, deleteClient, deleteProject, getClient, getProject, parseHours, projectEntryCount,
+  projectLabel, removeEntry as removeTsEntry, updateClient, updateEntry as updateTsEntry, updateProject,
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
 import { XLSX_TYPE, buildXlsx } from "../export/xlsx.js";
@@ -849,6 +850,27 @@ export class App {
       const ts = this.repo.timesheet();
       return this.#updateTimesheet(updateProject(ts, el.dataset.id, { archived: !getProject(ts, el.dataset.id)?.archived }));
     },
+    // « ⏱️ Noter des heures » sur un projet : le choisir en haut, prêt à écrire les heures.
+    "ts-pick": (el) => {
+      this.timesheetProject = el.dataset.id;
+      this.render();
+      window.scrollTo(0, 0);
+      $("[data-role=ts-add] [name=hours]")?.focus({ preventScroll: true });
+    },
+    "ts-delete-project": (el) => {
+      const ts = this.repo.timesheet();
+      const p = getProject(ts, el.dataset.id);
+      const count = projectEntryCount(ts, el.dataset.id);
+      const msg = [t("ts.confirmDeleteProject", { name: projectLabel(p) }), count ? t("ts.confirmDeleteHours", { count }) : ""].filter(Boolean).join("\n\n");
+      if (!p || !confirm(msg)) return;
+      return this.#updateTimesheet(deleteProject(ts, p.id)).then(() => toast(t("ts.deleted")));
+    },
+    "ts-delete-client": (el) => {
+      const ts = this.repo.timesheet();
+      const c = getClient(ts, el.dataset.id);
+      if (!c || !confirm(t("ts.confirmDeleteClient", { name: c.name }))) return;
+      return this.#updateTimesheet(deleteClient(ts, c.id)).then(() => toast(t("ts.deleted")));
+    },
     "ts-range": (el) => {
       const { from, to } = rangeDates(this.timesheetExport.range, todayISO(), this.timesheetExport);
       this.timesheetExport = { ...this.timesheetExport, range: el.dataset.range, from, to };
@@ -1238,10 +1260,24 @@ export class App {
       }
       case "ts-note":
         return this.#updateTimesheet(updateTsEntry(ts, id, { note: el.value.trim() }));
+      case "ts-entry-ot":
+        return this.#updateTimesheet(updateTsEntry(ts, id, { overtime: el.checked }));
+      case "ts-client-field": {
+        const value = el.dataset.field === "address" ? el.value.trim() : el.value.trim().replace(/\s+/g, " ");
+        if (el.dataset.field === "name" && !value) {
+          el.value = getClient(ts, id)?.name ?? "";
+          return toast(t("ts.errors.client"));
+        }
+        return this.#updateTimesheet(updateClient(ts, id, { [el.dataset.field]: value }));
+      }
       case "ts-project-field": {
         const { field } = el.dataset;
         let value = field === "clientId" ? el.value || null : el.value.trim();
-        if (field === "rate") {
+        if ((field === "number" || field === "name") && !value && !getProject(ts, id)?.[field === "number" ? "name" : "number"]) {
+          el.value = getProject(ts, id)?.[field] ?? "";
+          return toast(t("ts.errors.project"));
+        }
+        if (field === "rate" || field === "overtimeRate") {
           const raw = value.replace(/[$\s]/g, "");
           value = raw ? parseAmount(raw) : null;
           if (raw && value === null) return toast(t("ts.errors.rate"));
@@ -1276,14 +1312,19 @@ export class App {
       const projectId = text("projectId");
       if (!projectId) return (errors.textContent = t("ts.pickProject"));
       this.timesheetProject = projectId;
-      return this.#updateTimesheet(addTsEntry(ts, { date: form.dataset.date, projectId, hours, note: text("note") }), "[data-role=ts-add] [name=hours]");
+      const overtime = text("overtime") === "1";
+      return this.#updateTimesheet(addTsEntry(ts, { date: form.dataset.date, projectId, hours, overtime, note: text("note") }), "[data-role=ts-add] [name=hours]");
     }
     if (form.dataset.role === "ts-new-project") {
       if (!text("number") && !text("name")) return (errors.textContent = t("ts.errors.project"));
-      const rawRate = text("rate").replace(/[$\s]/g, "");
-      const rate = rawRate ? parseAmount(rawRate) : null;
-      if (rawRate && rate === null) return (errors.textContent = t("ts.errors.rate"));
-      const { ts: next, project } = addProject(ts, { number: text("number"), name: text("name"), clientId: text("clientId") || null, rate });
+      const readRate = (name) => {
+        const raw = text(name).replace(/[$\s]/g, "");
+        return raw ? parseAmount(raw) ?? NaN : null;
+      };
+      const rate = readRate("rate");
+      const overtimeRate = readRate("overtimeRate");
+      if (Number.isNaN(rate) || Number.isNaN(overtimeRate)) return (errors.textContent = t("ts.errors.rate"));
+      const { ts: next, project } = addProject(ts, { number: text("number"), name: text("name"), clientId: text("clientId") || null, rate, overtimeRate });
       this.timesheetProject = project.id;
       await this.#updateTimesheet(next);
       return toast(t("ts.projectAdded", { name: [project.number, project.name].filter(Boolean).join(" ") }));
@@ -1301,12 +1342,12 @@ export class App {
 
   // Classeur Excel de la période : partagé (iPhone, iPad) ou téléchargé.
   async #exportTimesheet(from, to) {
-    const columns = Object.fromEntries(["date", "day", "number", "project", "client", "hours", "note", "rate", "amount"].map((k) => [k, t(`ts.col.${k}`)]));
+    const columns = Object.fromEntries(["date", "day", "number", "project", "type", "client", "hours", "note", "rate", "amount"].map((k) => [k, t(`ts.col.${k}`)]));
     const sheets = timesheetSheets(this.repo.timesheet(), {
       from, to, clientId: this.timesheetExport.clientId || null,
       weekday: (iso) => fmt.weekdayShort(parseISODate(iso)),
       labels: {
-        title: t("ts.sheetTitle"), period: t("ts.period"), dayTotal: t("ts.dayTotal"), total: t("ts.total"),
+        title: t("ts.sheetTitle"), period: t("ts.period"), regular: t("ts.regular"), overtime: t("ts.overtime"), dayTotal: t("ts.dayTotal"), total: t("ts.total"),
         sheetHours: t("ts.sheetHours"), sheetProjects: t("ts.sheetProjects"), columns,
       },
     });
