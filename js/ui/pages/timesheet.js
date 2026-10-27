@@ -13,7 +13,7 @@ import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
 export const QUICK_STEPS = [0.25, 0.5, 1];
 export const EXPORT_RANGES = ["thisWeek", "lastWeek", "thisMonth", "lastMonth", "custom"];
 
-const h = (n) => `${fmt.decimal(n)} h`;
+const h = (n) => `${fmt.hours(n)} h`;
 
 // Dates d'une période d'export (« ce mois-ci »…), ou celles choisies.
 export function rangeDates(range, today, custom = {}) {
@@ -27,7 +27,7 @@ export function rangeDates(range, today, custom = {}) {
 }
 
 const money = (n) => (n != null ? fmt.money(n) : "—");
-const rateValue = (n) => (n != null ? esc(fmt.decimal(n)) : "");
+const rateValue = (n) => (n != null ? esc(fmt.hours(n)) : "");
 const step = (n, text) => `<p class="ts-step"><span class="ts-step-n" aria-hidden="true">${n}</span> ${text}</p>`;
 
 function entryRow(ts, e) {
@@ -37,7 +37,7 @@ function entryRow(ts, e) {
     <div class="ts-entry-project"><strong>${esc(p?.number || "")}</strong> ${esc(p?.name ?? "?")}
       ${client ? `<span class="hint">${esc(client.name)}</span>` : ""}</div>
     <label class="ts-entry-hours"><span class="hint">${t("ts.hours")}</span>
-      <input class="ts-hours" data-action="ts-hours" data-id="${esc(e.id)}" value="${esc(fmt.decimal(e.hours))}" inputmode="decimal" autocomplete="off"></label>
+      <input class="ts-hours" data-action="ts-hours" data-id="${esc(e.id)}" value="${esc(fmt.hours(e.hours))}" inputmode="decimal" autocomplete="off"></label>
     <button type="button" class="check-remove" data-action="ts-remove" data-id="${esc(e.id)}" aria-label="${esc(t("ts.remove"))}">×</button>
     <div class="ts-entry-task">
       <input data-action="ts-entry-field" data-field="taskCode" data-id="${esc(e.id)}" value="${esc(e.taskCode)}" list="ts-task-codes"
@@ -124,7 +124,7 @@ function projectCard(ts, p) {
     <div class="row">
       ${field("rate", `${t("ts.rateRegular")} ($/h)`, `<input ${attrs("rate")} value="${rateValue(p.rate)}" inputmode="decimal">`)}
       ${field("overtimeRate", `${t("ts.rateOvertime")} ($/h)`, `<input ${attrs("overtimeRate")} value="${rateValue(p.overtimeRate)}" inputmode="decimal"
-        placeholder="${p.rate != null ? esc(fmt.decimal(rateFor(p, true))) : ""}">`)}
+        placeholder="${p.rate != null ? esc(fmt.hours(rateFor(p, true))) : ""}">`)}
     </div>
     <div class="ts-card-actions">
       ${p.archived ? "" : `<button type="button" class="btn soft" data-action="ts-pick" data-id="${esc(p.id)}">⏱️ ${t("ts.logHours")}</button>`}
@@ -206,6 +206,12 @@ function businessSection(ts) {
     open: isFoldOpen("ts-business", false),
     body: `<p class="hint">${t("ts.businessHint")}</p>
       <div class="form ts-card">
+        <div class="ts-logo">
+          ${b.logo ? `<img src="${esc(b.logo)}" alt="${esc(t("ts.logo"))}">` : `<span class="hint">${t("ts.noLogo")}</span>`}
+          <label class="btn soft">🖼️ ${t(b.logo ? "ts.changeLogo" : "ts.addLogo")}
+            <input type="file" accept="image/png,image/jpeg,image/*" data-action="ts-logo" hidden></label>
+          ${b.logo ? `<button type="button" class="btn link danger" data-action="ts-logo-remove">${t("ts.removeLogo")}</button>` : ""}
+        </div>
         ${field("name", t("ts.businessName"))}
         ${field("contact", t("ts.yourName"))}
         <label>${t("ts.address")} <textarea ${attrs("address")} rows="3">${esc(b.address)}</textarea></label>
@@ -227,7 +233,10 @@ function invoiceBlock(ts, today, clientId, from, to, hasHours) {
     </div>
     <label>${t("ts.po")} <input name="po" value="${esc(client.po)}" autocomplete="off"></label>
     ${ts.business.name ? "" : `<p class="hint">⚠️ ${t("ts.businessMissing")}</p>`}
-    ${hasHours ? `<button type="button" class="btn primary" data-action="ts-invoice">🧾 ${t("ts.createInvoice")}</button>` : ""}
+    ${hasHours ? `<div class="actions start">
+        <button type="button" class="btn primary" data-action="ts-invoice-preview">👁️ ${t("ts.invoicePreview")}</button>
+        <button type="button" class="btn soft" data-action="ts-invoice">📊 ${t("ts.createInvoice")}</button>
+      </div>` : ""}
   </div>`;
 }
 

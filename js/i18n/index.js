@@ -129,6 +129,10 @@ export const fmt = {
   },
   // « 3,5 » en français, « 3.5 » en anglais
   decimal: (n) => memo("dec", () => new Intl.NumberFormat(lang.intl, { maximumFractionDigits: 1 })).format(n),
+  // Heures et taux : jusqu'à 2 décimales, sans espace de milliers (« 7,25 », se relit dans un champ)
+  hours: (n) => memo("hours", () => new Intl.NumberFormat(lang.intl, { maximumFractionDigits: 2, useGrouping: false })).format(n),
+  // Toujours 2 décimales (« 3,00 »), comme sur une facture
+  fixed2: (n) => memo("fixed2", () => new Intl.NumberFormat(lang.intl, { minimumFractionDigits: 2, maximumFractionDigits: 2 })).format(n),
   // « 4,99 $ » en français, « $4.99 » en anglais (dollars canadiens)
   money: (n) => memo("money", () => new Intl.NumberFormat(lang.intl, { style: "currency", currency: "CAD" })).format(n),
   // Montant rond sans décimales (« 50 $ »), sinon comme money (« 49,99 $ »)
