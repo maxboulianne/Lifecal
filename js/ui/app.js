@@ -47,6 +47,7 @@ import {
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
+import { addExpense, expenseTotal as expenseTotalOf, removeExpense, setRate } from "../timesheet/expenses.js";
 import { invoicePreview } from "./components/invoice-view.js";
 import { XLSX_TYPE, buildXlsx } from "../export/xlsx.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
@@ -75,6 +76,9 @@ function saveCatalogOpen(open) {
 }
 
 const SWIPE_MIN_PX = 60;
+
+// Nombre écrit à la main : « 2 924 738 », « 0,000053931 », « 25,50 $ » ; null si invalide ou 0.
+const readNumber = (value) => parseAmount(String(value ?? "").replace(/[\s$\u00a0\u202f]/g, ""));
 
 // Mots d'une recherche, écrits comme les clés de produits (sans accents).
 const productKeyWords = (query) => productKey(query).split(" ").filter(Boolean);
@@ -148,6 +152,7 @@ export class App {
     document.addEventListener("input", (e) => {
       if (e.target.dataset.journal) this.#scheduleJournalSave();
       if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
+      if (e.target.form?.dataset.role === "ts-expense") this.#syncExpenseForm(e.target.form);
       // Un code de tâche déjà utilisé : sa description suit.
       if (e.target.name === "taskCode" && e.target.form?.dataset.role === "ts-add") {
         const known = [...document.querySelectorAll("#ts-task-codes option")].find((o) => o.value === e.target.value.trim());
@@ -887,6 +892,7 @@ export class App {
     "ts-export": (el) => this.#exportTimesheet(el.dataset.from, el.dataset.to, el.dataset.client),
     "ts-invoice": (el) => this.#createInvoice(this.#invoiceOptions(el.closest("[data-role=ts-invoice]"))),
     // Aperçu de la facture dans l'application, avant de créer le fichier.
+    "ts-expense-remove": (el) => this.#updateTimesheet(removeExpense(this.repo.timesheet(), el.dataset.id)),
     "ts-logo-remove": () => this.#updateTimesheet(updateBusiness(this.repo.timesheet(), { logo: "", logoSize: null })),
     "ts-invoice-preview": (el) => {
       const options = this.#invoiceOptions(el.closest("[data-role=ts-invoice]"));
@@ -1039,6 +1045,7 @@ export class App {
       return;
     }
     if (el.dataset.action?.startsWith("ts-")) return this.#onTimesheetChange(el);
+    if (el.form?.dataset.role === "ts-expense") return this.#syncExpenseForm(el.form, el.name === "currency");
     // Choisir un projet propose sa dernière tâche (code et description).
     if (el.name === "projectId" && el.form?.dataset.role === "ts-add") {
       el.form.elements.taskCode.value = el.dataset.taskCode ?? "";
@@ -1315,8 +1322,18 @@ export class App {
       }
       case "ts-entry-field":
         return this.#updateTimesheet(updateTsEntry(ts, id, { [el.dataset.field]: el.value.trim() }));
+      case "ts-rate": {
+        const rate = readNumber(el.value);
+        if (rate === null) return toast(t("ts.errors.expenseRate"));
+        return this.#updateTimesheet(setRate(ts, el.dataset.currency, rate));
+      }
       case "ts-business-field": {
         const { field } = el.dataset;
+        if (field === "mileageRate") {
+          const rate = readNumber(el.value);
+          if (rate === null) return toast(t("ts.errors.rate"));
+          return this.#updateTimesheet(updateBusiness(ts, { mileageRate: rate }));
+        }
         if (field === "terms") {
           const days = Number(el.value.trim());
           if (!Number.isInteger(days) || days < 0) {
@@ -1373,6 +1390,7 @@ export class App {
     // Garder ouverte la section où l'on vient d'ajouter un projet ou un client.
     const fold = form.closest("[data-fold-id]")?.dataset.foldId;
     if (fold) setFoldOpen(fold, true);
+    if (form.dataset.role === "ts-expense") return this.#addExpense(form, f, errors);
     if (form.dataset.role === "ts-add") {
       const hours = parseHours(text("hours"));
       if (hours === null || hours <= 0) return (errors.textContent = t("ts.errors.hours"));
@@ -1423,6 +1441,53 @@ export class App {
       from, to, clientId: clientId || null, weekday: (iso) => fmt.weekdayShort(parseISODate(iso)), labels: this.#timesheetLabels(),
     });
     await this.#shareFile(new File([buildXlsx({ sheets })], `${t("ts.fileName")}-${from}_${to}.xlsx`, { type: XLSX_TYPE }));
+  }
+
+  // Formulaire de dépense : kilomètres ou montant, taux de la devise, montant en $ CA.
+  #syncExpenseForm(form, currencyChanged = false) {
+    const f = form.elements;
+    const mileage = form.querySelector("[name=type]:checked")?.value === "mileage";
+    const currency = f.currency.value;
+    $("[data-role=money-row]", form).hidden = mileage;
+    $("[data-role=km-row]", form).hidden = !mileage;
+    $("[data-role=rate-row]", form).hidden = mileage || currency === "CAD";
+    if (currencyChanged) {
+      const rates = JSON.parse(form.dataset.rates || "{}");
+      f.rate.value = rates[currency] ? String(rates[currency]).replace(".", fmt.hours(1.5).replace(/\d/g, "")) : "";
+      $("[data-role=rate-label]", form).textContent = t("ts.rateFor", { currency });
+    }
+    const cad = mileage
+      ? (readNumber(f.km.value) ?? 0) * Number(form.dataset.mileage)
+      : (readNumber(f.amount.value) ?? 0) * (currency === "CAD" ? 1 : readNumber(f.rate.value) ?? 0);
+    $("[data-role=expense-preview]", form).textContent = cad ? `= ${fmt.money(Math.round(cad * 100) / 100)}` : "";
+  }
+
+  async #addExpense(form, f, errors) {
+    const text = (name) => String(f.get(name) ?? "").trim();
+    const type = text("type");
+    const [kind, id] = text("target").split(":");
+    const fields = { date: form.dataset.date, type, description: text("description"), projectId: kind === "p" ? id : null, clientId: kind === "c" ? id : null };
+    if (!id) return (errors.textContent = t("ts.errors.expenseTarget"));
+    const ts = this.repo.timesheet();
+    if (type === "mileage") {
+      fields.qty = readNumber(text("km"));
+      fields.unitPrice = ts.business.mileageRate;
+      if (fields.qty === null) return (errors.textContent = t("ts.errors.expenseKm"));
+    } else {
+      fields.amount = readNumber(text("amount"));
+      fields.currency = text("currency") || "CAD";
+      fields.rate = fields.currency === "CAD" ? 1 : readNumber(text("rate"));
+      if (fields.amount === null) return (errors.textContent = t("ts.errors.expenseAmount"));
+      if (fields.rate === null) return (errors.textContent = t("ts.errors.expenseRate"));
+    }
+    const { ts: next, expense } = addExpense(ts, fields);
+    if (!expense) return (errors.textContent = t("ts.errors.expenseAmount"));
+    await this.#updateTimesheet(next);
+    // Le formulaire reste ouvert : on note souvent plusieurs dépenses d'affilée.
+    const wrap = $("[data-role=expense-wrap]");
+    if (wrap) wrap.open = true;
+    $("[data-role=ts-expense] [name=description]")?.focus({ preventScroll: true });
+    toast(t("ts.expenseAdded", { amount: fmt.money(expenseTotalOf(expense)) }));
   }
 
   // Logo de l'entreprise : réduit (au plus 600 × 300 px) et gardé en PNG dans les données.

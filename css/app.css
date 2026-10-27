@@ -1157,3 +1157,19 @@ body.player-open { overflow: hidden; }
 .ts-logo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
 .ts-logo img { max-height: 64px; max-width: 160px; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 4px; }
 .ts-logo label.btn { display: inline-flex; margin: 0; color: var(--ink); font-size: 1rem; }
+
+/* Dépenses du jour */
+.ts-expenses { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ts-expenses h3 { margin: 0 0 8px; font-size: 1.05rem; display: flex; align-items: baseline; gap: 8px; }
+.ts-expense-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.ts-expense-row { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto 2em; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.ts-expense-row:first-child { border-top: none; }
+.ts-expense-icon { font-size: 1.2rem; }
+.ts-expense-text { min-width: 0; }
+.ts-expense-text .hint { display: block; }
+.ts-expense-amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ts-expense-types { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ts-expense-form .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ts-expense-preview { margin: 0; font-size: 1.2rem; font-weight: 700; min-height: 1.4em; color: var(--accent); }
+.ts-rates { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0 10px; }
+.ts-card h3 { margin: 12px 0 6px; font-size: 1rem; }

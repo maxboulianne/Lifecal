@@ -187,9 +187,9 @@ test("facture : lignes par jour, sommaire par projet (rég. / surtemps), TPS et 
   assert.equal(lineDescription({ project: "P-200", taskCode: "", description: "Projet A", overtime: false }), "P-200  —  Projet A");
 
   const { sheets, styles, totals } = invoiceSheets(ts, options);
-  assert.deepEqual(sheets.map((x) => x.name), ["Facture", "Heures", "Par projet"]);
+  assert.deepEqual(sheets.map((x) => x.name), ["Facture", "Heures", "Frais", "Par projet"]);
   assert.equal(totals.total, 1446.39);
-  const [facture, heures, parProjet] = sheets;
+  const [facture, heures, , parProjet] = sheets;
   const cells = facture.rows.flat().filter(Boolean);
   assert.ok(cells.some((c) => c.v === "2026-115") && cells.some((c) => c.v === "PO-9") && cells.some((c) => c.v === "NET10"));
   // Les lignes de la facture se réfèrent à l'onglet « Heures » ; le sommaire à « Par projet »
@@ -214,4 +214,52 @@ test("facture : lignes par jour, sommaire par projet (rég. / surtemps), TPS et 
   assert.ok(text.includes("xl/media/image1_1.png") && text.includes("xl/drawings/drawing1.xml"));
   assert.ok(buildXlsx({ sheets, styles }).length > 2000);
   assert.equal(nextInvoiceNumber("2026-115"), "2026-116");
+});
+
+test("dépenses : devises, kilométrage, frais généraux ; facture et sommaire", async () => {
+  const { addExpense, expenseTotal, periodExpenses, removeExpense } = await import("../js/timesheet/expenses.js");
+  const { invoiceData, invoiceSheets } = await import("../js/timesheet/invoice.js");
+  let { ts, client } = sample();
+  const p = ts.projects.find((x) => x.number === "P-200");
+  let r = addExpense(ts, { date: "2026-10-20", type: "food", description: "Dinner", projectId: p.id, amount: 2924738, currency: "VND", rate: 0.000053931 });
+  ts = r.ts;
+  assert.equal(expenseTotal(r.expense), 157.73);
+  assert.equal(ts.rates.VND, 0.000053931, "taux retenu");
+  ts = addExpense(ts, { date: "2026-10-20", type: "hotel", description: "Hotel Indigo", projectId: p.id, amount: 532.09, currency: "CAD" }).ts;
+  ts = addExpense(ts, { date: "2026-10-19", type: "mileage", description: "Aéroport", projectId: p.id, qty: 128, unitPrice: 0.65 }).ts;
+  ts = addExpense(ts, { date: "2026-10-21", type: "phone", description: "SIM Card Asia", projectId: p.id, amount: 75, currency: "CAD" }).ts;
+  ts = addExpense(ts, { date: "2026-10-25", type: "phone", description: "Cell phone fees", clientId: client.id, amount: 65, currency: "CAD" }).ts;
+  // invalides : refusées
+  assert.equal(addExpense(ts, { date: "2026-10-20", type: "food", projectId: p.id, amount: 10, currency: "VND" }).expense, null, "sans taux");
+  assert.equal(addExpense(ts, { date: "2026-10-20", type: "food", amount: 10 }).expense, null, "sans projet ni client");
+  assert.equal(periodExpenses(ts, "2026-10-19", "2026-10-25", client.id).length, 5);
+  assert.equal(normalizeTimesheet(ts).expenses.length, 5);
+
+  const options = { from: "2026-10-19", to: "2026-10-25", clientId: client.id, number: "1", date: "2026-10-26" };
+  const d = invoiceData(ts, options);
+  const p200 = d.summary.find((x) => x.project === "P-200");
+  assert.deepEqual(p200.expenses, { hotel: 532.09, food: 157.73, material: 0, phone: 75, transport: 83.2 });
+  const general = d.summary.at(-1);
+  assert.deepEqual([general.project, general.expenses.phone, general.total], ["Général", 65, 65]);
+  // heures 15,5 h × 68 $ = 1054 $ + frais 913,02 $
+  assert.equal(d.totals.subtotal, 1967.02);
+  assert.equal(d.totals.tps, 98.35);
+  // dans la journée : les dépenses avant les heures
+  const day = d.days.find((x) => x.date === "2026-10-20");
+  assert.deepEqual(day.lines.map((l) => l.kind), ["expense", "expense", "hours"]);
+  assert.equal(day.lines[0].text, "P-200  —  Repas / Food : Dinner  (2 924 738 VND @ 0,000053931)");
+  const mileage = d.days[0].lines[0];
+  assert.deepEqual([mileage.qty, mileage.unit, mileage.unitPrice, mileage.amount], [128, "KM", 0.65, 83.2]);
+
+  const { sheets } = invoiceSheets(ts, options);
+  const frais = sheets[2];
+  assert.equal(frais.rows.length - 4, 5);
+  const fCells = sheets[0].rows.flat().filter(Boolean);
+  assert.ok(fCells.some((c) => c.f === "Frais!G2" && c.v === 128));
+  const par = sheets[3].rows.find((row) => row[0]?.v === "P-200");
+  assert.match(par[4].f, /^SUMIFS\(Frais!\$M\$2:\$M\$6,Frais!\$C\$2:\$C\$6,A\d,Frais!\$D\$2:\$D\$6,"Hôtel"\)$/);
+  assert.equal(par[4].v, 532.09);
+
+  ts = removeExpense(ts, ts.expenses[0].id);
+  assert.equal(ts.expenses.length, 4);
 });
