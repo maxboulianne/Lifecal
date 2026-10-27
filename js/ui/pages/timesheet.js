@@ -5,11 +5,12 @@ import { addDays, parseISODate, startOfWeek, toISODate } from "../../core/dates.
 import { esc } from "../../core/dom.js";
 import { fmt, getLanguage, t } from "../../i18n/index.js";
 import {
-  activeProjects, dayEntries, dayTotal, getClient, getProject, knownTasks, lastTask, periodSummary, previousWorkday, rateFor, weekTotal,
+  activeProjects, dayEntries, dayTotal, getClient, getProject, lastTask, periodSummary, previousWorkday, rateFor, weekTotal,
 } from "../../timesheet/timesheet.js";
 import {
   CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
 } from "../../timesheet/expenses.js";
+import { getTask, otherTasks, quickTasks } from "../../timesheet/tasks.js";
 import { foldSection, isFoldOpen } from "../components/fold.js";
 import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
 
@@ -33,6 +34,21 @@ const money = (n) => (n != null ? fmt.money(n) : "—");
 const rateValue = (n) => (n != null ? esc(fmt.hours(n)) : "");
 const step = (n, text) => `<p class="ts-step"><span class="ts-step-n" aria-hidden="true">${n}</span> ${text}</p>`;
 
+export const CUSTOM_TASK = "__custom";
+
+// Liste des tâches : sélection rapide, puis les autres ; un code hors catalogue
+// (ancienne saisie) reste choisi tel quel.
+function taskOptions(ts, code, { custom = false } = {}) {
+  const option = (task) => `<option value="${esc(task.code)}" data-task="${esc(task.description)}" data-scope="${esc(task.scope)}"
+    ${task.code === code ? "selected" : ""}>${esc(task.code)} — ${esc(task.description)}</option>`;
+  const legacy = code && !getTask(ts, code) && code !== CUSTOM_TASK;
+  return `<option value="" ${code ? "" : "selected"}>${esc(t("ts.noTask"))}</option>
+    ${legacy ? `<option value="${esc(code)}" selected>${esc(code)}</option>` : ""}
+    ${quickTasks(ts).length ? `<optgroup label="${esc(t("ts.quickTasks"))}">${quickTasks(ts).map(option).join("")}</optgroup>` : ""}
+    ${otherTasks(ts).length ? `<optgroup label="${esc(t("ts.otherTasks"))}">${otherTasks(ts).map(option).join("")}</optgroup>` : ""}
+    ${custom ? `<option value="${CUSTOM_TASK}" ${code === CUSTOM_TASK ? "selected" : ""}>✏️ ${esc(t("ts.customTask"))}</option>` : ""}`;
+}
+
 function entryRow(ts, e) {
   const p = getProject(ts, e.projectId);
   const client = getClient(ts, p?.clientId);
@@ -43,10 +59,10 @@ function entryRow(ts, e) {
       <input class="ts-hours" data-action="ts-hours" data-id="${esc(e.id)}" value="${esc(fmt.hours(e.hours))}" inputmode="decimal" autocomplete="off"></label>
     <button type="button" class="check-remove" data-action="ts-remove" data-id="${esc(e.id)}" aria-label="${esc(t("ts.remove"))}">×</button>
     <div class="ts-entry-task">
-      <input data-action="ts-entry-field" data-field="taskCode" data-id="${esc(e.id)}" value="${esc(e.taskCode)}" list="ts-task-codes"
-        placeholder="${esc(t("ts.taskCode"))}" aria-label="${esc(t("ts.taskCode"))}" autocomplete="off">
-      <input data-action="ts-entry-field" data-field="task" data-id="${esc(e.id)}" value="${esc(e.task)}"
-        placeholder="${esc(t("ts.taskDesc"))}" aria-label="${esc(t("ts.taskDesc"))}" autocomplete="off">
+      <select data-action="ts-entry-task" data-id="${esc(e.id)}" aria-label="${esc(t("ts.task"))}">${taskOptions(ts, e.taskCode)}</select>
+      ${e.taskCode && !getTask(ts, e.taskCode) && e.task ? `<span class="hint">${esc(e.task)}</span>` : ""}
+      <input data-action="ts-entry-field" data-field="work" data-id="${esc(e.id)}" value="${esc(e.work)}"
+        placeholder="${esc(t("ts.workPlaceholder"))}" aria-label="${esc(t("ts.work"))}" autocomplete="off">
     </div>
     <label class="ts-ot-toggle"><input type="checkbox" data-action="ts-entry-ot" data-id="${esc(e.id)}" ${e.overtime ? "checked" : ""}> ${t("ts.overtime")}</label>
     <input class="ts-note" data-action="ts-entry-field" data-field="note" data-id="${esc(e.id)}" value="${esc(e.note)}" placeholder="${esc(t("ts.notePlaceholder"))}"
@@ -172,6 +188,8 @@ function daySection(ts, date, today, selected, editingExpense) {
   const projects = activeProjects(ts);
   const chosen = projects.some((p) => p.id === selected) ? selected : projects[0]?.id;
   const task = chosen ? lastTask(ts, chosen) : { code: "", task: "" };
+  // Dernière tâche du projet : du catalogue, sinon « autre tâche » (code écrit à la main)
+  const taskCode = !task.code ? "" : getTask(ts, task.code) ? task.code : CUSTOM_TASK;
   const prev = entries.length ? null : previousWorkday(ts, date);
   const title = date === today ? t("nav.today") : fmt.longDate(parseISODate(date));
   return `<section class="card ts-day">
@@ -193,7 +211,6 @@ function daySection(ts, date, today, selected, editingExpense) {
     </div>
     ${entries.length ? `<ul class="ts-entries">${entries.map((e) => entryRow(ts, e)).join("")}</ul>` : ""}
     ${prev ? `<button type="button" class="btn soft" data-action="ts-copy" data-from="${prev}" data-date="${date}">📋 ${esc(t("ts.copyDay", { date: fmt.longDate(parseISODate(prev)) }))}</button>` : ""}
-    <datalist id="ts-task-codes">${knownTasks(ts).filter((x) => x.code).map((x) => `<option value="${esc(x.code)}" data-task="${esc(x.task)}">${esc(x.task)}</option>`).join("")}</datalist>
     ${projects.length ? `<form class="ts-add" data-role="ts-add" data-date="${date}">
         ${step(1, t("ts.step1"))}
         <div class="ts-projects">${projects.map((p) => `<label class="ts-project-chip">
@@ -209,11 +226,14 @@ function daySection(ts, date, today, selected, editingExpense) {
           <label><input type="radio" name="overtime" value="0" checked><span>${t("ts.regular")}</span></label>
           <label><input type="radio" name="overtime" value="1"><span>${t("ts.overtime")}</span></label>
         </div>
-        <div class="ts-task-row">
-          <label>${t("ts.taskCode")} <input name="taskCode" list="ts-task-codes" value="${esc(task.code)}" placeholder="${esc(t("ts.example", { value: "QA-01" }))}" autocomplete="off"></label>
-          <label>${t("ts.taskDesc")} <input name="task" value="${esc(task.task)}" placeholder="${esc(t("ts.taskDescPlaceholder"))}" autocomplete="off"></label>
+        <label>${t("ts.task")} <select name="taskCode" data-role="task-select">${taskOptions(ts, taskCode, { custom: true })}</select></label>
+        <p class="hint ts-task-scope" data-role="task-scope">${esc(getTask(ts, taskCode)?.scope ?? "")}</p>
+        <div class="ts-task-row" data-role="custom-task" ${taskCode === CUSTOM_TASK ? "" : "hidden"}>
+          <label>${t("ts.taskCode")} <input name="customCode" value="${esc(taskCode === CUSTOM_TASK ? task.code : "")}" placeholder="${esc(t("ts.example", { value: "TR01" }))}" autocomplete="off"></label>
+          <label>${t("ts.taskDesc")} <input name="customTask" value="${esc(taskCode === CUSTOM_TASK ? task.task : "")}" placeholder="${esc(t("ts.taskDescPlaceholder"))}" autocomplete="off"></label>
         </div>
-        <label class="ts-note-label">${t("ts.note")} <input name="note" class="ts-note" placeholder="${esc(t("ts.notePlaceholder"))}" autocomplete="off"></label>
+        <label>${t("ts.work")} <input name="work" placeholder="${esc(t("ts.workPlaceholder"))}" autocomplete="off"></label>
+        <label class="ts-note-label">${t("ts.notePrivate")} <input name="note" class="ts-note" placeholder="${esc(t("ts.notePlaceholder"))}" autocomplete="off"></label>
         ${step(3, t("ts.step3"))}
         <p class="form-errors" data-role="errors" role="alert"></p>
         <button type="submit" class="btn primary">${t("ts.add")}</button>
@@ -275,6 +295,36 @@ function projectsSection(ts) {
         <p class="hint">${t("ts.overtimeHint")}</p>
         <p class="form-errors" data-role="errors" role="alert"></p>
         <div class="actions"><button type="submit" class="btn primary">${t("ts.addProject")}</button></div>
+      </form>`)}`,
+  });
+}
+
+function tasksSection(ts) {
+  const list = ts.tasks;
+  return foldSection("ts-tasks", {
+    title: esc(t("ts.tasks")),
+    extra: String(list.length),
+    open: isFoldOpen("ts-tasks", false),
+    body: `<p class="hint">${t("ts.tasksHint")}</p>
+      <ul class="ts-task-list">${list.map((task) => `<li class="${task.quick ? "is-quick" : ""}">
+        <button type="button" class="ts-star" data-action="ts-task-quick" data-code="${esc(task.code)}" aria-pressed="${task.quick}"
+          aria-label="${esc(t("ts.quickToggle", { code: task.code }))}" title="${esc(t("ts.quickToggle", { code: task.code }))}">${task.quick ? "⭐" : "☆"}</button>
+        <strong class="ts-task-code">${esc(task.code)}</strong>
+        <div class="ts-task-text">
+          <input data-action="ts-task-field" data-code="${esc(task.code)}" data-field="description" value="${esc(task.description)}" aria-label="${esc(t("ts.taskDesc"))}">
+          <input data-action="ts-task-field" data-code="${esc(task.code)}" data-field="scope" value="${esc(task.scope)}" placeholder="${esc(t("ts.taskScope"))}" aria-label="${esc(t("ts.taskScope"))}" class="ts-task-scope-input">
+        </div>
+        <button type="button" class="check-remove" data-action="ts-task-remove" data-code="${esc(task.code)}" aria-label="${esc(t("ts.delete"))}">×</button>
+      </li>`).join("")}</ul>
+      ${addBlock(false, t("ts.newTask"), `<form class="form ts-new" data-role="ts-new-task">
+        <div class="row">
+          <label>${t("ts.taskCode")} <input name="code" placeholder="${esc(t("ts.example", { value: "TR01" }))}" autocomplete="off"></label>
+          <label>${t("ts.taskDesc")} <input name="description" placeholder="${esc(t("ts.example", { value: "Travel time" }))}" autocomplete="off"></label>
+        </div>
+        <label>${t("ts.taskScope")} <input name="scope" autocomplete="off"></label>
+        <label class="switch"><input type="checkbox" name="quick" checked><span>${t("ts.inQuick")}</span></label>
+        <p class="form-errors" data-role="errors" role="alert"></p>
+        <div class="actions"><button type="submit" class="btn primary">${t("ts.addTask")}</button></div>
       </form>`)}`,
   });
 }
@@ -412,6 +462,7 @@ export const timesheetPage = {
     return `<section class="page timesheet">
       ${daySection(ts, date, today, timesheetProject, editingExpense)}
       ${projectsSection(ts)}
+      ${tasksSection(ts)}
       ${clientsSection(ts)}
       ${exportSection(ts, today, timesheetExport)}
       ${businessSection(ts)}

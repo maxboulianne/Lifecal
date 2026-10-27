@@ -1194,3 +1194,19 @@ body.player-open { overflow: hidden; }
 .ts-expense-edit { list-style: none; padding: 8px 0; border-top: 1px solid var(--line); }
 .ts-expense-edit .form { padding: 12px; border: 1.5px solid var(--accent); border-radius: 12px; }
 .ts-expense-edit h3 { margin: 0 0 8px; }
+
+/* Tâches standard */
+.ts-task-scope { margin: -4px 0 0; min-height: 1em; }
+.ts-entry-task { grid-template-columns: minmax(0, 1fr); }
+.ts-entry-task select { width: 100%; }
+.ts-task-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.ts-task-list li { display: grid; grid-template-columns: 2em 3.6em minmax(0, 1fr) 2em; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.ts-star { border: none; background: none; font-size: 1.15rem; cursor: pointer; padding: 4px; }
+.ts-task-code { font-variant-numeric: tabular-nums; }
+.ts-task-text { display: grid; gap: 2px; min-width: 0; }
+.ts-task-text input { width: 100%; min-width: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; padding: 4px 6px; font: inherit; color: var(--ink); }
+.ts-task-text input:focus { border-color: var(--line); background: var(--bg); }
+.ts-task-text .ts-task-scope-input { font-size: 0.82rem; color: var(--muted); }
+/* Les longues descriptions de tâche ne doivent pas élargir la page */
+.ts-add { grid-template-columns: minmax(0, 1fr); }
+.ts-add select, .ts-entry-task select { width: 100%; min-width: 0; max-width: 100%; text-overflow: ellipsis; }

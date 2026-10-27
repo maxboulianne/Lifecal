@@ -5,8 +5,10 @@
 //   projects  [{ id, number, name, clientId, rate, overtimeRate, archived }]
 //             rate : taux horaire régulier ($) ; overtimeRate : taux du surtemps
 //             (vide : 1,5 × le taux régulier)
-//   entries   [{ id, date, projectId, hours, overtime, taskCode, task, note }]
-//             une ligne d'heures d'une journée ; taskCode / task : code et description de la tâche
+//   entries   [{ id, date, projectId, hours, overtime, taskCode, task, work, note }]
+//             une ligne d'heures d'une journée ; taskCode / task : code et description standard
+//             de la tâche ; work : travail effectué (paraît sur la facture) ; note : pour soi
+//   tasks     les tâches standard (voir tasks.js)
 //   expenses, rates : les dépenses à refacturer (voir expenses.js)
 //   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, mileageRate, showTaskCodes, logo, logoSize }
 //             mon entreprise, pour la facture (terms : jours pour payer, ex. 10 = NET10 ;
@@ -16,6 +18,7 @@
 import { addDays, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
 import { newId } from "../data/item.js";
 import { DEFAULT_MILEAGE_RATE, normalizeExpenses, normalizeRates } from "./expenses.js";
+import { normalizeTasks, standardTasks } from "./tasks.js";
 
 export const TPS_RATE = 0.05;
 export const TVQ_RATE = 0.09975;
@@ -29,7 +32,7 @@ export function emptyBusiness() {
 }
 
 export function emptyTimesheet() {
-  return { clients: [], projects: [], entries: [], expenses: [], rates: {}, business: emptyBusiness() };
+  return { clients: [], projects: [], entries: [], expenses: [], rates: {}, tasks: standardTasks(), business: emptyBusiness() };
 }
 
 const str = (v) => String(v ?? "").trim();
@@ -64,7 +67,7 @@ export function normalizeTimesheet(raw) {
     .filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.projectId && num(e.hours) !== null && num(e.hours) >= 0)
     .map((e) => ({
       id: e.id ?? newId(), date: e.date, projectId: e.projectId, hours: num(e.hours), overtime: Boolean(e.overtime),
-      taskCode: str(e.taskCode), task: str(e.task), note: str(e.note),
+      taskCode: str(e.taskCode), task: str(e.task), work: str(e.work), note: str(e.note),
     }));
   const b = ts.business && typeof ts.business === "object" ? ts.business : {};
   const terms = num(b.terms);
@@ -79,7 +82,7 @@ export function normalizeTimesheet(raw) {
   const known = new Set(projects.map((p) => p.id));
   const clientIds = new Set(clients.map((c) => c.id));
   const expenses = normalizeExpenses(ts.expenses).filter((e) => (e.projectId ? known.has(e.projectId) : clientIds.has(e.clientId)));
-  return { clients, projects, entries, expenses, rates: normalizeRates(ts.rates), business };
+  return { clients, projects, entries, expenses, rates: normalizeRates(ts.rates), tasks: normalizeTasks(ts.tasks), business };
 }
 
 // « 2,75 », « 2.75 », « 2:45 », « 2h45 », « 2 h 45 », « 45 min » -> heures décimales (ou null).
@@ -181,8 +184,10 @@ export function periodSummary(ts, from, to, clientId = null) {
 
 // ---- Modifications ------------------------------------------------------------------
 
-export function addEntry(ts, { date, projectId, hours, overtime = false, taskCode = "", task = "", note = "" }) {
-  const entry = { id: newId(), date, projectId, hours: round(hours), overtime: Boolean(overtime), taskCode: str(taskCode), task: str(task), note: str(note) };
+export function addEntry(ts, { date, projectId, hours, overtime = false, taskCode = "", task = "", work = "", note = "" }) {
+  const entry = {
+    id: newId(), date, projectId, hours: round(hours), overtime: Boolean(overtime), taskCode: str(taskCode), task: str(task), work: str(work), note: str(note),
+  };
   return { ...ts, entries: [...ts.entries, entry] };
 }
 

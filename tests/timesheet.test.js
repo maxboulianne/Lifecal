@@ -92,7 +92,7 @@ import { timesheetSheets } from "../js/timesheet/export.js";
 
 const LABELS = {
   title: "Feuille de temps", period: "Période", regular: "Régulier", overtime: "Surtemps", dayTotal: "Total du jour", total: "Total", sheetHours: "Heures", sheetProjects: "Par projet",
-  columns: { date: "Date", day: "Jour", number: "N° projet", project: "Projet", type: "Type", taskCode: "Code", task: "Tâche", client: "Client", hours: "Heures", note: "Note", rate: "Taux", amount: "Montant" },
+  columns: { date: "Date", day: "Jour", number: "N° projet", project: "Projet", type: "Type", taskCode: "Code", task: "Tâche", work: "Travail effectué", client: "Client", hours: "Heures", note: "Note", rate: "Taux", amount: "Montant" },
 };
 
 test("Excel : zip valide (CRC), colonnes, dates", () => {
@@ -106,10 +106,10 @@ test("Excel : zip valide (CRC), colonnes, dates", () => {
 test("export de la feuille de temps : jours, sous-totaux, projets, formules", () => {
   const { ts, client } = sample();
   const [hours, projects] = timesheetSheets(ts, { from: "2026-10-19", to: "2026-10-25", clientId: client.id, labels: LABELS, weekday: () => "lun." });
-  const days = hours.rows.filter((r) => r[7]?.v === "Total du jour").map((r) => [r[8].f, r[8].v]);
-  assert.deepEqual(days, [["SUM(I5:I6)", 8], ["SUM(I9:I9)", 7.5]]);
+  const days = hours.rows.filter((r) => r[8]?.v === "Total du jour").map((r) => [r[9].f, r[9].v]);
+  assert.deepEqual(days, [["SUM(J5:J6)", 8], ["SUM(J9:J9)", 7.5]]);
   const total = hours.rows.at(-1);
-  assert.deepEqual([total[0].v, total[8].f, total[8].v], ["Total", "I7+I10", 15.5]);
+  assert.deepEqual([total[0].v, total[9].f, total[9].v], ["Total", "J7+J10", 15.5]);
   assert.deepEqual(projects.rows.slice(4, 6).map((r) => [r[0], r[2], r[4].v, r[6].f, r[6].v]), [["P-100", "Régulier", 2, "E5*F5", 136], ["P-200", "Régulier", 13.5, "E6*F6", 918]]);
   assert.deepEqual([projects.rows.at(-1)[6].f, projects.rows.at(-1)[6].v], ["SUM(G5:G6)", 1054]);
   assert.match(hours.rows[0][0].v, /ABC/);
@@ -187,15 +187,17 @@ test("facture : lignes par jour, sommaire par projet (rég. / surtemps), TPS et 
   assert.equal(lineDescription({ project: "P-200", taskCode: "", description: "Projet A", overtime: false }), "P-200  —  Projet A");
 
   const { sheets, styles, totals } = invoiceSheets(ts, options);
-  assert.deepEqual(sheets.map((x) => x.name), ["Facture", "Heures", "Frais", "Par projet"]);
+  assert.deepEqual(sheets.map((x) => x.name), ["Facture", "Heures", "Par tâche", "Frais", "Par projet"]);
   assert.equal(totals.total, 1446.39);
-  const [facture, heures, , parProjet] = sheets;
+  const [facture, heures, parTache, , parProjet] = sheets;
   const cells = facture.rows.flat().filter(Boolean);
   assert.ok(cells.some((c) => c.v === "2026-115") && cells.some((c) => c.v === "PO-9") && cells.some((c) => c.v === "NET10"));
   // Les lignes de la facture se réfèrent à l'onglet « Heures » ; le sommaire à « Par projet »
-  assert.ok(cells.some((c) => c.f === "Heures!F2"));
+  assert.ok(cells.some((c) => c.f === "Heures!G2"));
+  // Par tâche : la tâche QA regroupée
+  assert.ok(parTache.rows.some((row) => row[0]?.v === "QA" && row[2].v === 2));
   assert.ok(cells.some((c) => c.f === "'Par projet'!B2" && c.v === 2));
-  assert.match(parProjet.rows[2][2].f, /^SUMIFS\(Heures!\$F\$2:\$F\$\d+,Heures!\$C\$2:\$C\$\d+,A3,Heures!\$G\$2:\$G\$\d+,"Surtemps"\)$/);
+  assert.match(parProjet.rows[2][2].f, /^SUMIFS\(Heures!\$G\$2:\$G\$\d+,Heures!\$C\$2:\$C\$\d+,A3,Heures!\$H\$2:\$H\$\d+,"Surtemps"\)$/);
   assert.equal(heures.rows.length - 4, d.lines.length);
   // TOTAL À PAYER : formule et valeur ; taux de taxes dans « Par projet »
   const pay = facture.rows.find((r) => r[6]?.v === "TOTAL À PAYER (CAD)");
@@ -252,11 +254,11 @@ test("dépenses : devises, kilométrage, frais généraux ; facture et sommaire"
   assert.deepEqual([mileage.qty, mileage.unit, mileage.unitPrice, mileage.amount], [128, "KM", 0.65, 83.2]);
 
   const { sheets } = invoiceSheets(ts, options);
-  const frais = sheets[2];
+  const frais = sheets[3];
   assert.equal(frais.rows.length - 4, 5);
   const fCells = sheets[0].rows.flat().filter(Boolean);
   assert.ok(fCells.some((c) => c.f === "Frais!G2" && c.v === 128));
-  const par = sheets[3].rows.find((row) => row[0]?.v === "P-200");
+  const par = sheets[4].rows.find((row) => row[0]?.v === "P-200");
   assert.match(par[4].f, /^SUMIFS\(Frais!\$M\$2:\$M\$6,Frais!\$C\$2:\$C\$6,A\d,Frais!\$D\$2:\$D\$6,"Hôtel"\)$/);
   assert.equal(par[4].v, 532.09);
 
@@ -295,6 +297,38 @@ test("modifier une dépense ; codes de tâche affichés ou non sur la facture", 
   assert.equal(invoiceData(hiddenTs, options).lines.find((l) => l.code === "QA").text, "P-200  —  Audit");
   const { sheets } = invoiceSheets(hiddenTs, options);
   assert.ok(sheets[1].rows.some((row) => row[3]?.v === "QA"), "le code reste dans « Heures »");
+  assert.ok(sheets[0].rows.flat().some((c) => c?.f?.includes("Heures!F") && c.f.includes("—")), "travail effectué dans la description");
   assert.ok(!sheets[0].rows.flat().some((c) => c?.f?.includes("Heures!D")), "la facture n'affiche pas le code");
   assert.equal(normalizeTimesheet(hiddenTs).business.showTaskCodes, false);
+});
+
+test("tâches standard : catalogue, sélection rapide, travail effectué sur la facture", async () => {
+  const { STANDARD_TASKS, addTask, getTask, normalizeTasks, quickTasks, removeTask, updateTask } = await import("../js/timesheet/tasks.js");
+  const { invoiceData } = await import("../js/timesheet/invoice.js");
+  assert.equal(STANDARD_TASKS.length, 38);
+  let ts = emptyTimesheet();
+  assert.equal(ts.tasks.length, 38);
+  assert.deepEqual([quickTasks(ts).length, quickTasks(ts)[0].code, quickTasks(ts).at(-1).code], [16, "QA01", "QA16"]);
+  assert.equal(getTask(ts, "qa04").description, "Painting specification review");
+  // anciennes données (sans tâches) : la liste standard ; liste vidée : reste vide
+  assert.equal(normalizeTimesheet({}).tasks.length, 38);
+  assert.equal(normalizeTimesheet({ tasks: [] }).tasks.length, 0);
+  // ajouter (TR01), refuser un doublon, étoile, retirer
+  let r = addTask(ts, { code: "tr01", description: "Travel time", quick: false });
+  assert.equal(r.task.code, "TR01");
+  ts = r.ts;
+  assert.equal(addTask(ts, { code: "QA01", description: "x" }).task, null);
+  ts = updateTask(ts, "QA20", { quick: true });
+  assert.equal(quickTasks(ts).length, 17);
+  ts = removeTask(ts, "TR01");
+  assert.equal(getTask(ts, "TR01"), null);
+
+  // travail effectué : sur la facture, après la description standard
+  let s = sample();
+  ts = s.ts;
+  const p = ts.projects.find((x) => x.number === "P-200");
+  ts = addEntry(ts, { date: "2026-10-21", projectId: p.id, hours: 1.5, taskCode: "QA04", task: "Painting specification review", work: "Reviewed galvanizing requirements" });
+  const line = invoiceData(ts, { from: "2026-10-19", to: "2026-10-25", clientId: s.client.id, number: "1", date: "2026-10-26" }).lines.find((l) => l.code === "QA04");
+  assert.equal(line.text, "P-200  —  QA04 : Painting specification review  —  Reviewed galvanizing requirements");
+  assert.equal(normalizeTimesheet(ts).entries.find((e) => e.taskCode === "QA04").work, "Reviewed galvanizing requirements");
 });

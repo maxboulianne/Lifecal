@@ -40,7 +40,8 @@ import { MAX_CHAINS, fetchHotels, fetchSuggestions, getChain } from "../travel/d
 import { geocode } from "../travel/geocode.js";
 import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited, cachedHotels, cachedSuggestions, destQuery, getDest, hotelsKey, suggestionsKey } from "../travel/trip.js";
 import { settingsPage } from "./pages/settings.js";
-import { rangeDates, timesheetPage } from "./pages/timesheet.js";
+import { CUSTOM_TASK, rangeDates, timesheetPage } from "./pages/timesheet.js";
+import { addTask, getTask, removeTask, taskUseCount, updateTask } from "../timesheet/tasks.js";
 import {
   addClient, addEntry as addTsEntry, addProject, copyDay, deleteClient, deleteProject, getClient, getProject, parseHours, projectEntryCount,
   LOGO_MAX_LENGTH, nextInvoiceNumber, projectLabel, removeEntry as removeTsEntry, updateBusiness, updateClient, updateEntry as updateTsEntry, updateProject,
@@ -154,11 +155,6 @@ export class App {
       if (e.target.dataset.journal) this.#scheduleJournalSave();
       if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
       if (e.target.form?.dataset.role === "ts-expense") this.#syncExpenseForm(e.target.form);
-      // Un code de tâche déjà utilisé : sa description suit.
-      if (e.target.name === "taskCode" && e.target.form?.dataset.role === "ts-add") {
-        const known = [...document.querySelectorAll("#ts-task-codes option")].find((o) => o.value === e.target.value.trim());
-        if (known) e.target.form.elements.task.value = known.dataset.task ?? "";
-      }
       if (e.target.dataset.role === "catalog-search") {
         this.catalogQuery = e.target.value;
         this.#filterCatalog(this.catalogQuery);
@@ -900,6 +896,18 @@ export class App {
     "ts-export": (el) => this.#exportTimesheet(el.dataset.from, el.dataset.to, el.dataset.client),
     "ts-invoice": (el) => this.#createInvoice(this.#invoiceOptions(el.closest("[data-role=ts-invoice]"))),
     // Aperçu de la facture dans l'application, avant de créer le fichier.
+    "ts-task-quick": (el) => {
+      const ts = this.repo.timesheet();
+      return this.#updateTimesheet(updateTask(ts, el.dataset.code, { quick: !getTask(ts, el.dataset.code)?.quick }));
+    },
+    "ts-task-remove": (el) => {
+      const ts = this.repo.timesheet();
+      const task = getTask(ts, el.dataset.code);
+      const used = taskUseCount(ts, el.dataset.code);
+      const msg = [t("ts.confirmDeleteTask", { code: task?.code ?? "", name: task?.description ?? "" }), used ? t("ts.taskStillUsed", { count: used }) : ""].filter(Boolean).join("\n\n");
+      if (!task || !confirm(msg)) return;
+      return this.#updateTimesheet(removeTask(ts, task.code)).then(() => toast(t("ts.deleted")));
+    },
     "ts-expense-remove": (el) => this.#updateTimesheet(removeExpense(this.repo.timesheet(), el.dataset.id)),
     "ts-logo-remove": () => this.#updateTimesheet(updateBusiness(this.repo.timesheet(), { logo: "", logoSize: null })),
     "ts-invoice-preview": (el) => {
@@ -1054,12 +1062,17 @@ export class App {
     }
     if (el.dataset.action?.startsWith("ts-")) return this.#onTimesheetChange(el);
     if (el.form?.dataset.role === "ts-expense") return this.#syncExpenseForm(el.form, el.name === "currency");
-    // Choisir un projet propose sa dernière tâche (code et description).
+    // Choisir un projet propose sa dernière tâche ; choisir une tâche montre sa portée.
     if (el.name === "projectId" && el.form?.dataset.role === "ts-add") {
-      el.form.elements.taskCode.value = el.dataset.taskCode ?? "";
-      el.form.elements.task.value = el.dataset.task ?? "";
-      return;
+      const code = el.dataset.taskCode ?? "";
+      const f = el.form.elements;
+      const known = code && getTask(this.repo.timesheet(), code);
+      f.taskCode.value = !code ? "" : known ? known.code : CUSTOM_TASK;
+      f.customCode.value = code && !known ? code : "";
+      f.customTask.value = code && !known ? el.dataset.task ?? "" : "";
+      return this.#syncTaskForm(el.form);
     }
+    if (el.dataset.role === "task-select") return this.#syncTaskForm(el.form);
     if (el.dataset.action === "grocery-toggle") {
       return this.#updateGrocery({ list: toggleListEntry(this.repo.grocery().list, el.dataset.entry) });
     }
@@ -1336,6 +1349,17 @@ export class App {
         }
         return this.#updateTimesheet(updateTsEntry(ts, id, { hours }));
       }
+      case "ts-entry-task": {
+        const task = getTask(ts, el.value);
+        return this.#updateTimesheet(updateTsEntry(ts, id, { taskCode: task?.code ?? "", task: task?.description ?? "" }));
+      }
+      case "ts-task-field": {
+        if (el.dataset.field === "description" && !el.value.trim()) {
+          el.value = getTask(ts, el.dataset.code)?.description ?? "";
+          return toast(t("ts.errors.task"));
+        }
+        return this.#updateTimesheet(updateTask(ts, el.dataset.code, { [el.dataset.field]: el.value.trim() }));
+      }
       case "ts-entry-field":
         return this.#updateTimesheet(updateTsEntry(ts, id, { [el.dataset.field]: el.value.trim() }));
       case "ts-rate": {
@@ -1411,6 +1435,13 @@ export class App {
     const fold = form.closest("[data-fold-id]")?.dataset.foldId;
     if (fold) setFoldOpen(fold, true);
     if (form.dataset.role === "ts-expense") return this.#addExpense(form, f, errors);
+    if (form.dataset.role === "ts-new-task") {
+      if (!text("code") || !text("description")) return (errors.textContent = t("ts.errors.task"));
+      const { ts: next, task } = addTask(ts, { code: text("code"), description: text("description"), scope: text("scope"), quick: f.get("quick") === "on" });
+      if (!task) return (errors.textContent = t("ts.errors.taskExists", { code: text("code").toUpperCase() }));
+      await this.#updateTimesheet(next);
+      return toast(t("ts.taskAdded", { code: task.code }));
+    }
     if (form.dataset.role === "ts-add") {
       const hours = parseHours(text("hours"));
       if (hours === null || hours <= 0) return (errors.textContent = t("ts.errors.hours"));
@@ -1418,7 +1449,12 @@ export class App {
       if (!projectId) return (errors.textContent = t("ts.pickProject"));
       this.timesheetProject = projectId;
       const overtime = text("overtime") === "1";
-      const entry = { date: form.dataset.date, projectId, hours, overtime, taskCode: text("taskCode"), task: text("task"), note: text("note") };
+      // Tâche : du catalogue (description standard), ou écrite à la main
+      const chosen = text("taskCode");
+      const known = chosen !== CUSTOM_TASK && getTask(ts, chosen);
+      const taskCode = chosen === CUSTOM_TASK ? text("customCode").toUpperCase() : known ? known.code : chosen;
+      const task = chosen === CUSTOM_TASK ? text("customTask") : known ? known.description : "";
+      const entry = { date: form.dataset.date, projectId, hours, overtime, taskCode, task, work: text("work"), note: text("note") };
       return this.#updateTimesheet(addTsEntry(ts, entry), "[data-role=ts-add] [name=hours]");
     }
     if (form.dataset.role === "ts-new-project") {
@@ -1447,7 +1483,7 @@ export class App {
   }
 
   #timesheetLabels() {
-    const columns = Object.fromEntries(["date", "day", "number", "project", "type", "taskCode", "task", "client", "hours", "note", "rate", "amount"]
+    const columns = Object.fromEntries(["date", "day", "number", "project", "type", "taskCode", "task", "work", "client", "hours", "note", "rate", "amount"]
       .map((k) => [k, t(`ts.col.${k}`)]));
     return {
       title: t("ts.sheetTitle"), period: t("ts.period"), regular: t("ts.regular"), overtime: t("ts.overtime"), dayTotal: t("ts.dayTotal"),
@@ -1461,6 +1497,15 @@ export class App {
       from, to, clientId: clientId || null, weekday: (iso) => fmt.weekdayShort(parseISODate(iso)), labels: this.#timesheetLabels(),
     });
     await this.#shareFile(new File([buildXlsx({ sheets })], `${t("ts.fileName")}-${from}_${to}.xlsx`, { type: XLSX_TYPE }));
+  }
+
+  // Saisie des heures : portée de la tâche choisie ; « autre tâche » : code et description à écrire.
+  #syncTaskForm(form) {
+    const select = form.elements.taskCode;
+    const option = select.selectedOptions[0];
+    $("[data-role=task-scope]", form).textContent = option?.dataset.scope ?? "";
+    $("[data-role=custom-task]", form).hidden = select.value !== CUSTOM_TASK;
+    if (select.value === CUSTOM_TASK) form.elements.customCode.focus();
   }
 
   // Formulaire de dépense : kilomètres ou montant, taux de la devise, montant en $ CA.
