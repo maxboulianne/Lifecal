@@ -52,7 +52,9 @@ function lineTable(d) {
   return `<table class="inv-lines">
     <thead><tr><th>${lines(L.qty)}</th><th>${L.unit}</th><th>${lines(L.unitPrice)}</th><th class="inv-desc">${L.description}</th><th>${L.total}</th></tr></thead>
     <tbody>${d.days.map((day) => `<tr class="inv-day"><td colspan="3">${esc(day.date)}</td><td colspan="2">${esc(day.weekday)}</td></tr>
-      ${day.lines.map((l) => `<tr><td class="num">${hours(l.hours)}</td><td class="inv-unit">HR</td><td class="num">${moneyDash(l.rate)}</td>
+      ${day.lines.map((l) => (l.kind === "expense"
+        ? `<tr><td class="num">${hours(l.qty)}</td><td class="inv-unit">${l.unit}</td><td class="num">${moneyDash(l.unitPrice)}</td>`
+        : `<tr><td class="num">${hours(l.hours)}</td><td class="inv-unit">HR</td><td class="num">${moneyDash(l.rate)}</td>`) + `
         <td class="inv-desc">${esc(l.text)}</td><td class="num inv-strong">${moneyDash(l.amount)}</td></tr>`).join("")}`).join("")}
     </tbody>
   </table>`;

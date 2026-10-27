@@ -7,13 +7,15 @@
 //             (vide : 1,5 × le taux régulier)
 //   entries   [{ id, date, projectId, hours, overtime, taskCode, task, note }]
 //             une ligne d'heures d'une journée ; taskCode / task : code et description de la tâche
-//   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, logo, logoSize }
+//   expenses, rates : les dépenses à refacturer (voir expenses.js)
+//   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, mileageRate, logo, logoSize }
 //             mon entreprise, pour la facture (terms : jours pour payer, ex. 10 = NET10 ;
 //             logo : image PNG ou JPEG en data URL, logoSize : { width, height } en pixels)
 // Fonctions pures : elles retournent toujours de nouvelles valeurs.
 
 import { addDays, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
 import { newId } from "../data/item.js";
+import { DEFAULT_MILEAGE_RATE, normalizeExpenses, normalizeRates } from "./expenses.js";
 
 export const TPS_RATE = 0.05;
 export const TVQ_RATE = 0.09975;
@@ -23,11 +25,11 @@ export const BUSINESS_FIELDS = ["name", "contact", "address", "phone", "email", 
 export const DEFAULT_TERMS = 10;
 
 export function emptyBusiness() {
-  return { name: "", contact: "", address: "", phone: "", email: "", tpsNumber: "", tvqNumber: "", terms: DEFAULT_TERMS, nextInvoice: "", logo: "", logoSize: null };
+  return { name: "", contact: "", address: "", phone: "", email: "", tpsNumber: "", tvqNumber: "", terms: DEFAULT_TERMS, nextInvoice: "", mileageRate: DEFAULT_MILEAGE_RATE, logo: "", logoSize: null };
 }
 
 export function emptyTimesheet() {
-  return { clients: [], projects: [], entries: [], business: emptyBusiness() };
+  return { clients: [], projects: [], entries: [], expenses: [], rates: {}, business: emptyBusiness() };
 }
 
 const str = (v) => String(v ?? "").trim();
@@ -68,11 +70,15 @@ export function normalizeTimesheet(raw) {
   const terms = num(b.terms);
   const business = {
     ...emptyBusiness(),
+    mileageRate: rateOrNull(b.mileageRate) ?? DEFAULT_MILEAGE_RATE,
     ...Object.fromEntries(BUSINESS_FIELDS.filter((k) => k !== "terms").map((k) => [k, k === "address" ? String(b[k] ?? "").trim() : str(b[k])])),
     terms: terms !== null && terms >= 0 && b.terms !== "" ? Math.round(terms) : DEFAULT_TERMS,
     ...validLogo(b),
   };
-  return { clients, projects, entries, business };
+  const known = new Set(projects.map((p) => p.id));
+  const clientIds = new Set(clients.map((c) => c.id));
+  const expenses = normalizeExpenses(ts.expenses).filter((e) => (e.projectId ? known.has(e.projectId) : clientIds.has(e.clientId)));
+  return { clients, projects, entries, expenses, rates: normalizeRates(ts.rates), business };
 }
 
 // « 2,75 », « 2.75 », « 2:45 », « 2h45 », « 2 h 45 », « 45 min » -> heures décimales (ou null).
@@ -221,13 +227,19 @@ export function nextInvoiceNumber(number) {
 
 // Supprimer un projet efface aussi ses heures.
 export const deleteProject = (ts, id) => ({
-  ...ts, projects: ts.projects.filter((p) => p.id !== id), entries: ts.entries.filter((e) => e.projectId !== id),
+  ...ts,
+  projects: ts.projects.filter((p) => p.id !== id),
+  entries: ts.entries.filter((e) => e.projectId !== id),
+  expenses: ts.expenses.filter((e) => e.projectId !== id),
 });
-export const projectEntryCount = (ts, id) => ts.entries.filter((e) => e.projectId === id).length;
+export const projectEntryCount = (ts, id) => ts.entries.filter((e) => e.projectId === id).length + ts.expenses.filter((e) => e.projectId === id).length;
 
-// Supprimer un client garde ses projets (sans client).
+// Supprimer un client garde ses projets (sans client) ; ses frais généraux sont effacés.
 export const deleteClient = (ts, id) => ({
-  ...ts, clients: ts.clients.filter((c) => c.id !== id), projects: ts.projects.map((p) => (p.clientId === id ? { ...p, clientId: null } : p)),
+  ...ts,
+  clients: ts.clients.filter((c) => c.id !== id),
+  projects: ts.projects.map((p) => (p.clientId === id ? { ...p, clientId: null } : p)),
+  expenses: ts.expenses.filter((e) => e.clientId !== id),
 });
 
 export function addClient(ts, fields) {

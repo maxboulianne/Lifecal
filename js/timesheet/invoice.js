@@ -11,8 +11,18 @@
 import { addDays, parseISODate, toISODate } from "../core/dates.js";
 import { FORMATS } from "../export/xlsx.js";
 import { getClient, getProject, periodEntries, rateFor, TPS_RATE, TVQ_RATE } from "./timesheet.js";
+import { EXPENSE_CATEGORY, expenseTotal, expenseUnitPrice, isMileage, periodExpenses } from "./expenses.js";
 
 export const EXPENSE_CATEGORIES = ["hotel", "food", "material", "phone", "transport"];
+// Nom court de chaque colonne de frais (onglets « Frais » et « Par projet »)
+export const CATEGORY_SHORT = { hotel: "Hôtel", food: "Repas", material: "Matériel", phone: "Cell.", transport: "Transport" };
+// Type de dépense sur une ligne de la facture
+export const EXPENSE_LABELS = {
+  food: "Repas / Food", hotel: "Hôtel / Hotel", transport: "Transport", mileage: "Kilométrage / Mileage",
+  phone: "Cellulaire / Phone", material: "Matériel / Material",
+};
+// Frais généraux du client (sans projet), ex. le cellulaire du mois
+export const GENERAL = "Général";
 
 export const INVOICE_LABELS = {
   title: "FACTURE",
@@ -90,6 +100,15 @@ export function lineDescription(line) {
   return `${line.project}  —  ${line.taskCode ? `${line.taskCode} : ` : ""}${line.description}${line.overtime ? `  (${L.overtime})` : ""}`;
 }
 
+const NUMBER_FR = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 2 });
+const rateText = (rate) => String(rate).replace(".", ",");
+
+// « P-200  —  Repas / Food : Dinner  (2 924 738 VND @ 0,000053931) »
+export function expenseDescription(line) {
+  const foreign = line.currency && line.currency !== "CAD" ? `  (${NUMBER_FR.format(line.origAmount).replace(/\s/g, " ")} ${line.currency} @ ${rateText(line.rate)})` : "";
+  return `${line.project}  —  ${EXPENSE_LABELS[line.type]}${line.description ? ` : ${line.description}` : ""}${foreign}`;
+}
+
 // Contenu de la facture (lignes, sommaire, totaux), commun au fichier Excel
 // et à l'aperçu dans l'application.
 export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
@@ -102,25 +121,39 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
       date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), taskCode: e.taskCode,
       description: e.task || p?.name || "", hours: e.hours, overtime: e.overtime, rate, amount: round2(e.hours * (rate ?? 0)),
     };
-    return { ...line, text: lineDescription(line) };
+    return { ...line, kind: "hours", text: lineDescription(line) };
   });
-  const days = [...new Set(lines.map((l) => l.date))].map((day) => ({
-    date: day, weekday: `${weekdayFr(day)} / ${weekdayEn(day)}`, lines: lines.filter((l) => l.date === day),
+  const expenseLines = periodExpenses(ts, from, to, clientId).map((e) => {
+    const line = {
+      kind: "expense", date: e.date, weekday: weekdayFr(e.date), project: e.projectId ? projectKey(getProject(ts, e.projectId)) : GENERAL,
+      type: e.type, category: EXPENSE_CATEGORY[e.type], description: e.description, qty: e.qty, unit: isMileage(e) ? "KM" : "EA",
+      unitPrice: expenseUnitPrice(e), amount: expenseTotal(e), currency: e.currency, origAmount: e.amount, rate: e.rate,
+    };
+    return { ...line, text: expenseDescription(line) };
+  });
+  // Chaque journée : ses dépenses, puis ses heures (comme sur la facture d'août)
+  const days = [...new Set([...lines, ...expenseLines].map((l) => l.date))].sort().map((day) => ({
+    date: day, weekday: `${weekdayFr(day)} / ${weekdayEn(day)}`,
+    lines: [...expenseLines.filter((l) => l.date === day), ...lines.filter((l) => l.date === day)],
   }));
   const noExpenses = () => Object.fromEntries(EXPENSE_CATEGORIES.map((c) => [c, 0]));
-  const summary = [...new Set(lines.map((l) => l.project))]
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-    .map((project) => {
-      const of = lines.filter((l) => l.project === project);
-      const amount = round2(of.reduce((s, l) => s + l.amount, 0));
-      return {
-        project,
-        regHours: round2(of.filter((l) => !l.overtime).reduce((s, l) => s + l.hours, 0)),
-        otHours: round2(of.filter((l) => l.overtime).reduce((s, l) => s + l.hours, 0)),
-        amount, expenses: noExpenses(), total: amount,
-      };
-    });
+  const projects = [...new Set([...lines, ...expenseLines].map((l) => l.project))]
+    .sort((a, b) => (a === GENERAL) - (b === GENERAL) || a.localeCompare(b, undefined, { numeric: true }));
+  const summary = projects.map((project) => {
+    const of = lines.filter((l) => l.project === project);
+    const ex = expenseLines.filter((l) => l.project === project);
+    const amount = round2(of.reduce((s, l) => s + l.amount, 0));
+    const expenses = noExpenses();
+    for (const l of ex) expenses[l.category] = round2(expenses[l.category] + l.amount);
+    return {
+      project,
+      regHours: round2(of.filter((l) => !l.overtime).reduce((s, l) => s + l.hours, 0)),
+      otHours: round2(of.filter((l) => l.overtime).reduce((s, l) => s + l.hours, 0)),
+      amount, expenses, total: round2(amount + ex.reduce((s, l) => s + l.amount, 0)),
+    };
+  });
   const sum = (k) => round2(summary.reduce((s, r) => s + r[k], 0));
+  const sumExpenses = () => Object.fromEntries(EXPENSE_CATEGORIES.map((c) => [c, round2(summary.reduce((s, r) => s + r.expenses[c], 0))]));
   const subtotal = sum("total");
   const advance = 0;
   const due = round2(subtotal - advance);
@@ -140,9 +173,10 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
       name: client?.name ?? "", attn: client?.contact ? `${L.attn} ${client.contact}` : "", lines: textLines(client?.address), email: client?.email ?? "",
     },
     lines,
+    expenseLines,
     days,
     summary,
-    summaryTotals: { regHours: sum("regHours"), otHours: sum("otHours"), amount: sum("amount"), expenses: noExpenses(), total: subtotal },
+    summaryTotals: { regHours: sum("regHours"), otHours: sum("otHours"), amount: sum("amount"), expenses: sumExpenses(), total: subtotal },
     totals: {
       hours: round2(sum("regHours") + sum("otHours")), subtotal, advance, due, tps, tvq, total: round2(due + tps + tvq),
       terms: business.terms, dueDate: dueDate(date, business.terms),
@@ -220,6 +254,8 @@ const STYLES = {
   tSection: { font: font(9, C.navy, { b: true }) },
   tLabel: { font: font(9, C.ink) },
   tRate: { font: font(9, C.input), numFmt: FORMATS.percent },
+  tAmount: { font: font(9, C.ink), border: under(), numFmt: "#,##0.00" },
+  tRateValue: { font: font(9, C.ink), border: under(), numFmt: "0.000000000" },
   tNote: { font: font(8, C.gray, { i: true }) },
 };
 export const INVOICE_STYLES = STYLES;
@@ -258,12 +294,36 @@ export function invoiceSheets(ts, options) {
   hoursRows.push([
     ...Array.from({ length: 4 }, () => ({ v: "", s: "tTotal" })), { v: "TOTAL", s: "tTotal" },
     { f: any ? `SUM(F2:F${lastHour})` : "0", v: x.hours, s: "tTotalHours" }, { v: "", s: "tTotal" }, { v: "", s: "tTotal" },
-    { f: any ? `SUM(I2:I${lastHour})` : "0", v: x.subtotal, s: "tTotalMoney" },
+    { f: any ? `SUM(I2:I${lastHour})` : "0", v: st.amount, s: "tTotalMoney" },
   ]);
   hoursRows.push([], [{ v: "Saisir les heures ici : la facture et le sommaire par projet se mettent à jour automatiquement.", s: "tNote" }]);
 
-  // ---- « Par projet » : sommaire, frais à saisir, taux de taxes ----
+  // ---- « Frais » : les dépenses, converties en $ CA ----
+  const expenseRows = [["Date", "Jour", "Projet", "Catégorie", "Type", "Description", "Qté", "U/M", "Montant d'origine", "Devise", "Taux ($ CA)", "Prix unit. ($ CA)", "Total ($ CA)"]
+    .map((v) => ({ v, s: "tHead" }))];
+  d.expenseLines.forEach((l, i) => {
+    const r = i + 2;
+    const mileage = l.unit === "KM";
+    expenseRows.push([
+      { v: l.date, s: "tDate" }, { v: l.weekday, s: "tCell" }, { v: l.project, s: "tCell" }, { v: CATEGORY_SHORT[l.category], s: "tCell" },
+      { v: EXPENSE_LABELS[l.type], s: "tText" }, { v: l.description, s: "tText" }, { v: l.qty, s: "tHours" }, { v: l.unit, s: "tCell" },
+      mileage ? { v: "", s: "tText" } : { v: l.origAmount, s: "tAmount" }, { v: l.currency, s: "tCell" },
+      mileage ? { v: "", s: "tText" } : { v: l.rate, s: "tRateValue" },
+      mileage ? { v: l.unitPrice, s: "tMoney" } : { f: `ROUND(I${r}*K${r},2)`, v: l.unitPrice, s: "tMoney" },
+      { f: `G${r}*L${r}`, v: l.amount, s: "tMoney" },
+    ]);
+  });
+  const lastExpense = Math.max(2, expenseRows.length);
+  const expensesTotal = round2(d.expenseLines.reduce((s, l) => s + l.amount, 0));
+  expenseRows.push([
+    ...Array.from({ length: 11 }, (_, i) => ({ v: i === 5 ? "TOTAL" : "", s: "tTotal" })), { v: "", s: "tTotal" },
+    { f: d.expenseLines.length ? `SUM(M2:M${lastExpense})` : "0", v: expensesTotal, s: "tTotalMoney" },
+  ]);
+  expenseRows.push([], [{ v: "Les dépenses notées dans LifeCal ; le sommaire par projet les additionne par catégorie.", s: "tNote" }]);
+
+  // ---- « Par projet » : sommaire, frais par catégorie, taux de taxes ----
   const range = (col) => `Heures!$${col}$2:$${col}$${lastHour}`;
+  const fees = (col) => `Frais!$${col}$2:$${col}$${lastExpense}`;
   const projRows = [["Projet", "Heures rég.", "Heures surtemps", "Heures $", "Hôtel", "Repas", "Matériel", "Cell.", "Transport", "Total"].map((v) => ({ v, s: "tHead" }))];
   d.summary.forEach((p, i) => {
     const r = i + 2;
@@ -272,7 +332,7 @@ export function invoiceSheets(ts, options) {
       { f: `SUMIFS(${range("F")},${range("C")},A${r},${range("G")},"${REGULAR}")`, v: p.regHours, s: "tHours" },
       { f: `SUMIFS(${range("F")},${range("C")},A${r},${range("G")},"${OVERTIME}")`, v: p.otHours, s: "tHours" },
       { f: `SUMIFS(${range("I")},${range("C")},A${r})`, v: p.amount, s: "tMoney" },
-      ...EXPENSE_CATEGORIES.map((c) => ({ v: p.expenses[c], s: "tInput" })),
+      ...EXPENSE_CATEGORIES.map((c) => ({ f: `SUMIFS(${fees("M")},${fees("C")},A${r},${fees("D")},"${CATEGORY_SHORT[c]}")`, v: p.expenses[c], s: "tMoney" })),
       { f: `SUM(D${r}:I${r})`, v: p.total, s: "tMoney" },
     ]);
   });
@@ -287,7 +347,7 @@ export function invoiceSheets(ts, options) {
   projRows.push([{ v: "TPS / GST", s: "tLabel" }, { v: d.tpsRate, s: "tRate" }]);
   const tvqRow = projRows.length + 1;
   projRows.push([{ v: "TVQ / QST", s: "tLabel" }, { v: d.tvqRate, s: "tRate" }]);
-  projRows.push([], [{ v: "Les frais (en bleu) sont à saisir ici; ils s'ajoutent à la facture.", s: "tNote" }]);
+  projRows.push([], [{ v: "Les heures viennent de l'onglet « Heures », les frais de l'onglet « Frais ».", s: "tNote" }]);
 
   // ---- « Facture » ----
   const rows = [];
@@ -367,7 +427,8 @@ export function invoiceSheets(ts, options) {
   fill(r, 4, 9, "headLeft");
   r[10] = { v: L.total, s: "head" };
   merge("D", "J");
-  let source = 2;
+  let source = 2; // ligne correspondante dans « Heures »
+  let feeRow = 2; // ligne correspondante dans « Frais »
   for (const day of d.days) {
     r = row(18);
     r[0] = { v: day.date, s: "day" };
@@ -377,6 +438,18 @@ export function invoiceSheets(ts, options) {
     fill(r, 4, 10, "weekday");
     merge("D", "K");
     for (const l of day.lines) {
+      if (l.kind === "expense") {
+        const f = feeRow++;
+        r = row(16.5);
+        r[0] = { f: `Frais!G${f}`, v: l.qty, s: "qty" };
+        r[1] = { f: `Frais!H${f}`, v: l.unit, s: "unit" };
+        r[2] = { f: `Frais!L${f}`, v: l.unitPrice, s: "price" };
+        r[3] = { v: l.text, s: "desc" };
+        fill(r, 4, 9, "lineBorder");
+        merge("D", "J");
+        r[10] = { f: `A${at()}*C${at()}`, v: l.amount, s: "lineTotal" };
+        continue;
+      }
       const h = source++;
       r = row(16.5);
       r[0] = { f: `Heures!F${h}`, v: l.hours, s: "qty" };
@@ -469,6 +542,7 @@ export function invoiceSheets(ts, options) {
     sheets: [
       { name: "Facture", columns: [7, 5, 10, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 12.5], rows, merges, heights, gridLines: false, print: { orientation: "portrait" }, images: logo ? [logo] : [] },
       { name: "Heures", columns: [12, 10, 11, 9, 40, 9, 11, 10, 13], rows: hoursRows, gridLines: false, print: { orientation: "portrait" } },
+      { name: "Frais", columns: [12, 10, 11, 10, 18, 30, 7, 6, 14, 7, 12, 13, 13], rows: expenseRows, gridLines: false, print: { orientation: "landscape" } },
       { name: "Par projet", columns: [12, 11, 11, 12, 10, 10, 10, 10, 10, 13], rows: projRows, heights: { 1: 22.35 }, gridLines: false, print: { orientation: "landscape" } },
     ],
     styles: STYLES,

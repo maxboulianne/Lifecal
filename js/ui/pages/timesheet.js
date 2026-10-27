@@ -7,6 +7,9 @@ import { fmt, t } from "../../i18n/index.js";
 import {
   activeProjects, dayEntries, dayTotal, getClient, getProject, knownTasks, lastTask, periodSummary, previousWorkday, rateFor, weekTotal,
 } from "../../timesheet/timesheet.js";
+import {
+  CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
+} from "../../timesheet/expenses.js";
 import { foldSection, isFoldOpen } from "../components/fold.js";
 import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
 
@@ -49,6 +52,62 @@ function entryRow(ts, e) {
     <input class="ts-note" data-action="ts-entry-field" data-field="note" data-id="${esc(e.id)}" value="${esc(e.note)}" placeholder="${esc(t("ts.notePlaceholder"))}"
       aria-label="${esc(t("ts.note"))}" autocomplete="off">
   </li>`;
+}
+
+// Taux de change avec le séparateur décimal de la langue (« 0,000053931 »)
+const rateText = (rate) => String(rate ?? "").replace(".", fmt.hours(1.5).replace(/\d/g, ""));
+
+// Une dépense de la journée : type, pour quoi, montant en $ CA (et d'origine).
+function expenseRow(ts, e) {
+  const p = e.projectId ? getProject(ts, e.projectId) : null;
+  const target = p ? p.number || p.name : t("ts.generalShort", { client: getClient(ts, e.clientId)?.name ?? "" });
+  const origin = isMileage(e)
+    ? `${fmt.hours(e.qty)} km × ${fmt.money(e.unitPrice)}`
+    : e.currency !== "CAD" ? `${fmt.hours(e.amount)} ${e.currency} × ${rateText(e.rate)}` : "";
+  return `<li class="ts-expense-row">
+    <span class="ts-expense-icon" aria-hidden="true">${EXPENSE_ICONS[e.type]}</span>
+    <div class="ts-expense-text"><strong>${esc(t(`ts.expenseType.${e.type}`))}</strong>${e.description ? ` · ${esc(e.description)}` : ""}
+      <span class="hint">${esc(target)}${origin ? ` · ${esc(origin)}` : ""}</span></div>
+    <span class="ts-expense-amount">${esc(fmt.money(expenseTotal(e)))}</span>
+    <button type="button" class="check-remove" data-action="ts-expense-remove" data-id="${esc(e.id)}" aria-label="${esc(t("ts.remove"))}">×</button>
+  </li>`;
+}
+
+// Choix « pour quoi » : un projet actif, ou les frais généraux d'un client.
+function targetOptions(ts, projects, chosen) {
+  return `${projects.map((p) => `<option value="p:${esc(p.id)}" ${p.id === chosen ? "selected" : ""}>${esc([p.number, p.name].filter(Boolean).join(" · "))}</option>`).join("")}
+    ${ts.clients.map((c) => `<option value="c:${esc(c.id)}">${esc(t("ts.generalShort", { client: c.name }))}</option>`).join("")}`;
+}
+
+function expensesBlock(ts, date, projects, chosen) {
+  const list = dayExpenses(ts, date);
+  const lastCurrency = [...ts.expenses].sort((a, b) => a.date.localeCompare(b.date)).filter((e) => !isMileage(e)).at(-1)?.currency ?? "CAD";
+  const canAdd = projects.length || ts.clients.length;
+  return `<div class="ts-expenses">
+    <h3>💳 ${t("ts.expenses")}${list.length ? ` <span class="hint">${esc(fmt.money(sumExpenses(list)))}</span>` : ""}</h3>
+    ${list.length ? `<ul class="ts-expense-list">${list.map((e) => expenseRow(ts, e)).join("")}</ul>` : ""}
+    ${canAdd ? `<details class="ts-new-wrap" data-role="expense-wrap">
+      <summary class="btn soft">＋ ${t("ts.addExpense")}</summary>
+      <form class="form ts-new ts-expense-form" data-role="ts-expense" data-date="${date}"
+        data-rates="${esc(JSON.stringify(ts.rates))}" data-mileage="${ts.business.mileageRate}">
+        <div class="ts-expense-types">${EXPENSE_TYPES.map((type, i) => `<label class="ts-project-chip">
+          <input type="radio" name="type" value="${type}" ${i === 0 ? "checked" : ""}><span>${EXPENSE_ICONS[type]} ${t(`ts.expenseType.${type}`)}</span></label>`).join("")}</div>
+        <label>${t("ts.expenseDesc")} <input name="description" placeholder="${esc(t("ts.expenseDescPlaceholder"))}" autocomplete="off"></label>
+        <label>${t("ts.expenseFor")} <select name="target">${targetOptions(ts, projects, chosen)}</select></label>
+        <div class="row" data-role="money-row">
+          <label>${t("ts.amount")} <input name="amount" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "25,50" }))}" autocomplete="off"></label>
+          <label>${t("ts.currency")} <select name="currency">${CURRENCIES.map((c) => `<option ${c === lastCurrency ? "selected" : ""}>${c}</option>`).join("")}</select></label>
+        </div>
+        <label data-role="rate-row" ${lastCurrency === "CAD" ? "hidden" : ""}><span data-role="rate-label">${esc(t("ts.rateFor", { currency: lastCurrency }))}</span>
+          <input name="rate" inputmode="decimal" value="${esc(rateText(ts.rates[lastCurrency]))}" autocomplete="off"></label>
+        <label data-role="km-row" hidden>${t("ts.km")} <input name="km" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "128" }))}" autocomplete="off">
+          <span class="hint">${esc(t("ts.mileageHint", { rate: fmt.money(ts.business.mileageRate) }))}</span></label>
+        <p class="ts-expense-preview" data-role="expense-preview" aria-live="polite"></p>
+        <p class="form-errors" data-role="errors" role="alert"></p>
+        <div class="actions"><button type="submit" class="btn primary">${t("ts.saveExpense")}</button></div>
+      </form>
+    </details>` : ""}
+  </div>`;
 }
 
 function daySection(ts, date, today, selected) {
@@ -99,6 +158,7 @@ function daySection(ts, date, today, selected) {
         <button type="submit" class="btn primary">${t("ts.add")}</button>
       </form>`
       : `<p class="empty-msg small">${t("ts.noProjects")}</p>`}
+    ${expensesBlock(ts, date, projects, chosen)}
   </section>`;
 }
 
@@ -218,6 +278,12 @@ function businessSection(ts) {
         <div class="row">${field("phone", t("ts.phone"), 'type="tel"')}${field("email", t("ts.email"), 'type="email"')}</div>
         <div class="row">${field("tpsNumber", t("ts.tpsNumber"))}${field("tvqNumber", t("ts.tvqNumber"))}</div>
         <div class="row">${field("terms", t("ts.terms"), 'inputmode="numeric"')}${field("nextInvoice", t("ts.nextInvoice"), `placeholder="${esc(t("ts.example", { value: "2026-115" }))}"`)}</div>
+        <label>${t("ts.mileageRate")} <input ${attrs("mileageRate")} value="${esc(fmt.hours(b.mileageRate))}" inputmode="decimal"></label>
+        <h3>${t("ts.rates")}</h3>
+        ${Object.keys(ts.rates).length
+          ? `<div class="ts-rates">${Object.entries(ts.rates).map(([cur, rate]) => `<label>${esc(t("ts.rateFor", { currency: cur }))}
+              <input data-action="ts-rate" data-currency="${cur}" value="${esc(rateText(rate))}" inputmode="decimal" autocomplete="off"></label>`).join("")}</div>`
+          : `<p class="hint">${t("ts.noRates")}</p>`}
       </div>`,
   });
 }
@@ -245,6 +311,7 @@ function exportSection(ts, today, exp) {
   // Un seul client : il est choisi d'office (la facture est pour un client).
   const clientId = exp.clientId || (ts.clients.length === 1 ? ts.clients[0].id : "");
   const s = periodSummary(ts, from, to, clientId || null);
+  const spent = sumExpenses(periodExpenses(ts, from, to, clientId || null));
   return foldSection("ts-export", {
     title: esc(t("ts.exportInvoice")),
     open: isFoldOpen("ts-export", false),
@@ -256,16 +323,17 @@ function exportSection(ts, today, exp) {
       </div>
       <label class="ts-export-client">${t("ts.client")}
         <select data-action="ts-export-client"><option value="">${esc(t("ts.allClients"))}</option>${clientOptions(ts, clientId, { none: false })}</select></label>
-      ${s.projects.length ? `<table class="ts-summary">
+      ${s.projects.length || spent ? `<table class="ts-summary">
           <thead><tr><th>${t("ts.project")}</th><th>${t("ts.hours")}</th><th>${t("ts.rate")}</th><th>${t("ts.amount")}</th></tr></thead>
           <tbody>${s.projects.map((r) => `<tr><td><strong>${esc(r.project?.number ?? "")}</strong> ${esc(r.project?.name ?? "")}
               ${r.overtime ? `<span class="ts-badge">${t("ts.overtime")}</span>` : ""}</td>
             <td>${esc(h(r.hours))}</td><td>${r.rate != null ? esc(fmt.money(r.rate)) : "—"}</td><td>${esc(money(r.amount))}</td></tr>`).join("")}</tbody>
-          <tfoot><tr><th>${t("ts.total")}</th><th>${esc(h(s.hours))}</th><th></th><th>${esc(fmt.money(s.amount))}</th></tr></tfoot>
+          <tfoot>${spent ? `<tr><td colspan="3">💳 ${t("ts.expensesTotal")}</td><td>${esc(fmt.money(spent))}</td></tr>` : ""}
+            <tr><th>${t("ts.total")}</th><th>${esc(h(s.hours))}</th><th></th><th>${esc(fmt.money(s.amount + spent))}</th></tr></tfoot>
         </table>
         <button type="button" class="btn soft" data-action="ts-export" data-from="${from}" data-to="${to}" data-client="${esc(clientId)}">📊 ${t("ts.exportExcel")}</button>`
       : `<p class="ts-empty-export">${t("ts.nothingToExport")}</p>`}
-      ${invoiceBlock(ts, today, clientId, from, to, s.projects.length > 0)}`,
+      ${invoiceBlock(ts, today, clientId, from, to, s.projects.length > 0 || spent > 0)}`,
   });
 }
 
