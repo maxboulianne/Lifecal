@@ -169,29 +169,49 @@ test("tâches : code et description, proposées à nouveau", async () => {
   assert.ok(hours.rows.some((r) => r[5] === "QA-01" && r[6] === "Audit fournisseur"));
 });
 
-test("facture : lignes par jour, sommaire par projet, TPS et TVQ, échéance", async () => {
-  const { invoiceSheet, lineDescription } = await import("../js/timesheet/invoice.js");
+test("facture : lignes par jour, sommaire par projet (rég. / surtemps), TPS et TVQ, échéance", async () => {
+  const { invoiceData, invoiceSheets, lineDescription, logoImage } = await import("../js/timesheet/invoice.js");
   const { nextInvoiceNumber, updateBusiness } = await import("../js/timesheet/timesheet.js");
   let { ts, client } = sample();
-  ts = updateBusiness(ts, { name: "Mon entreprise inc.", terms: 10, tpsNumber: "123 RT0001" });
+  ts = updateBusiness(ts, { name: "Mon entreprise inc.", terms: 10, tpsNumber: "123 RT0001", address: "1 rue A\nVille, Qc" });
   const p = ts.projects.find((x) => x.number === "P-200");
   ts = addEntry(ts, { date: "2026-10-20", projectId: p.id, hours: 2, overtime: true, taskCode: "QA", task: "Audit" });
-  const { sheet, totals } = invoiceSheet(ts, { from: "2026-10-19", to: "2026-10-25", clientId: client.id, number: "2026-115", date: "2026-10-26", po: "PO-9" });
+  const options = { from: "2026-10-19", to: "2026-10-25", clientId: client.id, number: "2026-115", date: "2026-10-26", po: "PO-9" };
+  const d = invoiceData(ts, options);
   // 15,5 h à 68 $ + 2 h de surtemps à 102 $
-  assert.deepEqual(totals, { hours: 17.5, subtotal: 1258, due: 1258, tps: 62.9, tvq: 125.49, total: 1446.39, dueDate: "2026-11-05" });
-  const cells = sheet.rows.flat().filter(Boolean);
-  const find = (v) => cells.find((c) => c.v === v || c === v);
-  assert.ok(find("2026-115") && find("PO-9") && find("Mon entreprise inc.") && find("NET10"));
-  assert.ok(cells.some((c) => typeof c === "string" && c === "P-200 — QA : Audit — Surtemps / Overtime"));
-  // une ligne de sommaire par projet du client (+ surtemps), avec SOMME.SI sur la clé cachée
-  const summary = sheet.rows.filter((r) => typeof r[0]?.v === "string" && /^P-\d/.test(r[0].v));
-  assert.deepEqual(summary.map((r) => [r[0].v, r[2].v, r[4].v]), [["P-100", 2, 136], ["P-200", 13.5, 918], ["P-200 OT", 2, 204]]);
-  assert.match(summary[0][2].f, /^SUMIF\(\$L\$\d+:\$L\$\d+,"[^"]+\|R",\$A\$\d+:\$A\$\d+\)$/);
-  assert.equal(sheet.columns.at(-1).hidden, true);
-  // client sans TVQ
-  const noTvq = invoiceSheet({ ...ts, clients: ts.clients.map((c) => ({ ...c, tvq: false })) }, { from: "2026-10-19", to: "2026-10-25", clientId: client.id, number: "1", date: "2026-10-26" });
+  assert.deepEqual(d.totals, { hours: 17.5, subtotal: 1258, advance: 0, due: 1258, tps: 62.9, tvq: 125.49, total: 1446.39, terms: 10, dueDate: "2026-11-05" });
+  assert.deepEqual(d.summary.map((r) => [r.project, r.regHours, r.otHours, r.amount]), [["P-100", 2, 0, 136], ["P-200", 13.5, 2, 1122]]);
+  assert.equal(d.addressLine, "1 rue A, Ville, Qc");
+  assert.equal(d.days[0].weekday, "Lundi / Monday");
+  assert.equal(lineDescription({ project: "P-200", taskCode: "QA", description: "Audit", overtime: true }), "P-200  —  QA : Audit  (Surtemps / Overtime)");
+  assert.equal(lineDescription({ project: "P-200", taskCode: "", description: "Projet A", overtime: false }), "P-200  —  Projet A");
+
+  const { sheets, styles, totals } = invoiceSheets(ts, options);
+  assert.deepEqual(sheets.map((x) => x.name), ["Facture", "Heures", "Par projet"]);
+  assert.equal(totals.total, 1446.39);
+  const [facture, heures, parProjet] = sheets;
+  const cells = facture.rows.flat().filter(Boolean);
+  assert.ok(cells.some((c) => c.v === "2026-115") && cells.some((c) => c.v === "PO-9") && cells.some((c) => c.v === "NET10"));
+  // Les lignes de la facture se réfèrent à l'onglet « Heures » ; le sommaire à « Par projet »
+  assert.ok(cells.some((c) => c.f === "Heures!F2"));
+  assert.ok(cells.some((c) => c.f === "'Par projet'!B2" && c.v === 2));
+  assert.match(parProjet.rows[2][2].f, /^SUMIFS\(Heures!\$F\$2:\$F\$\d+,Heures!\$C\$2:\$C\$\d+,A3,Heures!\$G\$2:\$G\$\d+,"Surtemps"\)$/);
+  assert.equal(heures.rows.length - 4, d.lines.length);
+  // TOTAL À PAYER : formule et valeur ; taux de taxes dans « Par projet »
+  const pay = facture.rows.find((r) => r[6]?.v === "TOTAL À PAYER (CAD)");
+  assert.deepEqual([pay[10].v, pay[10].s], [1446.39, "payValue"]);
+  assert.ok(parProjet.rows.some((r) => r[0]?.v === "TPS / GST" && r[1].v === 0.05));
+  // Client sans TVQ : taux à 0
+  const noTvq = invoiceData({ ...ts, clients: ts.clients.map((c) => ({ ...c, tvq: false })) }, options);
   assert.equal(noTvq.totals.tvq, 0);
-  assert.equal(lineDescription(p, { overtime: false }), "P-200 — Projet A");
+  // Logo : image PNG dans la facture
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  assert.deepEqual(logoImage(png, { width: 300, height: 100 }), { data: Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]), type: "png", col: 0, row: 0, width: 219, height: 73 });
+  assert.equal(logoImage("javascript:alert(1)"), null);
+  const withLogo = invoiceSheets(updateBusiness(ts, { logo: png, logoSize: { width: 300, height: 100 } }), options);
+  const bytes = buildXlsx({ sheets: withLogo.sheets, styles: withLogo.styles });
+  const text = new TextDecoder("latin1").decode(bytes);
+  assert.ok(text.includes("xl/media/image1_1.png") && text.includes("xl/drawings/drawing1.xml"));
+  assert.ok(buildXlsx({ sheets, styles }).length > 2000);
   assert.equal(nextInvoiceNumber("2026-115"), "2026-116");
-  assert.ok(buildXlsx({ sheets: [sheet] }).length > 1000);
 });

@@ -206,6 +206,12 @@ function businessSection(ts) {
     open: isFoldOpen("ts-business", false),
     body: `<p class="hint">${t("ts.businessHint")}</p>
       <div class="form ts-card">
+        <div class="ts-logo">
+          ${b.logo ? `<img src="${esc(b.logo)}" alt="${esc(t("ts.logo"))}">` : `<span class="hint">${t("ts.noLogo")}</span>`}
+          <label class="btn soft">🖼️ ${t(b.logo ? "ts.changeLogo" : "ts.addLogo")}
+            <input type="file" accept="image/png,image/jpeg,image/*" data-action="ts-logo" hidden></label>
+          ${b.logo ? `<button type="button" class="btn link danger" data-action="ts-logo-remove">${t("ts.removeLogo")}</button>` : ""}
+        </div>
         ${field("name", t("ts.businessName"))}
         ${field("contact", t("ts.yourName"))}
         <label>${t("ts.address")} <textarea ${attrs("address")} rows="3">${esc(b.address)}</textarea></label>

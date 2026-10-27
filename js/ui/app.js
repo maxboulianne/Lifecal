@@ -43,10 +43,10 @@ import { settingsPage } from "./pages/settings.js";
 import { rangeDates, timesheetPage } from "./pages/timesheet.js";
 import {
   addClient, addEntry as addTsEntry, addProject, copyDay, deleteClient, deleteProject, getClient, getProject, parseHours, projectEntryCount,
-  nextInvoiceNumber, projectLabel, removeEntry as removeTsEntry, updateBusiness, updateClient, updateEntry as updateTsEntry, updateProject,
+  LOGO_MAX_LENGTH, nextInvoiceNumber, projectLabel, removeEntry as removeTsEntry, updateBusiness, updateClient, updateEntry as updateTsEntry, updateProject,
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
-import { invoiceData, invoiceSheet } from "../timesheet/invoice.js";
+import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
 import { invoicePreview } from "./components/invoice-view.js";
 import { XLSX_TYPE, buildXlsx } from "../export/xlsx.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
@@ -887,6 +887,7 @@ export class App {
     "ts-export": (el) => this.#exportTimesheet(el.dataset.from, el.dataset.to, el.dataset.client),
     "ts-invoice": (el) => this.#createInvoice(this.#invoiceOptions(el.closest("[data-role=ts-invoice]"))),
     // Aperçu de la facture dans l'application, avant de créer le fichier.
+    "ts-logo-remove": () => this.#updateTimesheet(updateBusiness(this.repo.timesheet(), { logo: "", logoSize: null })),
     "ts-invoice-preview": (el) => {
       const options = this.#invoiceOptions(el.closest("[data-role=ts-invoice]"));
       if (!options) return;
@@ -894,8 +895,14 @@ export class App {
       openModal(invoicePreview(invoiceData(this.repo.timesheet(), options)), { labelledBy: "invoice-title" });
       // Sur un téléphone, la page entière tient dans la largeur (on peut zoomer avec deux doigts).
       const doc = $(".invoice-doc");
-      const scale = Math.min(1, $(".invoice-scroll").clientWidth / doc.offsetWidth);
-      if (scale < 1) doc.style.zoom = scale.toFixed(3);
+      const box = $(".invoice-scroll");
+      const scale = Math.min(1, box.clientWidth / doc.offsetWidth);
+      if (scale < 1) {
+        doc.style.transform = `scale(${scale.toFixed(3)})`;
+        doc.style.transformOrigin = "top left";
+        box.style.height = `${Math.ceil(doc.offsetHeight * scale)}px`;
+        box.style.overflow = "hidden";
+      }
     },
     "ts-invoice-xlsx": async () => {
       const options = this.#invoicePending;
@@ -1025,6 +1032,11 @@ export class App {
         form.querySelector(`[name=repeat][value=${FREQ.DAILY}]`).checked = true;
       }
       syncRepeatFields(form);
+    }
+    if (el.dataset.action === "ts-logo" && el.files?.[0]) {
+      await this.#setLogo(el.files[0]);
+      el.value = "";
+      return;
     }
     if (el.dataset.action?.startsWith("ts-")) return this.#onTimesheetChange(el);
     // Choisir un projet propose sa dernière tâche (code et description).
@@ -1413,6 +1425,37 @@ export class App {
     await this.#shareFile(new File([buildXlsx({ sheets })], `${t("ts.fileName")}-${from}_${to}.xlsx`, { type: XLSX_TYPE }));
   }
 
+  // Logo de l'entreprise : réduit (au plus 600 × 300 px) et gardé en PNG dans les données.
+  async #setLogo(file) {
+    try {
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = reject;
+        i.src = url;
+      });
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, 600 / img.naturalWidth, 300 / img.naturalHeight);
+      const width = Math.max(1, Math.round(img.naturalWidth * scale));
+      const height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff"; // fond blanc, comme la facture
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      let logo = canvas.toDataURL("image/png");
+      if (logo.length > LOGO_MAX_LENGTH) logo = canvas.toDataURL("image/jpeg", 0.85);
+      if (logo.length > LOGO_MAX_LENGTH) return toast(t("ts.errors.logo"));
+      await this.#updateTimesheet(updateBusiness(this.repo.timesheet(), { logo, logoSize: { width, height } }));
+      toast(t("ts.logoSaved"));
+    } catch {
+      toast(t("ts.errors.logo"));
+    }
+  }
+
   // Numéro, date, PO, client et période de la facture, lus dans le bloc « Facture ».
   #invoiceOptions(box) {
     const read = (name) => $(`[name=${name}]`, box).value.trim();
@@ -1431,14 +1474,13 @@ export class App {
     if (!options) return;
     const { clientId, from, to, number, date, po } = options;
     let ts = this.repo.timesheet();
-    const { sheet, totals } = invoiceSheet(ts, { from, to, clientId, number, date, po });
-    const details = timesheetSheets(ts, { from, to, clientId, weekday: (iso) => fmt.weekdayShort(parseISODate(iso)), labels: this.#timesheetLabels() });
+    const { sheets, styles, totals } = invoiceSheets(ts, { from, to, clientId, number, date, po });
     // Retenir le PO du client et proposer le numéro suivant la prochaine fois.
     ts = updateClient(ts, clientId, { po });
     ts = updateBusiness(ts, { nextInvoice: nextInvoiceNumber(number) });
     await this.#updateTimesheet(ts);
     const name = `${t("ts.invoiceFile")}-${number.replace(/[^\w.-]+/g, "_")}.xlsx`;
-    await this.#shareFile(new File([buildXlsx({ sheets: [sheet, ...details] })], name, { type: XLSX_TYPE }));
+    await this.#shareFile(new File([buildXlsx({ sheets, styles })], name, { type: XLSX_TYPE }));
     toast(t("ts.invoiceReady", { total: fmt.money(totals.total) }));
   }
 

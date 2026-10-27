@@ -612,4 +612,11 @@ export default {
   "ts.invoicePreview": "Xem trước hóa đơn",
   "ts.invoicePreviewHint": "Kiểm tra hóa đơn. Sau đó tạo tệp Excel, hoặc in hay lưu thành PDF.",
   "ts.printInvoice": "In hoặc PDF",
+  "ts.logo": "Logo",
+  "ts.noLogo": "Chưa có logo: logo sẽ hiện ở góc trên bên trái hóa đơn.",
+  "ts.addLogo": "Thêm logo",
+  "ts.changeLogo": "Đổi logo",
+  "ts.removeLogo": "Xóa logo",
+  "ts.logoSaved": "Đã lưu logo.",
+  "ts.errors.logo": "Không dùng được ảnh này. Hãy thử ảnh PNG hoặc JPEG nhỏ hơn.",
 };

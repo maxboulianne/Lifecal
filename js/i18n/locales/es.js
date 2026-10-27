@@ -615,4 +615,11 @@ export default {
   "ts.invoicePreview": "Vista previa de la factura",
   "ts.invoicePreviewHint": "Revisa la factura. Luego crea el archivo Excel, o imprímela o guárdala en PDF.",
   "ts.printInvoice": "Imprimir o PDF",
+  "ts.logo": "Logotipo",
+  "ts.noLogo": "Sin logotipo: aparecerá arriba a la izquierda de la factura.",
+  "ts.addLogo": "Añadir el logotipo",
+  "ts.changeLogo": "Cambiar el logotipo",
+  "ts.removeLogo": "Quitar el logotipo",
+  "ts.logoSaved": "Logotipo guardado.",
+  "ts.errors.logo": "No se pudo usar esta imagen. Prueba con una imagen PNG o JPEG más pequeña.",
 };

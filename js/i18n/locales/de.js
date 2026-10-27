@@ -615,4 +615,11 @@ export default {
   "ts.invoicePreview": "Rechnungsvorschau",
   "ts.invoicePreviewHint": "Prüfe die Rechnung. Erstelle dann die Excel-Datei oder drucke sie bzw. speichere sie als PDF.",
   "ts.printInvoice": "Drucken oder PDF",
+  "ts.logo": "Logo",
+  "ts.noLogo": "Kein Logo: Es erscheint oben links auf der Rechnung.",
+  "ts.addLogo": "Logo hinzufügen",
+  "ts.changeLogo": "Logo ändern",
+  "ts.removeLogo": "Logo entfernen",
+  "ts.logoSaved": "Logo gespeichert.",
+  "ts.errors.logo": "Dieses Bild konnte nicht verwendet werden. Versuche ein kleineres PNG- oder JPEG-Bild.",
 };

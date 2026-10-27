@@ -7,8 +7,9 @@
 //             (vide : 1,5 × le taux régulier)
 //   entries   [{ id, date, projectId, hours, overtime, taskCode, task, note }]
 //             une ligne d'heures d'une journée ; taskCode / task : code et description de la tâche
-//   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice }
-//             mon entreprise, pour la facture (terms : jours pour payer, ex. 10 = NET10)
+//   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, logo, logoSize }
+//             mon entreprise, pour la facture (terms : jours pour payer, ex. 10 = NET10 ;
+//             logo : image PNG ou JPEG en data URL, logoSize : { width, height } en pixels)
 // Fonctions pures : elles retournent toujours de nouvelles valeurs.
 
 import { addDays, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
@@ -22,7 +23,7 @@ export const BUSINESS_FIELDS = ["name", "contact", "address", "phone", "email", 
 export const DEFAULT_TERMS = 10;
 
 export function emptyBusiness() {
-  return { name: "", contact: "", address: "", phone: "", email: "", tpsNumber: "", tvqNumber: "", terms: DEFAULT_TERMS, nextInvoice: "" };
+  return { name: "", contact: "", address: "", phone: "", email: "", tpsNumber: "", tvqNumber: "", terms: DEFAULT_TERMS, nextInvoice: "", logo: "", logoSize: null };
 }
 
 export function emptyTimesheet() {
@@ -37,6 +38,15 @@ const num = (v) => {
 
 // Un taux : un nombre plus grand que 0, sinon « pas de taux ».
 const rateOrNull = (v) => (num(v) !== null && num(v) > 0 && v !== "" ? num(v) : null);
+
+// Logo : une image PNG ou JPEG en data URL (taille raisonnable), avec ses dimensions.
+export const LOGO_MAX_LENGTH = 400_000;
+function validLogo(b) {
+  const ok = typeof b.logo === "string" && /^data:image\/(png|jpeg);base64,/.test(b.logo) && b.logo.length <= LOGO_MAX_LENGTH;
+  const w = num(b.logoSize?.width);
+  const h = num(b.logoSize?.height);
+  return { logo: ok ? b.logo : "", logoSize: ok && w > 0 && h > 0 ? { width: w, height: h } : null };
+}
 
 export function normalizeTimesheet(raw) {
   const ts = raw && typeof raw === "object" ? raw : {};
@@ -60,6 +70,7 @@ export function normalizeTimesheet(raw) {
     ...emptyBusiness(),
     ...Object.fromEntries(BUSINESS_FIELDS.filter((k) => k !== "terms").map((k) => [k, k === "address" ? String(b[k] ?? "").trim() : str(b[k])])),
     terms: terms !== null && terms >= 0 && b.terms !== "" ? Math.round(terms) : DEFAULT_TERMS,
+    ...validLogo(b),
   };
   return { clients, projects, entries, business };
 }

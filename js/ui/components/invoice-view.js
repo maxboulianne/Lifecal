@@ -1,58 +1,73 @@
 // Aperçu de la facture dans l'application : même présentation que la facture
-// Excel (en-tête, facturé à / expédié à, lignes par jour, sommaire par projet,
-// totaux, coordonnées). Imprimable ou enregistrable en PDF.
+// Excel approuvée (logo, bleu marine et orange). Imprimable ou enregistrable en PDF.
 
 import { esc } from "../../core/dom.js";
 import { fmt, t } from "../../i18n/index.js";
-import { CATEGORY_LABELS, EXPENSE_CATEGORIES, INVOICE_LABELS as L, businessLine, taxNumbersLine } from "../../timesheet/invoice.js";
+import { CATEGORY_LABELS, EXPENSE_CATEGORIES, INVOICE_LABELS as L } from "../../timesheet/invoice.js";
 
+// Montants et heures comme dans Excel : « 1 075,02 $ », « 4,50 », « – » pour zéro.
 const money = (n) => esc(fmt.money(n));
-const dash = (n) => (n ? money(n) : "-");
+const moneyDash = (n) => (n ? money(n) : "–");
 const hours = (n) => esc(fmt.fixed2(n));
+const hoursDash = (n) => (n ? hours(n) : "–");
+const lines = (text) => esc(text).replace(/\n/g, "<br>");
 
 function header(d) {
   const b = d.business;
-  return `<header class="inv-head">
-    <div>
-      <h1 class="inv-title">${L.title}</h1>
+  return `<header class="inv-top">
+    <div class="inv-logo">${d.logo ? `<img src="${esc(d.logo)}" alt="">` : ""}</div>
+    <div class="inv-heading"><h1>${L.title}</h1><p>${L.subtitle}</p></div>
+  </header>
+  <div class="inv-rule"></div>
+  <div class="inv-meta">
+    <div class="inv-from">
       <p class="inv-company">${esc(b.name)}</p>
-      <p class="inv-small">${esc(businessLine(d))}</p>
-      ${b.email ? `<p class="inv-small">${esc(b.email)}</p>` : ""}
+      <p>${esc(d.addressLine)}</p>
+      <p>${esc(d.contactLine)}</p>
+      ${b.tpsNumber ? `<p class="inv-muted">${L.tps} ${esc(b.tpsNumber)}</p>` : ""}
+      ${b.tvqNumber ? `<p class="inv-muted">${L.tvq} ${esc(b.tvqNumber)}</p>` : ""}
     </div>
-    <table class="inv-box inv-meta">
-      <tr><th>${L.invoice}</th><td><strong>${esc(d.number)}</strong></td></tr>
+    <table class="inv-refs">
+      <tr><th>${L.number}</th><td class="inv-number">${esc(d.number)}</td></tr>
       <tr><th>${L.date}</th><td>${esc(d.date)}</td></tr>
       <tr><th>${L.po}</th><td>${esc(d.po)}</td></tr>
+      <tr><th>${L.terms}</th><td>NET${esc(d.totals.terms)}</td></tr>
+      <tr><th>${L.dueDate}</th><td class="inv-due">${esc(d.totals.dueDate)}</td></tr>
     </table>
-  </header>
-  <div class="inv-parties">
-    ${[L.billedTo, L.shippedTo].map((title) => `<div><p class="inv-label">${title}</p>${d.clientLines.map((l) => `<p>${esc(l)}</p>`).join("")}</div>`).join("")}
   </div>`;
 }
 
-function lines(d) {
+function parties(d) {
+  const c = d.client;
+  const block = (title, withEmail) => `<div>
+    <p class="inv-kicker">${title}</p>
+    <p class="inv-party">${esc(c.name)}</p>
+    ${[c.attn, ...c.lines].filter(Boolean).map((l) => `<p>${esc(l)}</p>`).join("")}
+    ${withEmail && c.email ? `<p class="inv-muted">${esc(c.email)}</p>` : ""}
+  </div>`;
+  return `<div class="inv-parties">${block(L.billedTo, true)}${block(L.shippedTo, false)}</div>`;
+}
+
+function lineTable(d) {
   return `<table class="inv-lines">
-    <thead><tr><th>${L.qty}</th><th>${L.unit}</th><th>${L.unitPrice}</th><th class="inv-desc">${L.description}</th><th>${L.totalPrice}</th></tr></thead>
-    ${d.days.map((day) => `<tbody>
-      <tr class="inv-day"><td colspan="3"></td><td colspan="2"><strong>${esc(day.date)} ${esc(day.weekday)}</strong></td></tr>
-      ${day.lines.map((l) => `<tr>
-        <td class="num">${hours(l.hours)}</td><td>${l.unit}</td><td class="num">${l.rate != null ? money(l.rate) : ""}</td>
-        <td class="inv-desc">${esc(l.description)}</td><td class="num">${money(l.amount)}</td></tr>`).join("")}
-    </tbody>`).join("")}
+    <thead><tr><th>${lines(L.qty)}</th><th>${L.unit}</th><th>${lines(L.unitPrice)}</th><th class="inv-desc">${L.description}</th><th>${L.total}</th></tr></thead>
+    <tbody>${d.days.map((day) => `<tr class="inv-day"><td colspan="3">${esc(day.date)}</td><td colspan="2">${esc(day.weekday)}</td></tr>
+      ${day.lines.map((l) => `<tr><td class="num">${hours(l.hours)}</td><td class="inv-unit">HR</td><td class="num">${moneyDash(l.rate)}</td>
+        <td class="inv-desc">${esc(l.text)}</td><td class="num inv-strong">${moneyDash(l.amount)}</td></tr>`).join("")}`).join("")}
+    </tbody>
   </table>`;
 }
 
 function summary(d) {
   const s = d.summaryTotals;
+  const cells = (r, h) => `<${h} class="num">${hoursDash(r.regHours)}</${h}><${h} class="num">${hoursDash(r.otHours)}</${h}><${h} class="num">${moneyDash(r.amount)}</${h}>
+    ${EXPENSE_CATEGORIES.map((c) => `<${h} class="num">${moneyDash(r.expenses[c])}</${h}>`).join("")}<${h} class="num">${moneyDash(r.total)}</${h}>`;
   return `<p class="inv-section">${L.summary}</p>
-  <table class="inv-box inv-summary">
-    <thead><tr><th>${L.project}</th><th>${L.hours}</th><th>${L.rate}</th><th>${L.hoursAmount}</th>
-      ${EXPENSE_CATEGORIES.map((c) => `<th>${CATEGORY_LABELS[c]}</th>`).join("")}<th>${L.totals}</th></tr></thead>
-    <tbody>${d.summary.map((r) => `<tr><td>${esc(r.label)}</td><td class="num">${hours(r.hours)}</td>
-      <td class="num">${r.rate != null ? money(r.rate) : ""}</td><td class="num">${dash(r.amount)}</td>
-      ${EXPENSE_CATEGORIES.map((c) => `<td class="num">${dash(r.expenses[c])}</td>`).join("")}<td class="num">${dash(r.total)}</td></tr>`).join("")}</tbody>
-    <tfoot><tr><th>${L.totals}</th><th class="num">${hours(s.hours)}</th><th></th><th class="num">${dash(s.amount)}</th>
-      ${EXPENSE_CATEGORIES.map((c) => `<th class="num">${dash(s.expenses[c])}</th>`).join("")}<th class="num">${dash(s.total)}</th></tr></tfoot>
+  <table class="inv-summary">
+    <thead><tr>${[L.project, L.regHours, L.otHours, L.hoursAmount, ...EXPENSE_CATEGORIES.map((c) => CATEGORY_LABELS[c]), L.total]
+      .map((h) => `<th>${lines(h)}</th>`).join("")}</tr></thead>
+    <tbody>${d.summary.map((r) => `<tr><td>${esc(r.project)}</td>${cells(r, "td")}</tr>`).join("")}</tbody>
+    <tfoot><tr><th>${L.totals}</th>${cells(s, "th")}</tr></tfoot>
   </table>`;
 }
 
@@ -60,30 +75,33 @@ function footer(d) {
   const b = d.business;
   const x = d.totals;
   return `<div class="inv-foot">
-    <div class="inv-contact">
-      <p class="inv-label">${L.requests}</p>
-      ${[b.contact, b.phone, b.email].filter(Boolean).map((l) => `<p>${esc(l)}</p>`).join("")}
-      <p class="inv-label">${L.cheque}</p>
-      ${[b.name, L.attn, ...d.addressLines].filter(Boolean).map((l) => `<p>${esc(l)}</p>`).join("")}
+    <div class="inv-pay-to">
+      <p class="inv-kicker">${L.cheque}</p>
+      <p class="inv-company">${esc(b.name)}</p>
+      <p>${L.receivable}</p>
+      <p>${esc(d.addressLine)}</p>
+      <p class="inv-kicker">${L.requests}</p>
+      <p>${esc(d.requestsLine)}</p>
     </div>
-    <table class="inv-box inv-totals">
-      <tr><th>${L.subtotal}</th><td>${money(x.subtotal)}</td></tr>
-      <tr><th>${L.advance}</th><td>${money(x.advance)}</td></tr>
-      <tr><th>${L.due}</th><td>${money(x.due)}</td></tr>
-      <tr><th>${L.tps}</th><td>${money(x.tps)}</td></tr>
-      <tr><th>${L.tvq}</th><td>${money(x.tvq)}</td></tr>
-      <tr><th>${L.freight}</th><td>${L.included}</td></tr>
-      <tr class="inv-pay"><th>${L.pay}</th><td>${money(x.total)}</td></tr>
-      <tr><th>${L.terms}</th><td>NET${esc(x.terms)}</td></tr>
-      <tr><th>${L.dueDate}</th><td>${esc(x.dueDate)}</td></tr>
-    </table>
+    <div class="inv-totals">
+      <table>
+        <tr><th>${L.subtotal}</th><td>${moneyDash(x.subtotal)}</td></tr>
+        <tr><th>${L.advance}</th><td>${moneyDash(x.advance)}</td></tr>
+        <tr class="inv-strong"><th>${L.due}</th><td>${moneyDash(x.due)}</td></tr>
+        <tr><th>${L.tpsLine}</th><td>${moneyDash(x.tps)}</td></tr>
+        <tr><th>${L.tvqLine}</th><td>${moneyDash(x.tvq)}</td></tr>
+        <tr><th>${L.freight}</th><td>${L.included}</td></tr>
+      </table>
+      <div class="inv-pay"><span>${L.pay}</span><strong>${money(x.total)}</strong></div>
+      <p class="inv-due-line">${L.dueDate} : ${esc(x.dueDate)}  ·  NET${esc(x.terms)}</p>
+    </div>
   </div>
-  <p class="inv-small">${esc(taxNumbersLine(b))}</p>
+  <div class="inv-rule thin"></div>
   <p class="inv-thanks">${L.thanks}</p>`;
 }
 
-// La facture seule (papier blanc), réutilisée pour l'impression.
-export const invoiceDocument = (d) => `<article class="invoice-doc" lang="fr-CA">${header(d)}${lines(d)}${summary(d)}${footer(d)}</article>`;
+// La facture seule (feuille blanche), réutilisée pour l'impression.
+export const invoiceDocument = (d) => `<article class="invoice-doc" lang="fr-CA">${header(d)}${parties(d)}${lineTable(d)}${summary(d)}${footer(d)}</article>`;
 
 // Fenêtre d'aperçu : la facture et ses boutons.
 export function invoicePreview(d) {

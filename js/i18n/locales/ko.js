@@ -612,4 +612,11 @@ export default {
   "ts.invoicePreview": "청구서 미리보기",
   "ts.invoicePreviewHint": "청구서를 확인하세요. 그다음 Excel 파일을 만들거나 인쇄하거나 PDF로 저장하세요.",
   "ts.printInvoice": "인쇄 또는 PDF",
+  "ts.logo": "로고",
+  "ts.noLogo": "로고 없음: 청구서 왼쪽 위에 표시돼요.",
+  "ts.addLogo": "로고 추가",
+  "ts.changeLogo": "로고 변경",
+  "ts.removeLogo": "로고 삭제",
+  "ts.logoSaved": "로고를 저장했어요.",
+  "ts.errors.logo": "이 이미지를 사용할 수 없어요. 더 작은 PNG 또는 JPEG 이미지를 사용해 보세요.",
 };
