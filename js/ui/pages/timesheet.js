@@ -3,13 +3,14 @@
 
 import { addDays, parseISODate, startOfWeek, toISODate } from "../../core/dates.js";
 import { esc } from "../../core/dom.js";
-import { fmt, t } from "../../i18n/index.js";
+import { fmt, getLanguage, t } from "../../i18n/index.js";
 import {
-  activeProjects, dayEntries, dayTotal, getClient, getProject, knownTasks, lastTask, periodSummary, previousWorkday, rateFor, weekTotal,
+  activeProjects, dayEntries, dayTotal, getClient, getProject, lastTask, periodSummary, previousWorkday, rateFor, weekTotal,
 } from "../../timesheet/timesheet.js";
 import {
   CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
 } from "../../timesheet/expenses.js";
+import { getTask, otherTasks, quickTasks } from "../../timesheet/tasks.js";
 import { foldSection, isFoldOpen } from "../components/fold.js";
 import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
 
@@ -33,6 +34,21 @@ const money = (n) => (n != null ? fmt.money(n) : "—");
 const rateValue = (n) => (n != null ? esc(fmt.hours(n)) : "");
 const step = (n, text) => `<p class="ts-step"><span class="ts-step-n" aria-hidden="true">${n}</span> ${text}</p>`;
 
+export const CUSTOM_TASK = "__custom";
+
+// Liste des tâches : sélection rapide, puis les autres ; un code hors catalogue
+// (ancienne saisie) reste choisi tel quel.
+function taskOptions(ts, code, { custom = false } = {}) {
+  const option = (task) => `<option value="${esc(task.code)}" data-task="${esc(task.description)}" data-scope="${esc(task.scope)}"
+    ${task.code === code ? "selected" : ""}>${esc(task.code)} — ${esc(task.description)}</option>`;
+  const legacy = code && !getTask(ts, code) && code !== CUSTOM_TASK;
+  return `<option value="" ${code ? "" : "selected"}>${esc(t("ts.noTask"))}</option>
+    ${legacy ? `<option value="${esc(code)}" selected>${esc(code)}</option>` : ""}
+    ${quickTasks(ts).length ? `<optgroup label="${esc(t("ts.quickTasks"))}">${quickTasks(ts).map(option).join("")}</optgroup>` : ""}
+    ${otherTasks(ts).length ? `<optgroup label="${esc(t("ts.otherTasks"))}">${otherTasks(ts).map(option).join("")}</optgroup>` : ""}
+    ${custom ? `<option value="${CUSTOM_TASK}" ${code === CUSTOM_TASK ? "selected" : ""}>✏️ ${esc(t("ts.customTask"))}</option>` : ""}`;
+}
+
 function entryRow(ts, e) {
   const p = getProject(ts, e.projectId);
   const client = getClient(ts, p?.clientId);
@@ -43,10 +59,10 @@ function entryRow(ts, e) {
       <input class="ts-hours" data-action="ts-hours" data-id="${esc(e.id)}" value="${esc(fmt.hours(e.hours))}" inputmode="decimal" autocomplete="off"></label>
     <button type="button" class="check-remove" data-action="ts-remove" data-id="${esc(e.id)}" aria-label="${esc(t("ts.remove"))}">×</button>
     <div class="ts-entry-task">
-      <input data-action="ts-entry-field" data-field="taskCode" data-id="${esc(e.id)}" value="${esc(e.taskCode)}" list="ts-task-codes"
-        placeholder="${esc(t("ts.taskCode"))}" aria-label="${esc(t("ts.taskCode"))}" autocomplete="off">
-      <input data-action="ts-entry-field" data-field="task" data-id="${esc(e.id)}" value="${esc(e.task)}"
-        placeholder="${esc(t("ts.taskDesc"))}" aria-label="${esc(t("ts.taskDesc"))}" autocomplete="off">
+      <select data-action="ts-entry-task" data-id="${esc(e.id)}" aria-label="${esc(t("ts.task"))}">${taskOptions(ts, e.taskCode)}</select>
+      ${e.taskCode && !getTask(ts, e.taskCode) && e.task ? `<span class="hint">${esc(e.task)}</span>` : ""}
+      <input data-action="ts-entry-field" data-field="work" data-id="${esc(e.id)}" value="${esc(e.work)}"
+        placeholder="${esc(t("ts.workPlaceholder"))}" aria-label="${esc(t("ts.work"))}" autocomplete="off">
     </div>
     <label class="ts-ot-toggle"><input type="checkbox" data-action="ts-entry-ot" data-id="${esc(e.id)}" ${e.overtime ? "checked" : ""}> ${t("ts.overtime")}</label>
     <input class="ts-note" data-action="ts-entry-field" data-field="note" data-id="${esc(e.id)}" value="${esc(e.note)}" placeholder="${esc(t("ts.notePlaceholder"))}"
@@ -69,70 +85,132 @@ function expenseRow(ts, e) {
     <div class="ts-expense-text"><strong>${esc(t(`ts.expenseType.${e.type}`))}</strong>${e.description ? ` · ${esc(e.description)}` : ""}
       <span class="hint">${esc(target)}${origin ? ` · ${esc(origin)}` : ""}</span></div>
     <span class="ts-expense-amount">${esc(fmt.money(expenseTotal(e)))}</span>
+    <button type="button" class="ts-expense-edit-btn" data-action="ts-expense-edit" data-id="${esc(e.id)}" aria-label="${esc(t("ts.editExpense"))}" title="${esc(t("ts.editExpense"))}">✏️</button>
     <button type="button" class="check-remove" data-action="ts-expense-remove" data-id="${esc(e.id)}" aria-label="${esc(t("ts.remove"))}">×</button>
   </li>`;
 }
 
 // Choix « pour quoi » : un projet actif, ou les frais généraux d'un client.
-function targetOptions(ts, projects, chosen) {
-  return `${projects.map((p) => `<option value="p:${esc(p.id)}" ${p.id === chosen ? "selected" : ""}>${esc([p.number, p.name].filter(Boolean).join(" · "))}</option>`).join("")}
-    ${ts.clients.map((c) => `<option value="c:${esc(c.id)}">${esc(t("ts.generalShort", { client: c.name }))}</option>`).join("")}`;
+function targetOptions(ts, projects, chosen, selected, editing) {
+  // Une dépense modifiée garde son projet, même archivé depuis.
+  const list = editing?.projectId && !projects.some((p) => p.id === editing.projectId)
+    ? [...projects, getProject(ts, editing.projectId)].filter(Boolean) : projects;
+  return `${list.map((p) => `<option value="p:${esc(p.id)}" ${`p:${p.id}` === selected ? "selected" : ""}>${esc([p.number, p.name].filter(Boolean).join(" · "))}</option>`).join("")}
+    ${ts.clients.map((c) => `<option value="c:${esc(c.id)}" ${`c:${c.id}` === selected ? "selected" : ""}>${esc(t("ts.generalShort", { client: c.name }))}</option>`).join("")}`;
 }
 
-function expensesBlock(ts, date, projects, chosen) {
+// Nom de la devise dans la langue choisie (« AED — dirham des Émirats arabes unis »)
+function currencyLabel(code) {
+  try {
+    const name = new Intl.DisplayNames([getLanguage(), "en"], { type: "currency" }).of(code);
+    return name && name !== code ? `${code} — ${name}` : code;
+  } catch {
+    return code;
+  }
+}
+
+// Formulaire d'une dépense : nouvelle, ou modification de `editing`.
+function expenseForm(ts, date, projects, chosen, editing) {
+  const e = editing;
+  const lastCurrency = [...ts.expenses].sort((x, y) => x.date.localeCompare(y.date)).filter((x) => !isMileage(x)).at(-1)?.currency ?? "CAD";
+  const currency = e && !isMileage(e) ? e.currency : lastCurrency;
+  const type = e?.type ?? EXPENSE_TYPES[0];
+  const mileage = type === "mileage";
+  const target = e ? (e.projectId ? `p:${e.projectId}` : `c:${e.clientId}`) : `p:${chosen}`;
+  const rate = e && !isMileage(e) && e.currency !== "CAD" ? e.rate : ts.rates[currency];
+  const currencies = CURRENCIES.includes(currency) ? CURRENCIES : [...CURRENCIES, currency];
+  return `<form class="form ts-new ts-expense-form" data-role="ts-expense" data-date="${date}" ${e ? `data-edit="${esc(e.id)}"` : ""}
+      data-rates="${esc(JSON.stringify(ts.rates))}" data-mileage="${e && mileage ? e.unitPrice : ts.business.mileageRate}">
+    ${e ? `<h3>✏️ ${t("ts.editExpense")}</h3>` : ""}
+    <div class="ts-expense-types">${EXPENSE_TYPES.map((x) => `<label class="ts-project-chip">
+      <input type="radio" name="type" value="${x}" ${x === type ? "checked" : ""}><span>${EXPENSE_ICONS[x]} ${t(`ts.expenseType.${x}`)}</span></label>`).join("")}</div>
+    ${e ? `<label>${t("ts.expenseDate")} <input type="date" name="date" value="${e.date}"></label>` : ""}
+    <label>${t("ts.expenseDesc")} <input name="description" value="${esc(e?.description ?? "")}" placeholder="${esc(t("ts.expenseDescPlaceholder"))}" autocomplete="off"></label>
+    <label>${t("ts.expenseFor")} <select name="target">${targetOptions(ts, projects, chosen, target, e)}</select></label>
+    <div class="row" data-role="money-row" ${mileage ? "hidden" : ""}>
+      <label>${t("ts.amount")} <input name="amount" inputmode="decimal" value="${e && !mileage ? esc(fmt.hours(e.amount)) : ""}"
+        placeholder="${esc(t("ts.example", { value: "25,50" }))}" autocomplete="off"></label>
+      <label>${t("ts.currency")} <select name="currency">${currencies.map((c) => `<option value="${c}" ${c === currency ? "selected" : ""}>${esc(currencyLabel(c))}</option>`).join("")}</select></label>
+    </div>
+    <label data-role="rate-row" ${mileage || currency === "CAD" ? "hidden" : ""}><span data-role="rate-label">${esc(t("ts.rateFor", { currency }))}</span>
+      <input name="rate" inputmode="decimal" value="${esc(rateText(rate))}" autocomplete="off"></label>
+    <label data-role="km-row" ${mileage ? "" : "hidden"}>${t("ts.km")} <input name="km" inputmode="decimal" value="${e && mileage ? esc(fmt.hours(e.qty)) : ""}"
+      placeholder="${esc(t("ts.example", { value: "128" }))}" autocomplete="off">
+      <span class="hint">${esc(t("ts.mileageHint", { rate: fmt.money(e && mileage ? e.unitPrice : ts.business.mileageRate) }))}</span></label>
+    <p class="ts-expense-preview" data-role="expense-preview" aria-live="polite">${e ? `= ${esc(fmt.money(expenseTotal(e)))}` : ""}</p>
+    <p class="form-errors" data-role="errors" role="alert"></p>
+    <div class="actions">
+      ${e ? `<button type="button" class="btn ghost" data-action="ts-expense-cancel">${t("form.cancel")}</button>` : ""}
+      <button type="submit" class="btn primary">${t(e ? "ts.saveChanges" : "ts.saveExpense")}</button>
+    </div>
+  </form>`;
+}
+
+function expensesBlock(ts, date, projects, chosen, editingId) {
   const list = dayExpenses(ts, date);
-  const lastCurrency = [...ts.expenses].sort((a, b) => a.date.localeCompare(b.date)).filter((e) => !isMileage(e)).at(-1)?.currency ?? "CAD";
+  const editing = ts.expenses.find((x) => x.id === editingId) ?? null;
   const canAdd = projects.length || ts.clients.length;
   return `<div class="ts-expenses">
     <h3>💳 ${t("ts.expenses")}${list.length ? ` <span class="hint">${esc(fmt.money(sumExpenses(list)))}</span>` : ""}</h3>
-    ${list.length ? `<ul class="ts-expense-list">${list.map((e) => expenseRow(ts, e)).join("")}</ul>` : ""}
-    ${canAdd ? `<details class="ts-new-wrap" data-role="expense-wrap">
+    ${list.length ? `<ul class="ts-expense-list">${list.map((e) => (editing?.id === e.id
+      ? `<li class="ts-expense-edit">${expenseForm(ts, date, projects, chosen, editing)}</li>`
+      : expenseRow(ts, e))).join("")}</ul>` : ""}
+    ${canAdd && !editing ? `<details class="ts-new-wrap" data-role="expense-wrap">
       <summary class="btn soft">＋ ${t("ts.addExpense")}</summary>
-      <form class="form ts-new ts-expense-form" data-role="ts-expense" data-date="${date}"
-        data-rates="${esc(JSON.stringify(ts.rates))}" data-mileage="${ts.business.mileageRate}">
-        <div class="ts-expense-types">${EXPENSE_TYPES.map((type, i) => `<label class="ts-project-chip">
-          <input type="radio" name="type" value="${type}" ${i === 0 ? "checked" : ""}><span>${EXPENSE_ICONS[type]} ${t(`ts.expenseType.${type}`)}</span></label>`).join("")}</div>
-        <label>${t("ts.expenseDesc")} <input name="description" placeholder="${esc(t("ts.expenseDescPlaceholder"))}" autocomplete="off"></label>
-        <label>${t("ts.expenseFor")} <select name="target">${targetOptions(ts, projects, chosen)}</select></label>
-        <div class="row" data-role="money-row">
-          <label>${t("ts.amount")} <input name="amount" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "25,50" }))}" autocomplete="off"></label>
-          <label>${t("ts.currency")} <select name="currency">${CURRENCIES.map((c) => `<option ${c === lastCurrency ? "selected" : ""}>${c}</option>`).join("")}</select></label>
-        </div>
-        <label data-role="rate-row" ${lastCurrency === "CAD" ? "hidden" : ""}><span data-role="rate-label">${esc(t("ts.rateFor", { currency: lastCurrency }))}</span>
-          <input name="rate" inputmode="decimal" value="${esc(rateText(ts.rates[lastCurrency]))}" autocomplete="off"></label>
-        <label data-role="km-row" hidden>${t("ts.km")} <input name="km" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "128" }))}" autocomplete="off">
-          <span class="hint">${esc(t("ts.mileageHint", { rate: fmt.money(ts.business.mileageRate) }))}</span></label>
-        <p class="ts-expense-preview" data-role="expense-preview" aria-live="polite"></p>
-        <p class="form-errors" data-role="errors" role="alert"></p>
-        <div class="actions"><button type="submit" class="btn primary">${t("ts.saveExpense")}</button></div>
-      </form>
+      ${expenseForm(ts, date, projects, chosen, null)}
     </details>` : ""}
   </div>`;
 }
 
-function daySection(ts, date, today, selected) {
+// Semaine de la journée affichée : un bouton par jour (heures notées), semaine d'avant ou d'après.
+function weekStrip(ts, date, today) {
+  const monday = startOfWeek(parseISODate(date));
+  const days = Array.from({ length: 7 }, (_, i) => toISODate(addDays(monday, i)));
+  const jump = (n) => toISODate(addDays(parseISODate(date), n));
+  return `<nav class="ts-week" aria-label="${esc(t("ts.weekNav"))}">
+    <button type="button" class="ts-week-jump" data-action="ts-day" data-date="${jump(-7)}" aria-label="${esc(t("ts.prevWeek"))}" title="${esc(t("ts.prevWeek"))}">«</button>
+    ${days.map((d) => {
+      const hours = dayTotal(ts, d);
+      const spent = dayExpenses(ts, d).length > 0;
+      return `<button type="button" class="ts-week-day ${d === date ? "is-current" : ""} ${d === today ? "is-today" : ""}" data-action="ts-day" data-date="${d}"
+        aria-current="${d === date ? "date" : "false"}" aria-label="${esc(fmt.longDate(parseISODate(d)))}${hours ? ` · ${esc(h(hours))}` : ""}">
+        <span class="ts-week-name">${esc(fmt.weekdayShort(parseISODate(d)))}</span>
+        <span class="ts-week-num">${parseISODate(d).getDate()}</span>
+        <span class="ts-week-hours">${hours ? esc(fmt.hours(hours)) : spent ? "💳" : "·"}</span>
+      </button>`;
+    }).join("")}
+    <button type="button" class="ts-week-jump" data-action="ts-day" data-date="${jump(7)}" aria-label="${esc(t("ts.nextWeek"))}" title="${esc(t("ts.nextWeek"))}">»</button>
+  </nav>`;
+}
+
+function daySection(ts, date, today, selected, editingExpense) {
   const entries = dayEntries(ts, date);
   const projects = activeProjects(ts);
   const chosen = projects.some((p) => p.id === selected) ? selected : projects[0]?.id;
   const task = chosen ? lastTask(ts, chosen) : { code: "", task: "" };
+  // Dernière tâche du projet : du catalogue, sinon « autre tâche » (code écrit à la main)
+  const taskCode = !task.code ? "" : getTask(ts, task.code) ? task.code : CUSTOM_TASK;
   const prev = entries.length ? null : previousWorkday(ts, date);
   const title = date === today ? t("nav.today") : fmt.longDate(parseISODate(date));
   return `<section class="card ts-day">
     <header class="ts-day-head">
       <button type="button" class="nav-arrow" data-action="ts-day" data-date="${toISODate(addDays(parseISODate(date), -1))}"
         aria-label="${esc(t("nav.prev.day"))}" title="${esc(t("nav.prev.day"))}">${CHEVRON_LEFT}</button>
-      <h2>${esc(title)}</h2>
+      <label class="ts-date-pick" title="${esc(t("ts.pickDate"))}">
+        <h2>${esc(title)} <span aria-hidden="true">📅</span></h2>
+        <input type="date" data-action="ts-goto" value="${date}" aria-label="${esc(t("ts.pickDate"))}">
+      </label>
       <button type="button" class="nav-arrow" data-action="ts-day" data-date="${toISODate(addDays(parseISODate(date), 1))}"
         aria-label="${esc(t("nav.next.day"))}" title="${esc(t("nav.next.day"))}">${CHEVRON_RIGHT}</button>
       ${date !== today ? `<button type="button" class="btn soft" data-action="ts-day" data-date="${today}">${t("nav.today")}</button>` : ""}
     </header>
+    ${weekStrip(ts, date, today)}
     <div class="ts-totals">
       <span class="ts-total">${esc(h(dayTotal(ts, date)))}</span>
       <span class="hint">${esc(t("ts.week", { hours: h(weekTotal(ts, date)) }))}</span>
     </div>
     ${entries.length ? `<ul class="ts-entries">${entries.map((e) => entryRow(ts, e)).join("")}</ul>` : ""}
     ${prev ? `<button type="button" class="btn soft" data-action="ts-copy" data-from="${prev}" data-date="${date}">📋 ${esc(t("ts.copyDay", { date: fmt.longDate(parseISODate(prev)) }))}</button>` : ""}
-    <datalist id="ts-task-codes">${knownTasks(ts).filter((x) => x.code).map((x) => `<option value="${esc(x.code)}" data-task="${esc(x.task)}">${esc(x.task)}</option>`).join("")}</datalist>
     ${projects.length ? `<form class="ts-add" data-role="ts-add" data-date="${date}">
         ${step(1, t("ts.step1"))}
         <div class="ts-projects">${projects.map((p) => `<label class="ts-project-chip">
@@ -148,17 +226,20 @@ function daySection(ts, date, today, selected) {
           <label><input type="radio" name="overtime" value="0" checked><span>${t("ts.regular")}</span></label>
           <label><input type="radio" name="overtime" value="1"><span>${t("ts.overtime")}</span></label>
         </div>
-        <div class="ts-task-row">
-          <label>${t("ts.taskCode")} <input name="taskCode" list="ts-task-codes" value="${esc(task.code)}" placeholder="${esc(t("ts.example", { value: "QA-01" }))}" autocomplete="off"></label>
-          <label>${t("ts.taskDesc")} <input name="task" value="${esc(task.task)}" placeholder="${esc(t("ts.taskDescPlaceholder"))}" autocomplete="off"></label>
+        <label>${t("ts.task")} <select name="taskCode" data-role="task-select">${taskOptions(ts, taskCode, { custom: true })}</select></label>
+        <p class="hint ts-task-scope" data-role="task-scope">${esc(getTask(ts, taskCode)?.scope ?? "")}</p>
+        <div class="ts-task-row" data-role="custom-task" ${taskCode === CUSTOM_TASK ? "" : "hidden"}>
+          <label>${t("ts.taskCode")} <input name="customCode" value="${esc(taskCode === CUSTOM_TASK ? task.code : "")}" placeholder="${esc(t("ts.example", { value: "TR01" }))}" autocomplete="off"></label>
+          <label>${t("ts.taskDesc")} <input name="customTask" value="${esc(taskCode === CUSTOM_TASK ? task.task : "")}" placeholder="${esc(t("ts.taskDescPlaceholder"))}" autocomplete="off"></label>
         </div>
-        <label class="ts-note-label">${t("ts.note")} <input name="note" class="ts-note" placeholder="${esc(t("ts.notePlaceholder"))}" autocomplete="off"></label>
+        <label>${t("ts.work")} <input name="work" placeholder="${esc(t("ts.workPlaceholder"))}" autocomplete="off"></label>
+        <label class="ts-note-label">${t("ts.notePrivate")} <input name="note" class="ts-note" placeholder="${esc(t("ts.notePlaceholder"))}" autocomplete="off"></label>
         ${step(3, t("ts.step3"))}
         <p class="form-errors" data-role="errors" role="alert"></p>
         <button type="submit" class="btn primary">${t("ts.add")}</button>
       </form>`
       : `<p class="empty-msg small">${t("ts.noProjects")}</p>`}
-    ${expensesBlock(ts, date, projects, chosen)}
+    ${expensesBlock(ts, date, projects, chosen, editingExpense)}
   </section>`;
 }
 
@@ -214,6 +295,36 @@ function projectsSection(ts) {
         <p class="hint">${t("ts.overtimeHint")}</p>
         <p class="form-errors" data-role="errors" role="alert"></p>
         <div class="actions"><button type="submit" class="btn primary">${t("ts.addProject")}</button></div>
+      </form>`)}`,
+  });
+}
+
+function tasksSection(ts) {
+  const list = ts.tasks;
+  return foldSection("ts-tasks", {
+    title: esc(t("ts.tasks")),
+    extra: String(list.length),
+    open: isFoldOpen("ts-tasks", false),
+    body: `<p class="hint">${t("ts.tasksHint")}</p>
+      <ul class="ts-task-list">${list.map((task) => `<li class="${task.quick ? "is-quick" : ""}">
+        <button type="button" class="ts-star" data-action="ts-task-quick" data-code="${esc(task.code)}" aria-pressed="${task.quick}"
+          aria-label="${esc(t("ts.quickToggle", { code: task.code }))}" title="${esc(t("ts.quickToggle", { code: task.code }))}">${task.quick ? "⭐" : "☆"}</button>
+        <strong class="ts-task-code">${esc(task.code)}</strong>
+        <div class="ts-task-text">
+          <input data-action="ts-task-field" data-code="${esc(task.code)}" data-field="description" value="${esc(task.description)}" aria-label="${esc(t("ts.taskDesc"))}">
+          <input data-action="ts-task-field" data-code="${esc(task.code)}" data-field="scope" value="${esc(task.scope)}" placeholder="${esc(t("ts.taskScope"))}" aria-label="${esc(t("ts.taskScope"))}" class="ts-task-scope-input">
+        </div>
+        <button type="button" class="check-remove" data-action="ts-task-remove" data-code="${esc(task.code)}" aria-label="${esc(t("ts.delete"))}">×</button>
+      </li>`).join("")}</ul>
+      ${addBlock(false, t("ts.newTask"), `<form class="form ts-new" data-role="ts-new-task">
+        <div class="row">
+          <label>${t("ts.taskCode")} <input name="code" placeholder="${esc(t("ts.example", { value: "TR01" }))}" autocomplete="off"></label>
+          <label>${t("ts.taskDesc")} <input name="description" placeholder="${esc(t("ts.example", { value: "Travel time" }))}" autocomplete="off"></label>
+        </div>
+        <label>${t("ts.taskScope")} <input name="scope" autocomplete="off"></label>
+        <label class="switch"><input type="checkbox" name="quick" checked><span>${t("ts.inQuick")}</span></label>
+        <p class="form-errors" data-role="errors" role="alert"></p>
+        <div class="actions"><button type="submit" class="btn primary">${t("ts.addTask")}</button></div>
       </form>`)}`,
   });
 }
@@ -278,6 +389,9 @@ function businessSection(ts) {
         <div class="row">${field("phone", t("ts.phone"), 'type="tel"')}${field("email", t("ts.email"), 'type="email"')}</div>
         <div class="row">${field("tpsNumber", t("ts.tpsNumber"))}${field("tvqNumber", t("ts.tvqNumber"))}</div>
         <div class="row">${field("terms", t("ts.terms"), 'inputmode="numeric"')}${field("nextInvoice", t("ts.nextInvoice"), `placeholder="${esc(t("ts.example", { value: "2026-115" }))}"`)}</div>
+        <label class="switch"><input type="checkbox" data-action="ts-business-toggle" data-field="showTaskCodes" ${b.showTaskCodes ? "checked" : ""}>
+          <span>${t("ts.showTaskCodes")}</span></label>
+        <p class="hint">${t("ts.showTaskCodesHint")}</p>
         <label>${t("ts.mileageRate")} <input ${attrs("mileageRate")} value="${esc(fmt.hours(b.mileageRate))}" inputmode="decimal"></label>
         <h3>${t("ts.rates")}</h3>
         ${Object.keys(ts.rates).length
@@ -342,12 +456,13 @@ export const timesheetPage = {
 
   title: () => t("nav.timesheet"),
 
-  render({ repo, today, timesheetDate, timesheetExport, timesheetProject }) {
+  render({ repo, today, timesheetDate, timesheetExport, timesheetProject, editingExpense }) {
     const ts = repo.timesheet();
     const date = timesheetDate ?? today;
     return `<section class="page timesheet">
-      ${daySection(ts, date, today, timesheetProject)}
+      ${daySection(ts, date, today, timesheetProject, editingExpense)}
       ${projectsSection(ts)}
+      ${tasksSection(ts)}
       ${clientsSection(ts)}
       ${exportSection(ts, today, timesheetExport)}
       ${businessSection(ts)}

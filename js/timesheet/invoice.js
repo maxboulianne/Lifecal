@@ -95,9 +95,10 @@ export const dueDate = (date, terms) => toISODate(addDays(parseISODate(date), Nu
 // Projet tel qu'il paraît sur la facture : son numéro (ou son nom).
 const projectKey = (p) => p?.number || p?.name || "?";
 
-// « CA15713  —  PSR01 : Painting specification review  (Surtemps / Overtime) »
+// « CA15713  —  QA04 : Painting specification review  —  Reviewed galvanizing requirements  (Surtemps / Overtime) »
 export function lineDescription(line) {
-  return `${line.project}  —  ${line.taskCode ? `${line.taskCode} : ` : ""}${line.description}${line.overtime ? `  (${L.overtime})` : ""}`;
+  const work = line.work ? `  —  ${line.work}` : "";
+  return `${line.project}  —  ${line.taskCode ? `${line.taskCode} : ` : ""}${line.description}${work}${line.overtime ? `  (${L.overtime})` : ""}`;
 }
 
 const NUMBER_FR = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 2 });
@@ -118,10 +119,11 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
     const p = getProject(ts, e.projectId);
     const rate = rateFor(p, e.overtime);
     const line = {
-      date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), taskCode: e.taskCode,
-      description: e.task || p?.name || "", hours: e.hours, overtime: e.overtime, rate, amount: round2(e.hours * (rate ?? 0)),
+      // Le code de tâche paraît sur la facture seulement si l'option est cochée.
+      date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), taskCode: business.showTaskCodes ? e.taskCode : "",
+      description: e.task || p?.name || "", work: e.work, hours: e.hours, overtime: e.overtime, rate, amount: round2(e.hours * (rate ?? 0)),
     };
-    return { ...line, kind: "hours", text: lineDescription(line) };
+    return { ...line, kind: "hours", code: e.taskCode, text: lineDescription(line) };
   });
   const expenseLines = periodExpenses(ts, from, to, clientId).map((e) => {
     const line = {
@@ -280,21 +282,22 @@ export function invoiceSheets(ts, options) {
   const W = 11; // colonnes A à K
 
   // ---- « Heures » : la source des lignes de la facture ----
-  const hoursRows = [["Date", "Jour", "Projet", "Tâche", "Description", "Heures", "Type", "Taux", "Montant"].map((v) => ({ v, s: "tHead" }))];
+  // A Date · B Jour · C Projet · D Tâche · E Description · F Travail effectué · G Heures · H Type · I Taux · J Montant
+  const hoursRows = [["Date", "Jour", "Projet", "Tâche", "Description", "Travail effectué", "Heures", "Type", "Taux", "Montant"].map((v) => ({ v, s: "tHead" }))];
   d.lines.forEach((l, i) => {
     const r = i + 2;
     hoursRows.push([
-      { v: l.date, s: "tDate" }, { v: l.weekday, s: "tCell" }, { v: l.project, s: "tCell" }, { v: l.taskCode, s: "tCell" },
-      { v: l.description, s: "tText" }, { v: l.hours, s: "tHours" }, { v: l.overtime ? OVERTIME : REGULAR, s: "tCell" },
-      { v: l.rate ?? 0, s: "tMoney" }, { f: `F${r}*H${r}`, v: l.amount, s: "tMoney" },
+      { v: l.date, s: "tDate" }, { v: l.weekday, s: "tCell" }, { v: l.project, s: "tCell" }, { v: l.code, s: "tCell" },
+      { v: l.description, s: "tText" }, { v: l.work, s: "tText" }, { v: l.hours, s: "tHours" }, { v: l.overtime ? OVERTIME : REGULAR, s: "tCell" },
+      { v: l.rate ?? 0, s: "tMoney" }, { f: `G${r}*I${r}`, v: l.amount, s: "tMoney" },
     ]);
   });
   const lastHour = Math.max(2, hoursRows.length);
   const any = d.lines.length > 0;
   hoursRows.push([
-    ...Array.from({ length: 4 }, () => ({ v: "", s: "tTotal" })), { v: "TOTAL", s: "tTotal" },
-    { f: any ? `SUM(F2:F${lastHour})` : "0", v: x.hours, s: "tTotalHours" }, { v: "", s: "tTotal" }, { v: "", s: "tTotal" },
-    { f: any ? `SUM(I2:I${lastHour})` : "0", v: st.amount, s: "tTotalMoney" },
+    ...Array.from({ length: 5 }, () => ({ v: "", s: "tTotal" })), { v: "TOTAL", s: "tTotal" },
+    { f: any ? `SUM(G2:G${lastHour})` : "0", v: x.hours, s: "tTotalHours" }, { v: "", s: "tTotal" }, { v: "", s: "tTotal" },
+    { f: any ? `SUM(J2:J${lastHour})` : "0", v: st.amount, s: "tTotalMoney" },
   ]);
   hoursRows.push([], [{ v: "Saisir les heures ici : la facture et le sommaire par projet se mettent à jour automatiquement.", s: "tNote" }]);
 
@@ -329,9 +332,9 @@ export function invoiceSheets(ts, options) {
     const r = i + 2;
     projRows.push([
       { v: p.project, s: "tCell" },
-      { f: `SUMIFS(${range("F")},${range("C")},A${r},${range("G")},"${REGULAR}")`, v: p.regHours, s: "tHours" },
-      { f: `SUMIFS(${range("F")},${range("C")},A${r},${range("G")},"${OVERTIME}")`, v: p.otHours, s: "tHours" },
-      { f: `SUMIFS(${range("I")},${range("C")},A${r})`, v: p.amount, s: "tMoney" },
+      { f: `SUMIFS(${range("G")},${range("C")},A${r},${range("H")},"${REGULAR}")`, v: p.regHours, s: "tHours" },
+      { f: `SUMIFS(${range("G")},${range("C")},A${r},${range("H")},"${OVERTIME}")`, v: p.otHours, s: "tHours" },
+      { f: `SUMIFS(${range("J")},${range("C")},A${r})`, v: p.amount, s: "tMoney" },
       ...EXPENSE_CATEGORIES.map((c) => ({ f: `SUMIFS(${fees("M")},${fees("C")},A${r},${fees("D")},"${CATEGORY_SHORT[c]}")`, v: p.expenses[c], s: "tMoney" })),
       { f: `SUM(D${r}:I${r})`, v: p.total, s: "tMoney" },
     ]);
@@ -348,6 +351,26 @@ export function invoiceSheets(ts, options) {
   const tvqRow = projRows.length + 1;
   projRows.push([{ v: "TVQ / QST", s: "tLabel" }, { v: d.tvqRate, s: "tRate" }]);
   projRows.push([], [{ v: "Les heures viennent de l'onglet « Heures », les frais de l'onglet « Frais ».", s: "tNote" }]);
+
+  // ---- « Par tâche » : heures et montants regroupés par code de tâche ----
+  const taskKeys = [...new Set(d.lines.map((l) => l.code))].sort((a, b) => (a === "") - (b === "") || a.localeCompare(b, undefined, { numeric: true }));
+  const taskRows = [["Tâche", "Description", "Heures", "Montant"].map((v) => ({ v, s: "tHead" }))];
+  taskKeys.forEach((code, i) => {
+    const r = i + 2;
+    const of = d.lines.filter((l) => l.code === code);
+    const description = code ? (ts.tasks?.find((t) => t.code === code)?.description ?? of[0].description) : "Sans code / No code";
+    // Critère « = » : les lignes sans code
+    const crit = code ? `D${r}` : `"="`;
+    taskRows.push([
+      { v: code, s: "tCell" }, { v: description, s: "tText" },
+      { f: `SUMIFS(${range("G")},${range("D")},${crit})`, v: round2(of.reduce((s2, l) => s2 + l.hours, 0)), s: "tHours" },
+      { f: `SUMIFS(${range("J")},${range("D")},${crit})`, v: round2(of.reduce((s2, l) => s2 + l.amount, 0)), s: "tMoney" },
+    ]);
+  });
+  const lastTask = Math.max(2, taskRows.length);
+  taskRows.push([{ v: "TOTAL", s: "tTotalCenter" }, { v: "", s: "tTotal" },
+    { f: taskKeys.length ? `SUM(C2:C${lastTask})` : "0", v: x.hours, s: "tTotalHours" },
+    { f: taskKeys.length ? `SUM(D2:D${lastTask})` : "0", v: st.amount, s: "tTotalMoney" }]);
 
   // ---- « Facture » ----
   const rows = [];
@@ -452,11 +475,11 @@ export function invoiceSheets(ts, options) {
       }
       const h = source++;
       r = row(16.5);
-      r[0] = { f: `Heures!F${h}`, v: l.hours, s: "qty" };
+      r[0] = { f: `Heures!G${h}`, v: l.hours, s: "qty" };
       r[1] = { v: "HR", s: "unit" };
-      r[2] = { f: `Heures!H${h}`, v: l.rate ?? 0, s: "price" };
+      r[2] = { f: `Heures!I${h}`, v: l.rate ?? 0, s: "price" };
       r[3] = {
-        f: `Heures!C${h}&"  —  "&IF(Heures!D${h}="","",Heures!D${h}&" : ")&Heures!E${h}&IF(Heures!G${h}="${OVERTIME}","  (${L.overtime})","")`,
+        f: `Heures!C${h}&"  —  "&${b.showTaskCodes ? `IF(Heures!D${h}="","",Heures!D${h}&" : ")&` : ""}Heures!E${h}&IF(Heures!F${h}="","","  —  "&Heures!F${h})&IF(Heures!H${h}="${OVERTIME}","  (${L.overtime})","")`,
         v: l.text, s: "desc",
       };
       fill(r, 4, 9, "lineBorder");
@@ -541,7 +564,8 @@ export function invoiceSheets(ts, options) {
   return {
     sheets: [
       { name: "Facture", columns: [7, 5, 10, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 9.5, 12.5], rows, merges, heights, gridLines: false, print: { orientation: "portrait" }, images: logo ? [logo] : [] },
-      { name: "Heures", columns: [12, 10, 11, 9, 40, 9, 11, 10, 13], rows: hoursRows, gridLines: false, print: { orientation: "portrait" } },
+      { name: "Heures", columns: [12, 10, 11, 9, 34, 40, 9, 11, 10, 13], rows: hoursRows, gridLines: false, print: { orientation: "portrait" } },
+      { name: "Par tâche", columns: [10, 46, 10, 14], rows: taskRows, gridLines: false, print: { orientation: "portrait" } },
       { name: "Frais", columns: [12, 10, 11, 10, 18, 30, 7, 6, 14, 7, 12, 13, 13], rows: expenseRows, gridLines: false, print: { orientation: "landscape" } },
       { name: "Par projet", columns: [12, 11, 11, 12, 10, 10, 10, 10, 10, 13], rows: projRows, heights: { 1: 22.35 }, gridLines: false, print: { orientation: "landscape" } },
     ],

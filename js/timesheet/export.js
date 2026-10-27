@@ -7,8 +7,8 @@
 import { colName } from "../export/xlsx.js";
 import { getClient, getProject, periodSummary } from "./timesheet.js";
 
-const HOURS_COLUMNS = ["date", "day", "number", "project", "type", "taskCode", "task", "client", "hours", "note"];
-const HOURS_WIDTHS = [12, 11, 12, 26, 11, 12, 30, 20, 9, 36];
+const HOURS_COLUMNS = ["date", "day", "number", "project", "type", "taskCode", "task", "work", "client", "hours", "note"];
+const HOURS_WIDTHS = [12, 11, 12, 26, 11, 10, 30, 36, 20, 9, 30];
 const PROJECT_COLUMNS = ["number", "project", "type", "client", "hours", "rate", "amount"];
 
 // Lettre de la colonne `key` dans une liste de colonnes.
@@ -33,7 +33,7 @@ export function timesheetSheets(ts, { from, to, clientId = null, labels, weekday
       const p = getProject(ts, e.projectId);
       const cells = {
         date: { v: date, s: "date" }, day: weekday(date), number: p?.number ?? "", project: p?.name ?? "", type: kind(e.overtime),
-        taskCode: e.taskCode, task: e.task, client: getClient(ts, p?.clientId)?.name ?? "", hours: { v: e.hours, s: "hours" }, note: e.note,
+        taskCode: e.taskCode, task: e.task, work: e.work, client: getClient(ts, p?.clientId)?.name ?? "", hours: { v: e.hours, s: "hours" }, note: e.note,
       };
       rows.push(HOURS_COLUMNS.map((k) => cells[k]));
     }
