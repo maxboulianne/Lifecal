@@ -609,4 +609,7 @@ export default {
   "ts.invoiceReady": "Hóa đơn đã sẵn sàng: cần thanh toán {total}.",
   "ts.col.taskCode": "Mã công việc",
   "ts.col.task": "Công việc",
+  "ts.invoicePreview": "Xem trước hóa đơn",
+  "ts.invoicePreviewHint": "Kiểm tra hóa đơn. Sau đó tạo tệp Excel, hoặc in hay lưu thành PDF.",
+  "ts.printInvoice": "In hoặc PDF",
 };

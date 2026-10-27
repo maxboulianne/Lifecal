@@ -98,6 +98,7 @@ Ils couvrent les dates, le dépôt de données, la migration du prototype, les h
   - Rappel doux en semaine à partir de 16 h si rien n'est noté.
   - **Mon entreprise** : nom, ton nom, adresse, téléphone, courriel, numéros de TPS et de TVQ, délai de paiement (NET10…) et prochain numéro de facture.
   - **Facture Excel** (« Exporter et facturer ») pour un client et une période, sur le modèle de facture de Max : en-tête bilingue (no de facture, date, no PO du client), facturé à / expédié à, lignes jour par jour (Qté, U/M « HR », taux, description : projet — code : tâche, prix total en formule), **sommaire des heures par projet** (heures, taux, montant des heures ; colonnes Hôtel, Repas, Matériel, Cell., Transport prêtes pour les dépenses), sous-total, acompte, TPS 5 %, TVQ 9,975 % (selon le client), montant à payer, termes et date d'échéance, coordonnées pour le paiement. Le sommaire additionne les lignes avec SOMME.SI : il reste juste si on corrige des heures dans Excel. Le fichier contient aussi le détail des heures. Le numéro de facture suivant est proposé automatiquement.
+  - **Aperçu de la facture** dans l'application (même présentation que le fichier Excel, ajustée à la largeur du téléphone), avec « Créer la facture Excel » et « Imprimer ou PDF » (seule la facture est imprimée).
   - **Exporter en Excel** : cette semaine, la semaine dernière, ce mois-ci, le mois dernier ou d'autres dates, pour tous les clients ou un seul. Le fichier `.xlsx` contient l'onglet « Heures » (jour par jour, total de chaque jour) et « Par projet » (heures × taux = montant, régulier et surtemps sur des lignes séparées), avec de vraies formules Excel. Sur iPhone et iPad, il s'ouvre dans la feuille de partage (Fichiers, Mail…).
 - **Langues** : choix à l'accueil au premier lancement, puis dans ⚙︎ **Paramètres**. Les dates et les heures suivent la langue choisie.
 - Paramètres : langue, rappels de proximité, calendriers externes, exporter et importer une copie des données (JSON).
@@ -123,7 +124,8 @@ js/geo/geo.js              Position, distances, lien vers la carte
 js/sync/                   Fournisseurs externes (Google, Outlook, Yahoo) + fusion
 js/grocery/                Épicerie : épiceries suivies, catalogue d'articles (7 langues), prix unitaires, comparaison, liste par épicerie
 js/timesheet/              Mes heures : clients, projets, heures, totaux, contenu du classeur Excel
-js/timesheet/invoice.js    Facture Excel (modèle de Max) : lignes par jour, sommaire par projet, taxes, échéance
+js/timesheet/invoice.js    Facture (modèle de Max) : contenu commun (lignes par jour, sommaire par projet, taxes, échéance) et feuille Excel
+js/ui/components/invoice-view.js  Aperçu de la facture dans l'application (et impression / PDF)
 js/export/xlsx.js          Création d'un fichier Excel (.xlsx) sans bibliothèque externe
 js/events/                 Événements : types, âge, prochains événements, moments de rappel
 js/travel/                 Voyages : dates, lieux à visiter, recherche d'un lieu, carte

@@ -612,4 +612,7 @@ export default {
   "ts.invoiceReady": "Rechnung bereit: {total} zu zahlen.",
   "ts.col.taskCode": "Aufgabencode",
   "ts.col.task": "Aufgabe",
+  "ts.invoicePreview": "Rechnungsvorschau",
+  "ts.invoicePreviewHint": "Prüfe die Rechnung. Erstelle dann die Excel-Datei oder drucke sie bzw. speichere sie als PDF.",
+  "ts.printInvoice": "Drucken oder PDF",
 };

@@ -612,4 +612,7 @@ export default {
   "ts.invoiceReady": "Factura lista: {total} a pagar.",
   "ts.col.taskCode": "Código de tarea",
   "ts.col.task": "Tarea",
+  "ts.invoicePreview": "Vista previa de la factura",
+  "ts.invoicePreviewHint": "Revisa la factura. Luego crea el archivo Excel, o imprímela o guárdala en PDF.",
+  "ts.printInvoice": "Imprimir o PDF",
 };

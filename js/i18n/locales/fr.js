@@ -631,4 +631,7 @@ export default {
   "ts.invoiceReady": "Facture prête : {total} à payer.",
   "ts.col.taskCode": "Code de tâche",
   "ts.col.task": "Tâche",
+  "ts.invoicePreview": "Aperçu de la facture",
+  "ts.invoicePreviewHint": "Vérifie la facture. Tu peux ensuite créer le fichier Excel, ou l'imprimer ou l'enregistrer en PDF.",
+  "ts.printInvoice": "Imprimer ou PDF",
 };

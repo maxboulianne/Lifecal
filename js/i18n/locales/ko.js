@@ -609,4 +609,7 @@ export default {
   "ts.invoiceReady": "청구서 준비 완료: {total} 결제 예정.",
   "ts.col.taskCode": "작업 코드",
   "ts.col.task": "작업",
+  "ts.invoicePreview": "청구서 미리보기",
+  "ts.invoicePreviewHint": "청구서를 확인하세요. 그다음 Excel 파일을 만들거나 인쇄하거나 PDF로 저장하세요.",
+  "ts.printInvoice": "인쇄 또는 PDF",
 };

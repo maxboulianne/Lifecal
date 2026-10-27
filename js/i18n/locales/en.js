@@ -612,4 +612,7 @@ export default {
   "ts.invoiceReady": "Invoice ready: {total} to pay.",
   "ts.col.taskCode": "Task code",
   "ts.col.task": "Task",
+  "ts.invoicePreview": "Invoice preview",
+  "ts.invoicePreviewHint": "Check the invoice. Then create the Excel file, or print it or save it as a PDF.",
+  "ts.printInvoice": "Print or PDF",
 };
