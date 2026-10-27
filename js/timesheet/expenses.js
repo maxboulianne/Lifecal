@@ -17,7 +17,11 @@ export const EXPENSE_TYPES = ["food", "hotel", "transport", "mileage", "phone", 
 export const EXPENSE_ICONS = { food: "🍽️", hotel: "🏨", transport: "🚕", mileage: "🚗", phone: "📱", material: "🧰" };
 // Colonne du sommaire de la facture (le kilométrage va dans « Transport »)
 export const EXPENSE_CATEGORY = { food: "food", hotel: "hotel", transport: "transport", mileage: "transport", phone: "phone", material: "material" };
-export const CURRENCIES = ["CAD", "USD", "EUR", "GBP", "MXN", "CNY", "JPY", "KRW", "VND", "THB", "INR", "PHP", "IDR", "MYR", "SGD", "AUD", "CHF"];
+// Devises proposées (CNY : yuan chinois ; AED : dirham des Émirats ; BRL : réal brésilien)
+export const CURRENCIES = [
+  "CAD", "USD", "EUR", "GBP", "CHF", "MXN", "BRL", "AED", "SAR", "CNY", "HKD", "TWD", "JPY", "KRW", "VND", "THB",
+  "INR", "PHP", "IDR", "MYR", "SGD", "AUD", "NZD",
+];
 export const DEFAULT_MILEAGE_RATE = 0.65;
 
 const round2 = (n) => Math.round(n * 100) / 100;

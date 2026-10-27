@@ -3,7 +3,7 @@
 
 import { addDays, parseISODate, startOfWeek, toISODate } from "../../core/dates.js";
 import { esc } from "../../core/dom.js";
-import { fmt, t } from "../../i18n/index.js";
+import { fmt, getLanguage, t } from "../../i18n/index.js";
 import {
   activeProjects, dayEntries, dayTotal, getClient, getProject, knownTasks, lastTask, periodSummary, previousWorkday, rateFor, weekTotal,
 } from "../../timesheet/timesheet.js";
@@ -69,48 +69,105 @@ function expenseRow(ts, e) {
     <div class="ts-expense-text"><strong>${esc(t(`ts.expenseType.${e.type}`))}</strong>${e.description ? ` · ${esc(e.description)}` : ""}
       <span class="hint">${esc(target)}${origin ? ` · ${esc(origin)}` : ""}</span></div>
     <span class="ts-expense-amount">${esc(fmt.money(expenseTotal(e)))}</span>
+    <button type="button" class="ts-expense-edit-btn" data-action="ts-expense-edit" data-id="${esc(e.id)}" aria-label="${esc(t("ts.editExpense"))}" title="${esc(t("ts.editExpense"))}">✏️</button>
     <button type="button" class="check-remove" data-action="ts-expense-remove" data-id="${esc(e.id)}" aria-label="${esc(t("ts.remove"))}">×</button>
   </li>`;
 }
 
 // Choix « pour quoi » : un projet actif, ou les frais généraux d'un client.
-function targetOptions(ts, projects, chosen) {
-  return `${projects.map((p) => `<option value="p:${esc(p.id)}" ${p.id === chosen ? "selected" : ""}>${esc([p.number, p.name].filter(Boolean).join(" · "))}</option>`).join("")}
-    ${ts.clients.map((c) => `<option value="c:${esc(c.id)}">${esc(t("ts.generalShort", { client: c.name }))}</option>`).join("")}`;
+function targetOptions(ts, projects, chosen, selected, editing) {
+  // Une dépense modifiée garde son projet, même archivé depuis.
+  const list = editing?.projectId && !projects.some((p) => p.id === editing.projectId)
+    ? [...projects, getProject(ts, editing.projectId)].filter(Boolean) : projects;
+  return `${list.map((p) => `<option value="p:${esc(p.id)}" ${`p:${p.id}` === selected ? "selected" : ""}>${esc([p.number, p.name].filter(Boolean).join(" · "))}</option>`).join("")}
+    ${ts.clients.map((c) => `<option value="c:${esc(c.id)}" ${`c:${c.id}` === selected ? "selected" : ""}>${esc(t("ts.generalShort", { client: c.name }))}</option>`).join("")}`;
 }
 
-function expensesBlock(ts, date, projects, chosen) {
+// Nom de la devise dans la langue choisie (« AED — dirham des Émirats arabes unis »)
+function currencyLabel(code) {
+  try {
+    const name = new Intl.DisplayNames([getLanguage(), "en"], { type: "currency" }).of(code);
+    return name && name !== code ? `${code} — ${name}` : code;
+  } catch {
+    return code;
+  }
+}
+
+// Formulaire d'une dépense : nouvelle, ou modification de `editing`.
+function expenseForm(ts, date, projects, chosen, editing) {
+  const e = editing;
+  const lastCurrency = [...ts.expenses].sort((x, y) => x.date.localeCompare(y.date)).filter((x) => !isMileage(x)).at(-1)?.currency ?? "CAD";
+  const currency = e && !isMileage(e) ? e.currency : lastCurrency;
+  const type = e?.type ?? EXPENSE_TYPES[0];
+  const mileage = type === "mileage";
+  const target = e ? (e.projectId ? `p:${e.projectId}` : `c:${e.clientId}`) : `p:${chosen}`;
+  const rate = e && !isMileage(e) && e.currency !== "CAD" ? e.rate : ts.rates[currency];
+  const currencies = CURRENCIES.includes(currency) ? CURRENCIES : [...CURRENCIES, currency];
+  return `<form class="form ts-new ts-expense-form" data-role="ts-expense" data-date="${date}" ${e ? `data-edit="${esc(e.id)}"` : ""}
+      data-rates="${esc(JSON.stringify(ts.rates))}" data-mileage="${e && mileage ? e.unitPrice : ts.business.mileageRate}">
+    ${e ? `<h3>✏️ ${t("ts.editExpense")}</h3>` : ""}
+    <div class="ts-expense-types">${EXPENSE_TYPES.map((x) => `<label class="ts-project-chip">
+      <input type="radio" name="type" value="${x}" ${x === type ? "checked" : ""}><span>${EXPENSE_ICONS[x]} ${t(`ts.expenseType.${x}`)}</span></label>`).join("")}</div>
+    ${e ? `<label>${t("ts.expenseDate")} <input type="date" name="date" value="${e.date}"></label>` : ""}
+    <label>${t("ts.expenseDesc")} <input name="description" value="${esc(e?.description ?? "")}" placeholder="${esc(t("ts.expenseDescPlaceholder"))}" autocomplete="off"></label>
+    <label>${t("ts.expenseFor")} <select name="target">${targetOptions(ts, projects, chosen, target, e)}</select></label>
+    <div class="row" data-role="money-row" ${mileage ? "hidden" : ""}>
+      <label>${t("ts.amount")} <input name="amount" inputmode="decimal" value="${e && !mileage ? esc(fmt.hours(e.amount)) : ""}"
+        placeholder="${esc(t("ts.example", { value: "25,50" }))}" autocomplete="off"></label>
+      <label>${t("ts.currency")} <select name="currency">${currencies.map((c) => `<option value="${c}" ${c === currency ? "selected" : ""}>${esc(currencyLabel(c))}</option>`).join("")}</select></label>
+    </div>
+    <label data-role="rate-row" ${mileage || currency === "CAD" ? "hidden" : ""}><span data-role="rate-label">${esc(t("ts.rateFor", { currency }))}</span>
+      <input name="rate" inputmode="decimal" value="${esc(rateText(rate))}" autocomplete="off"></label>
+    <label data-role="km-row" ${mileage ? "" : "hidden"}>${t("ts.km")} <input name="km" inputmode="decimal" value="${e && mileage ? esc(fmt.hours(e.qty)) : ""}"
+      placeholder="${esc(t("ts.example", { value: "128" }))}" autocomplete="off">
+      <span class="hint">${esc(t("ts.mileageHint", { rate: fmt.money(e && mileage ? e.unitPrice : ts.business.mileageRate) }))}</span></label>
+    <p class="ts-expense-preview" data-role="expense-preview" aria-live="polite">${e ? `= ${esc(fmt.money(expenseTotal(e)))}` : ""}</p>
+    <p class="form-errors" data-role="errors" role="alert"></p>
+    <div class="actions">
+      ${e ? `<button type="button" class="btn ghost" data-action="ts-expense-cancel">${t("form.cancel")}</button>` : ""}
+      <button type="submit" class="btn primary">${t(e ? "ts.saveChanges" : "ts.saveExpense")}</button>
+    </div>
+  </form>`;
+}
+
+function expensesBlock(ts, date, projects, chosen, editingId) {
   const list = dayExpenses(ts, date);
-  const lastCurrency = [...ts.expenses].sort((a, b) => a.date.localeCompare(b.date)).filter((e) => !isMileage(e)).at(-1)?.currency ?? "CAD";
+  const editing = ts.expenses.find((x) => x.id === editingId) ?? null;
   const canAdd = projects.length || ts.clients.length;
   return `<div class="ts-expenses">
     <h3>💳 ${t("ts.expenses")}${list.length ? ` <span class="hint">${esc(fmt.money(sumExpenses(list)))}</span>` : ""}</h3>
-    ${list.length ? `<ul class="ts-expense-list">${list.map((e) => expenseRow(ts, e)).join("")}</ul>` : ""}
-    ${canAdd ? `<details class="ts-new-wrap" data-role="expense-wrap">
+    ${list.length ? `<ul class="ts-expense-list">${list.map((e) => (editing?.id === e.id
+      ? `<li class="ts-expense-edit">${expenseForm(ts, date, projects, chosen, editing)}</li>`
+      : expenseRow(ts, e))).join("")}</ul>` : ""}
+    ${canAdd && !editing ? `<details class="ts-new-wrap" data-role="expense-wrap">
       <summary class="btn soft">＋ ${t("ts.addExpense")}</summary>
-      <form class="form ts-new ts-expense-form" data-role="ts-expense" data-date="${date}"
-        data-rates="${esc(JSON.stringify(ts.rates))}" data-mileage="${ts.business.mileageRate}">
-        <div class="ts-expense-types">${EXPENSE_TYPES.map((type, i) => `<label class="ts-project-chip">
-          <input type="radio" name="type" value="${type}" ${i === 0 ? "checked" : ""}><span>${EXPENSE_ICONS[type]} ${t(`ts.expenseType.${type}`)}</span></label>`).join("")}</div>
-        <label>${t("ts.expenseDesc")} <input name="description" placeholder="${esc(t("ts.expenseDescPlaceholder"))}" autocomplete="off"></label>
-        <label>${t("ts.expenseFor")} <select name="target">${targetOptions(ts, projects, chosen)}</select></label>
-        <div class="row" data-role="money-row">
-          <label>${t("ts.amount")} <input name="amount" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "25,50" }))}" autocomplete="off"></label>
-          <label>${t("ts.currency")} <select name="currency">${CURRENCIES.map((c) => `<option ${c === lastCurrency ? "selected" : ""}>${c}</option>`).join("")}</select></label>
-        </div>
-        <label data-role="rate-row" ${lastCurrency === "CAD" ? "hidden" : ""}><span data-role="rate-label">${esc(t("ts.rateFor", { currency: lastCurrency }))}</span>
-          <input name="rate" inputmode="decimal" value="${esc(rateText(ts.rates[lastCurrency]))}" autocomplete="off"></label>
-        <label data-role="km-row" hidden>${t("ts.km")} <input name="km" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "128" }))}" autocomplete="off">
-          <span class="hint">${esc(t("ts.mileageHint", { rate: fmt.money(ts.business.mileageRate) }))}</span></label>
-        <p class="ts-expense-preview" data-role="expense-preview" aria-live="polite"></p>
-        <p class="form-errors" data-role="errors" role="alert"></p>
-        <div class="actions"><button type="submit" class="btn primary">${t("ts.saveExpense")}</button></div>
-      </form>
+      ${expenseForm(ts, date, projects, chosen, null)}
     </details>` : ""}
   </div>`;
 }
 
-function daySection(ts, date, today, selected) {
+// Semaine de la journée affichée : un bouton par jour (heures notées), semaine d'avant ou d'après.
+function weekStrip(ts, date, today) {
+  const monday = startOfWeek(parseISODate(date));
+  const days = Array.from({ length: 7 }, (_, i) => toISODate(addDays(monday, i)));
+  const jump = (n) => toISODate(addDays(parseISODate(date), n));
+  return `<nav class="ts-week" aria-label="${esc(t("ts.weekNav"))}">
+    <button type="button" class="ts-week-jump" data-action="ts-day" data-date="${jump(-7)}" aria-label="${esc(t("ts.prevWeek"))}" title="${esc(t("ts.prevWeek"))}">«</button>
+    ${days.map((d) => {
+      const hours = dayTotal(ts, d);
+      const spent = dayExpenses(ts, d).length > 0;
+      return `<button type="button" class="ts-week-day ${d === date ? "is-current" : ""} ${d === today ? "is-today" : ""}" data-action="ts-day" data-date="${d}"
+        aria-current="${d === date ? "date" : "false"}" aria-label="${esc(fmt.longDate(parseISODate(d)))}${hours ? ` · ${esc(h(hours))}` : ""}">
+        <span class="ts-week-name">${esc(fmt.weekdayShort(parseISODate(d)))}</span>
+        <span class="ts-week-num">${parseISODate(d).getDate()}</span>
+        <span class="ts-week-hours">${hours ? esc(fmt.hours(hours)) : spent ? "💳" : "·"}</span>
+      </button>`;
+    }).join("")}
+    <button type="button" class="ts-week-jump" data-action="ts-day" data-date="${jump(7)}" aria-label="${esc(t("ts.nextWeek"))}" title="${esc(t("ts.nextWeek"))}">»</button>
+  </nav>`;
+}
+
+function daySection(ts, date, today, selected, editingExpense) {
   const entries = dayEntries(ts, date);
   const projects = activeProjects(ts);
   const chosen = projects.some((p) => p.id === selected) ? selected : projects[0]?.id;
@@ -121,11 +178,15 @@ function daySection(ts, date, today, selected) {
     <header class="ts-day-head">
       <button type="button" class="nav-arrow" data-action="ts-day" data-date="${toISODate(addDays(parseISODate(date), -1))}"
         aria-label="${esc(t("nav.prev.day"))}" title="${esc(t("nav.prev.day"))}">${CHEVRON_LEFT}</button>
-      <h2>${esc(title)}</h2>
+      <label class="ts-date-pick" title="${esc(t("ts.pickDate"))}">
+        <h2>${esc(title)} <span aria-hidden="true">📅</span></h2>
+        <input type="date" data-action="ts-goto" value="${date}" aria-label="${esc(t("ts.pickDate"))}">
+      </label>
       <button type="button" class="nav-arrow" data-action="ts-day" data-date="${toISODate(addDays(parseISODate(date), 1))}"
         aria-label="${esc(t("nav.next.day"))}" title="${esc(t("nav.next.day"))}">${CHEVRON_RIGHT}</button>
       ${date !== today ? `<button type="button" class="btn soft" data-action="ts-day" data-date="${today}">${t("nav.today")}</button>` : ""}
     </header>
+    ${weekStrip(ts, date, today)}
     <div class="ts-totals">
       <span class="ts-total">${esc(h(dayTotal(ts, date)))}</span>
       <span class="hint">${esc(t("ts.week", { hours: h(weekTotal(ts, date)) }))}</span>
@@ -158,7 +219,7 @@ function daySection(ts, date, today, selected) {
         <button type="submit" class="btn primary">${t("ts.add")}</button>
       </form>`
       : `<p class="empty-msg small">${t("ts.noProjects")}</p>`}
-    ${expensesBlock(ts, date, projects, chosen)}
+    ${expensesBlock(ts, date, projects, chosen, editingExpense)}
   </section>`;
 }
 
@@ -278,6 +339,9 @@ function businessSection(ts) {
         <div class="row">${field("phone", t("ts.phone"), 'type="tel"')}${field("email", t("ts.email"), 'type="email"')}</div>
         <div class="row">${field("tpsNumber", t("ts.tpsNumber"))}${field("tvqNumber", t("ts.tvqNumber"))}</div>
         <div class="row">${field("terms", t("ts.terms"), 'inputmode="numeric"')}${field("nextInvoice", t("ts.nextInvoice"), `placeholder="${esc(t("ts.example", { value: "2026-115" }))}"`)}</div>
+        <label class="switch"><input type="checkbox" data-action="ts-business-toggle" data-field="showTaskCodes" ${b.showTaskCodes ? "checked" : ""}>
+          <span>${t("ts.showTaskCodes")}</span></label>
+        <p class="hint">${t("ts.showTaskCodesHint")}</p>
         <label>${t("ts.mileageRate")} <input ${attrs("mileageRate")} value="${esc(fmt.hours(b.mileageRate))}" inputmode="decimal"></label>
         <h3>${t("ts.rates")}</h3>
         ${Object.keys(ts.rates).length
@@ -342,11 +406,11 @@ export const timesheetPage = {
 
   title: () => t("nav.timesheet"),
 
-  render({ repo, today, timesheetDate, timesheetExport, timesheetProject }) {
+  render({ repo, today, timesheetDate, timesheetExport, timesheetProject, editingExpense }) {
     const ts = repo.timesheet();
     const date = timesheetDate ?? today;
     return `<section class="page timesheet">
-      ${daySection(ts, date, today, timesheetProject)}
+      ${daySection(ts, date, today, timesheetProject, editingExpense)}
       ${projectsSection(ts)}
       ${clientsSection(ts)}
       ${exportSection(ts, today, timesheetExport)}

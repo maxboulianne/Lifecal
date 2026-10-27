@@ -8,7 +8,7 @@
 //   entries   [{ id, date, projectId, hours, overtime, taskCode, task, note }]
 //             une ligne d'heures d'une journée ; taskCode / task : code et description de la tâche
 //   expenses, rates : les dépenses à refacturer (voir expenses.js)
-//   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, mileageRate, logo, logoSize }
+//   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, mileageRate, showTaskCodes, logo, logoSize }
 //             mon entreprise, pour la facture (terms : jours pour payer, ex. 10 = NET10 ;
 //             logo : image PNG ou JPEG en data URL, logoSize : { width, height } en pixels)
 // Fonctions pures : elles retournent toujours de nouvelles valeurs.
@@ -25,7 +25,7 @@ export const BUSINESS_FIELDS = ["name", "contact", "address", "phone", "email", 
 export const DEFAULT_TERMS = 10;
 
 export function emptyBusiness() {
-  return { name: "", contact: "", address: "", phone: "", email: "", tpsNumber: "", tvqNumber: "", terms: DEFAULT_TERMS, nextInvoice: "", mileageRate: DEFAULT_MILEAGE_RATE, logo: "", logoSize: null };
+  return { name: "", contact: "", address: "", phone: "", email: "", tpsNumber: "", tvqNumber: "", terms: DEFAULT_TERMS, nextInvoice: "", mileageRate: DEFAULT_MILEAGE_RATE, showTaskCodes: true, logo: "", logoSize: null };
 }
 
 export function emptyTimesheet() {
@@ -71,6 +71,7 @@ export function normalizeTimesheet(raw) {
   const business = {
     ...emptyBusiness(),
     mileageRate: rateOrNull(b.mileageRate) ?? DEFAULT_MILEAGE_RATE,
+    showTaskCodes: b.showTaskCodes !== false,
     ...Object.fromEntries(BUSINESS_FIELDS.filter((k) => k !== "terms").map((k) => [k, k === "address" ? String(b[k] ?? "").trim() : str(b[k])])),
     terms: terms !== null && terms >= 0 && b.terms !== "" ? Math.round(terms) : DEFAULT_TERMS,
     ...validLogo(b),

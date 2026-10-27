@@ -118,10 +118,11 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
     const p = getProject(ts, e.projectId);
     const rate = rateFor(p, e.overtime);
     const line = {
-      date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), taskCode: e.taskCode,
+      // Le code de tâche paraît sur la facture seulement si l'option est cochée.
+      date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), taskCode: business.showTaskCodes ? e.taskCode : "",
       description: e.task || p?.name || "", hours: e.hours, overtime: e.overtime, rate, amount: round2(e.hours * (rate ?? 0)),
     };
-    return { ...line, kind: "hours", text: lineDescription(line) };
+    return { ...line, kind: "hours", code: e.taskCode, text: lineDescription(line) };
   });
   const expenseLines = periodExpenses(ts, from, to, clientId).map((e) => {
     const line = {
@@ -284,7 +285,7 @@ export function invoiceSheets(ts, options) {
   d.lines.forEach((l, i) => {
     const r = i + 2;
     hoursRows.push([
-      { v: l.date, s: "tDate" }, { v: l.weekday, s: "tCell" }, { v: l.project, s: "tCell" }, { v: l.taskCode, s: "tCell" },
+      { v: l.date, s: "tDate" }, { v: l.weekday, s: "tCell" }, { v: l.project, s: "tCell" }, { v: l.code, s: "tCell" },
       { v: l.description, s: "tText" }, { v: l.hours, s: "tHours" }, { v: l.overtime ? OVERTIME : REGULAR, s: "tCell" },
       { v: l.rate ?? 0, s: "tMoney" }, { f: `F${r}*H${r}`, v: l.amount, s: "tMoney" },
     ]);
@@ -456,7 +457,7 @@ export function invoiceSheets(ts, options) {
       r[1] = { v: "HR", s: "unit" };
       r[2] = { f: `Heures!H${h}`, v: l.rate ?? 0, s: "price" };
       r[3] = {
-        f: `Heures!C${h}&"  —  "&IF(Heures!D${h}="","",Heures!D${h}&" : ")&Heures!E${h}&IF(Heures!G${h}="${OVERTIME}","  (${L.overtime})","")`,
+        f: `Heures!C${h}&"  —  "&${b.showTaskCodes ? `IF(Heures!D${h}="","",Heures!D${h}&" : ")&` : ""}Heures!E${h}&IF(Heures!G${h}="${OVERTIME}","  (${L.overtime})","")`,
         v: l.text, s: "desc",
       };
       fill(r, 4, 9, "lineBorder");

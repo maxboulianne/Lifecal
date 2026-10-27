@@ -263,3 +263,38 @@ test("dépenses : devises, kilométrage, frais généraux ; facture et sommaire"
   ts = removeExpense(ts, ts.expenses[0].id);
   assert.equal(ts.expenses.length, 4);
 });
+
+test("modifier une dépense ; codes de tâche affichés ou non sur la facture", async () => {
+  const { addExpense, updateExpense, expenseTotal, CURRENCIES } = await import("../js/timesheet/expenses.js");
+  const { invoiceData, invoiceSheets } = await import("../js/timesheet/invoice.js");
+  const { updateBusiness } = await import("../js/timesheet/timesheet.js");
+  assert.ok(["AED", "BRL", "CNY"].every((c) => CURRENCIES.includes(c)));
+  let { ts, client } = sample();
+  const p = ts.projects.find((x) => x.number === "P-200");
+  const r = addExpense(ts, { date: "2026-10-20", type: "food", description: "Lunch", projectId: p.id, amount: 20, currency: "CAD" });
+  ts = r.ts;
+  // montant et devise
+  ts = updateExpense(ts, r.expense.id, { amount: 100, currency: "AED", rate: 0.37 });
+  let e = ts.expenses[0];
+  assert.deepEqual([e.id, e.amount, e.currency, expenseTotal(e)], [r.expense.id, 100, "AED", 37]);
+  // devient du kilométrage, puis frais général, puis autre date
+  ts = updateExpense(ts, e.id, { type: "mileage", qty: 50, unitPrice: 0.65 });
+  e = ts.expenses[0];
+  assert.deepEqual([e.type, e.qty, e.amount, expenseTotal(e)], ["mileage", 50, null, 32.5]);
+  ts = updateExpense(ts, e.id, { type: "phone", amount: 65, currency: "CAD", projectId: null, clientId: client.id, date: "2026-10-22" });
+  e = ts.expenses[0];
+  assert.deepEqual([e.qty, e.projectId, e.clientId, e.date, expenseTotal(e)], [1, null, client.id, "2026-10-22", 65]);
+  // une modification invalide ne change rien
+  assert.deepEqual(updateExpense(ts, e.id, { amount: -5 }).expenses[0], e);
+
+  ts = addEntry(ts, { date: "2026-10-21", projectId: p.id, hours: 1, taskCode: "QA", task: "Audit" });
+  const options = { from: "2026-10-19", to: "2026-10-25", clientId: client.id, number: "1", date: "2026-10-26" };
+  const shown = invoiceData(ts, options).lines.find((l) => l.code === "QA");
+  assert.equal(shown.text, "P-200  —  QA : Audit");
+  const hiddenTs = updateBusiness(ts, { showTaskCodes: false });
+  assert.equal(invoiceData(hiddenTs, options).lines.find((l) => l.code === "QA").text, "P-200  —  Audit");
+  const { sheets } = invoiceSheets(hiddenTs, options);
+  assert.ok(sheets[1].rows.some((row) => row[3]?.v === "QA"), "le code reste dans « Heures »");
+  assert.ok(!sheets[0].rows.flat().some((c) => c?.f?.includes("Heures!D")), "la facture n'affiche pas le code");
+  assert.equal(normalizeTimesheet(hiddenTs).business.showTaskCodes, false);
+});

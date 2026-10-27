@@ -47,7 +47,7 @@ import {
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
-import { addExpense, expenseTotal as expenseTotalOf, removeExpense, setRate } from "../timesheet/expenses.js";
+import { addExpense, expenseTotal as expenseTotalOf, removeExpense, setRate, updateExpense } from "../timesheet/expenses.js";
 import { invoicePreview } from "./components/invoice-view.js";
 import { XLSX_TYPE, buildXlsx } from "../export/xlsx.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
@@ -119,6 +119,7 @@ export class App {
   timesheetProject = null; // dernier projet choisi pour ajouter des heures
   timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
   #invoicePending = null; // facture affichée dans l'aperçu
+  editingExpense = null; // dépense en cours de modification
   #map = null;
 
   constructor({ repo, triggers, storageLabel }) {
@@ -281,6 +282,7 @@ export class App {
         timesheetDate: this.timesheetDate,
         timesheetProject: this.timesheetProject,
         timesheetExport: this.timesheetExport,
+        editingExpense: this.editingExpense,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -847,9 +849,15 @@ export class App {
       if (this.page === "timesheet") return this.render();
       this.openPage("timesheet");
     },
-    "ts-day": (el) => {
-      this.timesheetDate = el.dataset.date === todayISO() ? null : el.dataset.date;
-      this.render();
+    "ts-day": (el) => this.#showTimesheetDay(el.dataset.date),
+    "ts-expense-edit": (el) => {
+      this.editingExpense = el.dataset.id;
+      this.#renderKeepingScroll();
+      $("[data-role=ts-expense][data-edit]")?.scrollIntoView({ block: "center" });
+    },
+    "ts-expense-cancel": () => {
+      this.editingExpense = null;
+      this.#renderKeepingScroll();
     },
     "ts-copy": (el) => this.#updateTimesheet(copyDay(this.repo.timesheet(), el.dataset.from, el.dataset.date)),
     "ts-remove": (el) => this.#updateTimesheet(removeTsEntry(this.repo.timesheet(), el.dataset.id)),
@@ -1301,6 +1309,14 @@ export class App {
     if (focusSelector) $(focusSelector)?.focus();
   }
 
+  // Aller à une journée (flèches, semaine, calendrier), en gardant la position dans la page.
+  #showTimesheetDay(date) {
+    if (!isISODate(date)) return;
+    this.timesheetDate = date === todayISO() ? null : date;
+    this.editingExpense = null;
+    this.#renderKeepingScroll();
+  }
+
   #renderKeepingScroll() {
     const top = window.scrollY;
     this.render();
@@ -1344,6 +1360,10 @@ export class App {
         }
         return this.#updateTimesheet(updateBusiness(ts, { [field]: el.value.trim() }));
       }
+      case "ts-goto":
+        return this.#showTimesheetDay(el.value);
+      case "ts-business-toggle":
+        return this.#updateTimesheet(updateBusiness(ts, { [el.dataset.field]: el.checked }));
       case "ts-entry-ot":
         return this.#updateTimesheet(updateTsEntry(ts, id, { overtime: el.checked }));
       case "ts-client-field": {
@@ -1471,7 +1491,7 @@ export class App {
     const ts = this.repo.timesheet();
     if (type === "mileage") {
       fields.qty = readNumber(text("km"));
-      fields.unitPrice = ts.business.mileageRate;
+      fields.unitPrice = Number(form.dataset.mileage) || ts.business.mileageRate; // une dépense modifiée garde son taux
       if (fields.qty === null) return (errors.textContent = t("ts.errors.expenseKm"));
     } else {
       fields.amount = readNumber(text("amount"));
@@ -1479,6 +1499,16 @@ export class App {
       fields.rate = fields.currency === "CAD" ? 1 : readNumber(text("rate"));
       if (fields.amount === null) return (errors.textContent = t("ts.errors.expenseAmount"));
       if (fields.rate === null) return (errors.textContent = t("ts.errors.expenseRate"));
+    }
+    if (form.dataset.edit) {
+      // Modification : la dépense garde son identité ; la date peut changer.
+      if (isISODate(text("date"))) fields.date = text("date");
+      let next = updateExpense(ts, form.dataset.edit, fields);
+      if (fields.currency && fields.currency !== "CAD") next = setRate(next, fields.currency, fields.rate);
+      this.editingExpense = null;
+      await this.#updateTimesheet(next);
+      const saved = next.expenses.find((e) => e.id === form.dataset.edit);
+      return toast(t("ts.expenseSaved", { amount: fmt.money(expenseTotalOf(saved)) }));
     }
     const { ts: next, expense } = addExpense(ts, fields);
     if (!expense) return (errors.textContent = t("ts.errors.expenseAmount"));
