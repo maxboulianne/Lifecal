@@ -5,7 +5,8 @@
 // dans la langue choisie. Les totaux sont des formules Excel (avec leur valeur).
 
 import { colName } from "../export/xlsx.js";
-import { getClient, getProject, periodSummary } from "./timesheet.js";
+import { dayTotal, getClient, getProject, periodSummary } from "./timesheet.js";
+import { presenceHours } from "./presence.js";
 
 const HOURS_COLUMNS = ["date", "day", "number", "project", "type", "taskCode", "task", "work", "client", "hours", "note"];
 const HOURS_WIDTHS = [12, 11, 12, 26, 11, 10, 30, 36, 20, 9, 30];
@@ -67,8 +68,28 @@ export function timesheetSheets(ts, { from, to, clientId = null, labels, weekday
 
   const lastHoursCol = colName(HOURS_COLUMNS.length - 1);
   const lastProjectCol = colName(PROJECT_COLUMNS.length - 1);
-  return [
+  const sheets = [
     { name: labels.sheetHours, columns: HOURS_WIDTHS, rows, merges: [`A1:${lastHoursCol}1`, `A2:${lastHoursCol}2`] },
     { name: labels.sheetProjects, columns: [12, 28, 12, 22, 9, 11, 13], rows: byProject, merges: [`A1:${lastProjectCol}1`, `A2:${lastProjectCol}2`] },
   ];
+
+  // ---- Présence : début, fin, pause, heures travaillées et écart avec les heures notées ----
+  const presence = Object.entries(ts.days ?? {}).filter(([date]) => date >= from && date <= to).sort(([a], [b]) => a.localeCompare(b));
+  if (presence.length && labels.presence) {
+    const P = labels.presence;
+    const pRows = [title, period, [], [P.date, P.day, P.start, P.end, P.pause, P.worked, P.logged, P.gap].map((v) => ({ v, s: "header" }))];
+    for (const [date, p] of presence) {
+      const r = pRows.length + 1;
+      const worked = presenceHours(p);
+      // Heures notées : toutes les heures de la journée (tous les clients)
+      const logged = dayTotal(ts, date);
+      pRows.push([
+        { v: date, s: "date" }, weekday(date), p.start, p.end, { v: p.pause, s: "hours" },
+        worked === null ? "" : { v: worked, s: "hours" }, { v: logged, s: "hours" },
+        worked === null ? "" : { f: `F${r}-G${r}`, v: Math.round((worked - logged) * 100) / 100, s: "hours" },
+      ]);
+    }
+    sheets.push({ name: P.sheet, columns: [12, 11, 9, 9, 9, 11, 11, 9], rows: pRows, merges: ["A1:H1", "A2:H2"] });
+  }
+  return sheets;
 }
