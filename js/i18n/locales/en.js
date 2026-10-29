@@ -656,8 +656,7 @@ export default {
   "ts.prevWeek": "Previous week",
   "ts.nextWeek": "Next week",
   "ts.pickDate": "Pick a date",
-  "ts.showTaskCodes": "Show task codes on the invoice",
-  "ts.showTaskCodesHint": "Checked: “P-713 — PSR01 : Painting specification review”. Unchecked: “P-713 — Painting specification review”. Codes stay in the “Heures” tab.",
+  "ts.showTaskCodes": "Task code",
   "ts.task": "Task",
   "ts.noTask": "— No task —",
   "ts.quickTasks": "Quick selection",
@@ -679,4 +678,8 @@ export default {
   "ts.confirmDeleteTask": "Remove task {code} — {name} from the catalogue?",
   "ts.taskStillUsed": { one: "It is used on 1 line of hours: the line keeps its code and description.", other: "It is used on {count} lines of hours: they keep their code and description." },
   "ts.col.work": "Work performed",
+  "ts.invoiceLines": "Invoice lines",
+  "ts.invoiceLinesHint": "The project code always appears. Choose what is added on each line (work performed always appears when filled in).",
+  "ts.showProjectName": "Project name",
+  "ts.showTaskDescription": "Task description",
 };

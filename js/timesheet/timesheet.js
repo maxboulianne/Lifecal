@@ -10,7 +10,8 @@
 //             de la tâche ; work : travail effectué (paraît sur la facture) ; note : pour soi
 //   tasks     les tâches standard (voir tasks.js)
 //   expenses, rates : les dépenses à refacturer (voir expenses.js)
-//   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, mileageRate, showTaskCodes, logo, logoSize }
+//   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, mileageRate, showProjectName, showTaskCodes, showTaskDescription, logo, logoSize }
+//             show… : ce qui paraît sur chaque ligne de la facture (le code du projet, toujours)
 //             mon entreprise, pour la facture (terms : jours pour payer, ex. 10 = NET10 ;
 //             logo : image PNG ou JPEG en data URL, logoSize : { width, height } en pixels)
 // Fonctions pures : elles retournent toujours de nouvelles valeurs.
@@ -28,7 +29,7 @@ export const BUSINESS_FIELDS = ["name", "contact", "address", "phone", "email", 
 export const DEFAULT_TERMS = 10;
 
 export function emptyBusiness() {
-  return { name: "", contact: "", address: "", phone: "", email: "", tpsNumber: "", tvqNumber: "", terms: DEFAULT_TERMS, nextInvoice: "", mileageRate: DEFAULT_MILEAGE_RATE, showTaskCodes: true, logo: "", logoSize: null };
+  return { name: "", contact: "", address: "", phone: "", email: "", tpsNumber: "", tvqNumber: "", terms: DEFAULT_TERMS, nextInvoice: "", mileageRate: DEFAULT_MILEAGE_RATE, showProjectName: false, showTaskCodes: true, showTaskDescription: true, logo: "", logoSize: null };
 }
 
 export function emptyTimesheet() {
@@ -74,7 +75,9 @@ export function normalizeTimesheet(raw) {
   const business = {
     ...emptyBusiness(),
     mileageRate: rateOrNull(b.mileageRate) ?? DEFAULT_MILEAGE_RATE,
+    showProjectName: b.showProjectName === true,
     showTaskCodes: b.showTaskCodes !== false,
+    showTaskDescription: b.showTaskDescription !== false,
     ...Object.fromEntries(BUSINESS_FIELDS.filter((k) => k !== "terms").map((k) => [k, k === "address" ? String(b[k] ?? "").trim() : str(b[k])])),
     terms: terms !== null && terms >= 0 && b.terms !== "" ? Math.round(terms) : DEFAULT_TERMS,
     ...validLogo(b),

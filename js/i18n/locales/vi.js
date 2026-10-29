@@ -653,8 +653,7 @@ export default {
   "ts.prevWeek": "Tuần trước",
   "ts.nextWeek": "Tuần sau",
   "ts.pickDate": "Chọn ngày",
-  "ts.showTaskCodes": "Hiện mã công việc trên hóa đơn",
-  "ts.showTaskCodesHint": "Bật: «P-713 — PSR01 : Painting specification review». Tắt: «P-713 — Painting specification review». Mã vẫn nằm trong thẻ «Heures».",
+  "ts.showTaskCodes": "Mã công việc",
   "ts.task": "Công việc",
   "ts.noTask": "— Không có công việc —",
   "ts.quickTasks": "Chọn nhanh",
@@ -676,4 +675,8 @@ export default {
   "ts.confirmDeleteTask": "Xóa công việc {code} — {name} khỏi danh mục?",
   "ts.taskStillUsed": { one: "Công việc này đang dùng ở 1 dòng giờ: dòng đó giữ nguyên mã và mô tả.", other: "Công việc này đang dùng ở {count} dòng giờ: các dòng giữ nguyên mã và mô tả." },
   "ts.col.work": "Công việc đã làm",
+  "ts.invoiceLines": "Các dòng hóa đơn",
+  "ts.invoiceLinesHint": "Mã dự án luôn hiện. Chọn những gì thêm vào mỗi dòng (công việc đã làm luôn hiện nếu có).",
+  "ts.showProjectName": "Tên dự án",
+  "ts.showTaskDescription": "Mô tả công việc",
 };

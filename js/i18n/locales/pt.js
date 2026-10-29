@@ -656,8 +656,7 @@ export default {
   "ts.prevWeek": "Semana anterior",
   "ts.nextWeek": "Próxima semana",
   "ts.pickDate": "Escolher uma data",
-  "ts.showTaskCodes": "Mostrar os códigos de tarefa na fatura",
-  "ts.showTaskCodesHint": "Marcado: «P-713 — PSR01 : Painting specification review». Desmarcado: «P-713 — Painting specification review». Os códigos continuam na aba «Heures».",
+  "ts.showTaskCodes": "Código da tarefa",
   "ts.task": "Tarefa",
   "ts.noTask": "— Nenhuma tarefa —",
   "ts.quickTasks": "Seleção rápida",
@@ -679,4 +678,8 @@ export default {
   "ts.confirmDeleteTask": "Remover a tarefa {code} — {name} do catálogo?",
   "ts.taskStillUsed": { one: "Ela é usada em 1 linha de horas: a linha mantém o código e a descrição.", other: "Ela é usada em {count} linhas de horas: elas mantêm o código e a descrição." },
   "ts.col.work": "Trabalho realizado",
+  "ts.invoiceLines": "Linhas da fatura",
+  "ts.invoiceLinesHint": "O código do projeto sempre aparece. Escolha o que é acrescentado em cada linha (o trabalho realizado sempre aparece se estiver preenchido).",
+  "ts.showProjectName": "Nome do projeto",
+  "ts.showTaskDescription": "Descrição da tarefa",
 };

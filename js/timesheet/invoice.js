@@ -92,13 +92,19 @@ const letter = (i) => String.fromCharCode(65 + i);
 
 export const dueDate = (date, terms) => toISODate(addDays(parseISODate(date), Number(terms) || 0));
 
-// Projet tel qu'il paraît sur la facture : son numéro (ou son nom).
+// Projet : son code (ou son nom), qui sert aussi à regrouper le sommaire.
 const projectKey = (p) => p?.number || p?.name || "?";
+// Projet tel qu'il paraît sur une ligne : toujours le code ; le nom en plus si l'option est cochée.
+const projectLabel = (p, business) => (business.showProjectName && p?.number && p?.name ? `${p.number} · ${p.name}` : projectKey(p));
 
-// « CA15713  —  QA04 : Painting specification review  —  Reviewed galvanizing requirements  (Surtemps / Overtime) »
+// Tâche sur une ligne : « QA04 : Painting specification review », « QA04 », la description seule, ou rien.
+const taskText = (code, description) => (code && description ? `${code} : ${description}` : code || description || "");
+
+// « CA15713 · Projet  —  QA04 : Painting specification review  —  Reviewed galvanizing requirements  (Surtemps / Overtime) »
 export function lineDescription(line) {
+  const task = taskText(line.taskCode, line.description);
   const work = line.work ? `  —  ${line.work}` : "";
-  return `${line.project}  —  ${line.taskCode ? `${line.taskCode} : ` : ""}${line.description}${work}${line.overtime ? `  (${L.overtime})` : ""}`;
+  return `${line.label ?? line.project}${task ? `  —  ${task}` : ""}${work}${line.overtime ? `  (${L.overtime})` : ""}`;
 }
 
 const NUMBER_FR = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 2 });
@@ -107,7 +113,7 @@ const rateText = (rate) => String(rate).replace(".", ",");
 // « P-200  —  Repas / Food : Dinner  (2 924 738 VND @ 0,000053931) »
 export function expenseDescription(line) {
   const foreign = line.currency && line.currency !== "CAD" ? `  (${NUMBER_FR.format(line.origAmount).replace(/\s/g, " ")} ${line.currency} @ ${rateText(line.rate)})` : "";
-  return `${line.project}  —  ${EXPENSE_LABELS[line.type]}${line.description ? ` : ${line.description}` : ""}${foreign}`;
+  return `${line.label ?? line.project}  —  ${EXPENSE_LABELS[line.type]}${line.description ? ` : ${line.description}` : ""}${foreign}`;
 }
 
 // Contenu de la facture (lignes, sommaire, totaux), commun au fichier Excel
@@ -119,15 +125,17 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
     const p = getProject(ts, e.projectId);
     const rate = rateFor(p, e.overtime);
     const line = {
-      // Le code de tâche paraît sur la facture seulement si l'option est cochée.
-      date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), taskCode: business.showTaskCodes ? e.taskCode : "",
-      description: e.task || p?.name || "", work: e.work, hours: e.hours, overtime: e.overtime, rate, amount: round2(e.hours * (rate ?? 0)),
+      // Le nom du projet, le code et la description de la tâche paraissent selon les options choisies.
+      date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), label: projectLabel(p, business),
+      taskCode: business.showTaskCodes ? e.taskCode : "", description: business.showTaskDescription ? e.task : "",
+      taskDescription: e.task, work: e.work, hours: e.hours, overtime: e.overtime, rate, amount: round2(e.hours * (rate ?? 0)),
     };
     return { ...line, kind: "hours", code: e.taskCode, text: lineDescription(line) };
   });
   const expenseLines = periodExpenses(ts, from, to, clientId).map((e) => {
     const line = {
       kind: "expense", date: e.date, weekday: weekdayFr(e.date), project: e.projectId ? projectKey(getProject(ts, e.projectId)) : GENERAL,
+      label: e.projectId ? projectLabel(getProject(ts, e.projectId), business) : GENERAL,
       type: e.type, category: EXPENSE_CATEGORY[e.type], description: e.description, qty: e.qty, unit: isMileage(e) ? "KM" : "EA",
       unitPrice: expenseUnitPrice(e), amount: expenseTotal(e), currency: e.currency, origAmount: e.amount, rate: e.rate,
     };
@@ -272,6 +280,18 @@ export function logoImage(dataUrl, size) {
   return { data: bytes, type: m[1], col: 0, row: 0, width: Math.round(height * ratio), height };
 }
 
+// Description d'une ligne d'heures dans Excel : se réfère à l'onglet « Heures »
+// (projet C, tâche D, description E, travail F, type H) selon les options d'affichage.
+function hoursLineFormula(h, line, b) {
+  const nameSuffix = line.label !== line.project ? line.label.slice(line.project.length).replace(/"/g, '""') : "";
+  const project = `Heures!C${h}${nameSuffix ? `&"${nameSuffix}"` : ""}`;
+  const code = `Heures!D${h}`;
+  const desc = `Heures!E${h}`;
+  const task = b.showTaskCodes && b.showTaskDescription ? `IF(${code}="",${desc},IF(${desc}="",${code},${code}&" : "&${desc}))`
+    : b.showTaskCodes ? code : b.showTaskDescription ? desc : "";
+  return `${project}${task ? `&IF(${task}="","","  —  "&${task})` : ""}&IF(Heures!F${h}="","","  —  "&Heures!F${h})&IF(Heures!H${h}="${OVERTIME}","  (${L.overtime})","")`;
+}
+
 // ---- Les trois onglets ----------------------------------------------------------------
 
 export function invoiceSheets(ts, options) {
@@ -288,7 +308,7 @@ export function invoiceSheets(ts, options) {
     const r = i + 2;
     hoursRows.push([
       { v: l.date, s: "tDate" }, { v: l.weekday, s: "tCell" }, { v: l.project, s: "tCell" }, { v: l.code, s: "tCell" },
-      { v: l.description, s: "tText" }, { v: l.work, s: "tText" }, { v: l.hours, s: "tHours" }, { v: l.overtime ? OVERTIME : REGULAR, s: "tCell" },
+      { v: l.taskDescription, s: "tText" }, { v: l.work, s: "tText" }, { v: l.hours, s: "tHours" }, { v: l.overtime ? OVERTIME : REGULAR, s: "tCell" },
       { v: l.rate ?? 0, s: "tMoney" }, { f: `G${r}*I${r}`, v: l.amount, s: "tMoney" },
     ]);
   });
@@ -358,7 +378,7 @@ export function invoiceSheets(ts, options) {
   taskKeys.forEach((code, i) => {
     const r = i + 2;
     const of = d.lines.filter((l) => l.code === code);
-    const description = code ? (ts.tasks?.find((t) => t.code === code)?.description ?? of[0].description) : "Sans code / No code";
+    const description = code ? (ts.tasks?.find((t) => t.code === code)?.description ?? of[0].taskDescription) : "Sans code / No code";
     // Critère « = » : les lignes sans code
     const crit = code ? `D${r}` : `"="`;
     taskRows.push([
@@ -479,7 +499,7 @@ export function invoiceSheets(ts, options) {
       r[1] = { v: "HR", s: "unit" };
       r[2] = { f: `Heures!I${h}`, v: l.rate ?? 0, s: "price" };
       r[3] = {
-        f: `Heures!C${h}&"  —  "&${b.showTaskCodes ? `IF(Heures!D${h}="","",Heures!D${h}&" : ")&` : ""}Heures!E${h}&IF(Heures!F${h}="","","  —  "&Heures!F${h})&IF(Heures!H${h}="${OVERTIME}","  (${L.overtime})","")`,
+        f: hoursLineFormula(h, l, b),
         v: l.text, s: "desc",
       };
       fill(r, 4, 9, "lineBorder");
