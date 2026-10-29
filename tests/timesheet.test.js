@@ -357,3 +357,27 @@ test("facture : afficher ou non le nom du projet, le code et la description de l
   const heures = invoiceSheets(updateBusiness(ts, { showTaskCodes: false, showTaskDescription: false }), options).sheets[1];
   assert.deepEqual(heures.rows[1].slice(3, 6).map((c) => c.v), ["QA04", "Painting specification review", "Galvanizing"]);
 });
+
+test("présence : début, fin, pause, heures travaillées, recopie, export", async () => {
+  const { normalizeTime, parsePause, presenceHours, setPresence, getPresence } = await import("../js/timesheet/presence.js");
+  const { timesheetSheets } = await import("../js/timesheet/export.js");
+  assert.deepEqual(["8", "8h", "8:5", "830", "17:30", "24:00", "abc"].map(normalizeTime), ["08:00", "08:00", "08:05", "08:30", "17:30", "", ""]);
+  assert.deepEqual(["", "1", "0,75", "1:30", "1h", "45", "30 min", "45m", "x"].map(parsePause), [0, 1, 0.75, 1.5, 1, 0.75, 0.5, 0.75, null]);
+  assert.equal(presenceHours({ start: "08:00", end: "17:30", pause: 1 }), 8.5);
+  assert.equal(presenceHours({ start: "22:00", end: "02:00", pause: 0 }), 4, "après minuit");
+  assert.equal(presenceHours({ start: "08:00", end: "", pause: 0 }), null);
+  let { ts } = sample();
+  ts = setPresence(ts, "2026-10-19", { start: "08:00", end: "17:00", pause: 1 });
+  assert.deepEqual(getPresence(ts, "2026-10-19"), { start: "08:00", end: "17:00", pause: 1 });
+  assert.deepEqual(normalizeTimesheet(ts).days["2026-10-19"], { start: "08:00", end: "17:00", pause: 1 });
+  // effacer tout : la journée disparaît
+  assert.equal(setPresence(ts, "2026-10-19", { start: "", end: "", pause: 0 }).days["2026-10-19"], undefined);
+  // recopier une journée recopie aussi la présence
+  assert.deepEqual(copyDay(ts, "2026-10-19", "2026-10-28").days["2026-10-28"], { start: "08:00", end: "17:00", pause: 1 });
+  const P = { sheet: "Présence", date: "Date", day: "Jour", start: "Début", end: "Fin", pause: "Pause", worked: "Travaillé", logged: "Notées", gap: "Écart" };
+  const sheets = timesheetSheets(ts, { from: "2026-10-19", to: "2026-10-25", labels: { ...LABELS, presence: P }, weekday: () => "lun." });
+  const presence = sheets.at(-1);
+  assert.equal(presence.name, "Présence");
+  // 8 h travaillées, 8 h notées le 19 : écart 0
+  assert.deepEqual(presence.rows[4].slice(5).map((c) => c.v), [8, 8, 0]);
+});

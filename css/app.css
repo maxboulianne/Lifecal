@@ -1210,3 +1210,19 @@ body.player-open { overflow: hidden; }
 /* Les longues descriptions de tâche ne doivent pas élargir la page */
 .ts-add { grid-template-columns: minmax(0, 1fr); }
 .ts-add select, .ts-entry-task select { width: 100%; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
+
+/* Présence : début, fin, pause et balancement des heures */
+.ts-presence { margin: 4px 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--soft); }
+.ts-presence h3 { margin: 0 0 6px; font-size: 1rem; }
+.ts-presence-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
+.ts-presence-row label { color: var(--muted); font-size: 0.85rem; }
+.ts-presence-row input { display: block; width: 100%; min-width: 0; box-sizing: border-box; margin-top: 4px; min-height: 40px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; }
+.ts-presence .hint { margin: 8px 0 0; }
+.ts-presence-status { margin: 8px 0 4px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.ts-balance-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ts-balance { font-weight: 600; }
+.ts-balance.is-ok { color: var(--accent); }
+.ts-balance.is-left { color: #b45309; }
+.ts-balance.is-over { color: var(--danger); }
+.ts-fill-gap { min-height: 34px; padding: 4px 12px; }

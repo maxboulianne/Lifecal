@@ -42,6 +42,7 @@ import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisite
 import { settingsPage } from "./pages/settings.js";
 import { CUSTOM_TASK, rangeDates, timesheetPage } from "./pages/timesheet.js";
 import { addTask, getTask, removeTask, taskUseCount, updateTask } from "../timesheet/tasks.js";
+import { normalizeTime, parsePause, setPresence } from "../timesheet/presence.js";
 import {
   addClient, addEntry as addTsEntry, addProject, copyDay, deleteClient, deleteProject, getClient, getProject, parseHours, projectEntryCount,
   LOGO_MAX_LENGTH, nextInvoiceNumber, projectLabel, removeEntry as removeTsEntry, updateBusiness, updateClient, updateEntry as updateTsEntry, updateProject,
@@ -896,6 +897,14 @@ export class App {
     "ts-export": (el) => this.#exportTimesheet(el.dataset.from, el.dataset.to, el.dataset.client),
     "ts-invoice": (el) => this.#createInvoice(this.#invoiceOptions(el.closest("[data-role=ts-invoice]"))),
     // Aperçu de la facture dans l'application, avant de créer le fichier.
+    // Mettre l'écart (présence − heures notées) dans la case des heures à ajouter
+    "ts-fill-gap": (el) => {
+      const input = $("[data-role=ts-add] [name=hours]");
+      if (!input) return toast(t("ts.noProjects"));
+      input.value = fmt.hours(Number(el.dataset.hours));
+      input.scrollIntoView({ block: "center" });
+      input.focus({ preventScroll: true });
+    },
     "ts-task-quick": (el) => {
       const ts = this.repo.timesheet();
       return this.#updateTimesheet(updateTask(ts, el.dataset.code, { quick: !getTask(ts, el.dataset.code)?.quick }));
@@ -1384,6 +1393,15 @@ export class App {
         }
         return this.#updateTimesheet(updateBusiness(ts, { [field]: el.value.trim() }));
       }
+      case "ts-presence": {
+        const { field, date } = el.dataset;
+        if (field === "pause") {
+          const pause = parsePause(el.value);
+          if (pause === null) return toast(t("ts.errors.pause"));
+          return this.#updateTimesheet(setPresence(ts, date, { pause }));
+        }
+        return this.#updateTimesheet(setPresence(ts, date, { [field]: normalizeTime(el.value) }));
+      }
       case "ts-goto":
         return this.#showTimesheetDay(el.value);
       case "ts-business-toggle":
@@ -1488,6 +1506,7 @@ export class App {
     return {
       title: t("ts.sheetTitle"), period: t("ts.period"), regular: t("ts.regular"), overtime: t("ts.overtime"), dayTotal: t("ts.dayTotal"),
       total: t("ts.total"), sheetHours: t("ts.sheetHours"), sheetProjects: t("ts.sheetProjects"), columns,
+      presence: Object.fromEntries(["sheet", "date", "day", "start", "end", "pause", "worked", "logged", "gap"].map((k) => [k, t(`ts.presenceCol.${k}`)])),
     };
   }
 

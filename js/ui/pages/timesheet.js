@@ -11,6 +11,7 @@ import {
   CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
 } from "../../timesheet/expenses.js";
 import { getTask, otherTasks, quickTasks } from "../../timesheet/tasks.js";
+import { getPresence, presenceHours } from "../../timesheet/presence.js";
 import { foldSection, isFoldOpen } from "../components/fold.js";
 import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
 
@@ -162,6 +163,35 @@ function expensesBlock(ts, date, projects, chosen, editingId) {
   </div>`;
 }
 
+// Présence de la journée : début, fin, pause ; heures travaillées comparées aux heures notées.
+function presenceBlock(ts, date) {
+  const p = getPresence(ts, date);
+  const worked = presenceHours(p);
+  const logged = dayTotal(ts, date);
+  const gap = worked === null ? 0 : Math.round((worked - logged) * 100) / 100;
+  const input = (field, extra) => `data-action="ts-presence" data-field="${field}" data-date="${date}" ${extra}`;
+  let status = `<p class="hint">${t("ts.presenceHint")}</p>`;
+  if (worked !== null) {
+    const balance = gap === 0
+      ? `<span class="ts-balance is-ok">✓ ${t("ts.balanced")}</span>`
+      : gap > 0
+        ? `<span class="ts-balance is-left">${esc(t("ts.toAllocate", { hours: h(gap) }))}</span>
+           <button type="button" class="btn soft ts-fill-gap" data-action="ts-fill-gap" data-hours="${gap}">＋ ${esc(t("ts.fillGap", { hours: h(gap) }))}</button>`
+        : `<span class="ts-balance is-over">${esc(t("ts.overPresence", { hours: h(-gap) }))}</span>`;
+    status = `<p class="ts-presence-status"><strong>${esc(t("ts.worked", { hours: h(worked) }))}</strong>
+      <span class="hint">${esc(t("ts.logged", { hours: h(logged) }))}</span></p><div class="ts-balance-row">${balance}</div>`;
+  }
+  return `<div class="ts-presence">
+    <h3>🕘 ${t("ts.presence")}</h3>
+    <div class="ts-presence-row">
+      <label>${t("ts.start")} <input type="time" ${input("start", `value="${p.start}"`)}></label>
+      <label>${t("ts.end")} <input type="time" ${input("end", `value="${p.end}"`)}></label>
+      <label>${t("ts.pause")} <input ${input("pause", `value="${p.pause ? esc(fmt.hours(p.pause)) : ""}" inputmode="decimal" autocomplete="off" placeholder="${esc(t("ts.pausePlaceholder"))}"`)}></label>
+    </div>
+    ${status}
+  </div>`;
+}
+
 // Semaine de la journée affichée : un bouton par jour (heures notées), semaine d'avant ou d'après.
 function weekStrip(ts, date, today) {
   const monday = startOfWeek(parseISODate(date));
@@ -209,6 +239,7 @@ function daySection(ts, date, today, selected, editingExpense) {
       <span class="ts-total">${esc(h(dayTotal(ts, date)))}</span>
       <span class="hint">${esc(t("ts.week", { hours: h(weekTotal(ts, date)) }))}</span>
     </div>
+    ${presenceBlock(ts, date)}
     ${entries.length ? `<ul class="ts-entries">${entries.map((e) => entryRow(ts, e)).join("")}</ul>` : ""}
     ${prev ? `<button type="button" class="btn soft" data-action="ts-copy" data-from="${prev}" data-date="${date}">📋 ${esc(t("ts.copyDay", { date: fmt.longDate(parseISODate(prev)) }))}</button>` : ""}
     ${projects.length ? `<form class="ts-add" data-role="ts-add" data-date="${date}">
