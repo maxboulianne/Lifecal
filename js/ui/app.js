@@ -79,6 +79,13 @@ function saveCatalogOpen(open) {
 
 const SWIPE_MIN_PX = 60;
 
+// Écran tactile (iPhone, iPad) : les champs d'heure et de date s'ouvrent en roulette.
+const TOUCH = globalThis.matchMedia?.("(pointer: coarse)") ?? { matches: false };
+const isPickerField = (el) => (el?.type === "time" || el?.type === "date") && Boolean(el.dataset?.action?.startsWith("ts-"));
+// Enregistrer à la fermeture : toujours pour une heure (on tape l'heure puis les minutes),
+// et pour une date sur écran tactile (roulette) ; avec la souris, une date choisie compte tout de suite.
+const savesOnClose = (el) => isPickerField(el) && (el.type === "time" || TOUCH.matches);
+
 // Nombre écrit à la main : « 2 924 738 », « 0,000053931 », « 25,50 $ » ; null si invalide ou 0.
 const readNumber = (value) => parseAmount(String(value ?? "").replace(/[\s$\u00a0\u202f]/g, ""));
 
@@ -143,10 +150,22 @@ export class App {
     this.#linkGroceryList().catch((err) => console.error(err));
     document.addEventListener("click", (e) => this.#onClick(e));
     document.addEventListener("change", (e) => this.#onChange(e));
+    // Roulettes d'heure et de date (iPhone, iPad) : enregistrer quand on les referme.
+    document.addEventListener("focusout", (e) => {
+      if (savesOnClose(e.target) && e.target.isConnected && e.target.value !== e.target.defaultValue) {
+        this.#onTimesheetChange(e.target);
+      }
+    });
     document.addEventListener("submit", (e) => this.#onSubmit(e));
     this.#listenSwipe();
     // Flèches du clavier (iPad avec clavier, ordinateur) : jour, semaine, mois ou année d'avant ou d'après.
     document.addEventListener("keydown", (e) => {
+      // Entrée dans un champ d'heure : valider (comme fermer la roulette)
+      if (e.key === "Enter" && savesOnClose(e.target)) {
+        e.preventDefault();
+        e.target.blur();
+        return;
+      }
       if (this.page || !$("#modal").hidden || e.altKey || e.ctrlKey || e.metaKey) return;
       if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
       if (e.key === "ArrowLeft") this.#actions.prev();
@@ -1069,6 +1088,9 @@ export class App {
       el.value = "";
       return;
     }
+    // Sur un écran tactile, chaque mouvement de la roulette déclenche « change » : on attend
+    // qu'elle soit refermée (focusout), sinon la page se redessine et la referme trop tôt.
+    if (savesOnClose(el)) return;
     if (el.dataset.action?.startsWith("ts-")) return this.#onTimesheetChange(el);
     if (el.form?.dataset.role === "ts-expense") return this.#syncExpenseForm(el.form, el.name === "currency");
     // Choisir un projet propose sa dernière tâche ; choisir une tâche montre sa portée.
