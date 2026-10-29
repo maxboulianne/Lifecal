@@ -704,4 +704,13 @@ export default {
   "ts.presenceCol.worked": "Gearbeitet (h)",
   "ts.presenceCol.logged": "Erfasst (h)",
   "ts.presenceCol.gap": "Differenz (h)",
+  "ts.pinFirst": "Immer zuerst auf der Rechnung",
+  "ts.monthly": "Jeden Monat wiederholen, am {day}.",
+  "ts.monthlyList": { one: "{count} monatliche Ausgabe", other: "{count} monatliche Ausgaben" },
+  "ts.monthlyDay": "am {day}. jedes Monats",
+  "ts.stop": "Beenden",
+  "ts.monthlyHint": "Wird jeden Monat automatisch hinzugefügt (mit dem Monat in der Beschreibung). Ein neuer Betrag gilt für die folgenden Monate; eine bereits hinzugefügte Ausgabe änderst du mit ✏️.",
+  "ts.confirmStopMonthly": "Diese monatliche Ausgabe beenden? Bereits hinzugefügte Ausgaben bleiben.",
+  "ts.monthlyStopped": "Monatliche Ausgabe beendet.",
+  "ts.monthlyAdded": "Ausgabe hinzugefügt. Sie kommt am {day}. jedes Monats wieder.",
 };

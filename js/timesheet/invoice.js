@@ -10,7 +10,7 @@
 
 import { addDays, parseISODate, toISODate } from "../core/dates.js";
 import { FORMATS } from "../export/xlsx.js";
-import { getClient, getProject, periodEntries, rateFor, TPS_RATE, TVQ_RATE } from "./timesheet.js";
+import { getClient, getProject, periodEntries, projectOrder, rateFor, TPS_RATE, TVQ_RATE } from "./timesheet.js";
 import { EXPENSE_CATEGORY, expenseTotal, expenseUnitPrice, isMileage, periodExpenses } from "./expenses.js";
 
 export const EXPENSE_CATEGORIES = ["hotel", "food", "material", "phone", "transport"];
@@ -141,14 +141,18 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
     };
     return { ...line, text: expenseDescription(line) };
   });
+  // Projets « toujours en premier » d'abord, puis par numéro ; les frais généraux à la fin.
+  const byKey = new Map(ts.projects.map((p) => [projectKey(p), p]));
+  const order = (a, b) => (a === GENERAL) - (b === GENERAL) || projectOrder(byKey.get(a) ?? { number: a }, byKey.get(b) ?? { number: b });
+  // Même ordre pour les dépenses (l'onglet « Frais » suit cet ordre, ligne pour ligne)
+  expenseLines.sort((a, b) => a.date.localeCompare(b.date) || order(a.project, b.project));
   // Chaque journée : ses dépenses, puis ses heures (comme sur la facture d'août)
   const days = [...new Set([...lines, ...expenseLines].map((l) => l.date))].sort().map((day) => ({
     date: day, weekday: `${weekdayFr(day)} / ${weekdayEn(day)}`,
     lines: [...expenseLines.filter((l) => l.date === day), ...lines.filter((l) => l.date === day)],
   }));
   const noExpenses = () => Object.fromEntries(EXPENSE_CATEGORIES.map((c) => [c, 0]));
-  const projects = [...new Set([...lines, ...expenseLines].map((l) => l.project))]
-    .sort((a, b) => (a === GENERAL) - (b === GENERAL) || a.localeCompare(b, undefined, { numeric: true }));
+  const projects = [...new Set([...lines, ...expenseLines].map((l) => l.project))].sort(order);
   const summary = projects.map((project) => {
     const of = lines.filter((l) => l.project === project);
     const ex = expenseLines.filter((l) => l.project === project);

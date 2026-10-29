@@ -723,4 +723,13 @@ export default {
   "ts.presenceCol.worked": "Travaillé (h)",
   "ts.presenceCol.logged": "Notées (h)",
   "ts.presenceCol.gap": "Écart (h)",
+  "ts.pinFirst": "Toujours en premier sur la facture",
+  "ts.monthly": "Répéter chaque mois, le {day} du mois",
+  "ts.monthlyList": { one: "{count} dépense mensuelle", other: "{count} dépenses mensuelles" },
+  "ts.monthlyDay": "le {day} de chaque mois",
+  "ts.stop": "Arrêter",
+  "ts.monthlyHint": "Ajoutées automatiquement chaque mois (avec le mois dans la description). Le nouveau montant vaut pour les mois suivants ; une dépense déjà ajoutée se modifie avec ✏️.",
+  "ts.confirmStopMonthly": "Arrêter cette dépense mensuelle ? Les dépenses déjà ajoutées restent.",
+  "ts.monthlyStopped": "Dépense mensuelle arrêtée.",
+  "ts.monthlyAdded": "Dépense ajoutée. Elle reviendra le {day} de chaque mois.",
 };

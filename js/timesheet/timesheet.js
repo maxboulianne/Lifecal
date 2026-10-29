@@ -2,7 +2,8 @@
 //
 // Rangée dans doc.timesheet :
 //   clients   [{ id, name, contact, email, address, po, tps, tvq }]   tps / tvq : taxes facturées ; po : no PO du client
-//   projects  [{ id, number, name, clientId, rate, overtimeRate, archived }]
+//   projects  [{ id, number, name, clientId, rate, overtimeRate, archived, pinned }]
+//             pinned : toujours en premier sur la facture (ex. le projet qualité)
 //             rate : taux horaire régulier ($) ; overtimeRate : taux du surtemps
 //             (vide : 1,5 × le taux régulier)
 //   entries   [{ id, date, projectId, hours, overtime, taskCode, task, work, note }]
@@ -10,7 +11,7 @@
 //             de la tâche ; work : travail effectué (paraît sur la facture) ; note : pour soi
 //   tasks     les tâches standard (voir tasks.js)
 //   days      les heures de présence de chaque journée : début, fin, pause (voir presence.js)
-//   expenses, rates : les dépenses à refacturer (voir expenses.js)
+//   expenses, recurring, rates : les dépenses à refacturer, les dépenses mensuelles (voir expenses.js)
 //   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, mileageRate, showProjectName, showTaskCodes, showTaskDescription, logo, logoSize }
 //             show… : ce qui paraît sur chaque ligne de la facture (le code du projet, toujours)
 //             mon entreprise, pour la facture (terms : jours pour payer, ex. 10 = NET10 ;
@@ -19,7 +20,7 @@
 
 import { addDays, parseISODate, startOfWeek, toISODate } from "../core/dates.js";
 import { newId } from "../data/item.js";
-import { DEFAULT_MILEAGE_RATE, normalizeExpenses, normalizeRates } from "./expenses.js";
+import { DEFAULT_MILEAGE_RATE, normalizeExpenses, normalizeRates, normalizeRecurring } from "./expenses.js";
 import { normalizeTasks, standardTasks } from "./tasks.js";
 import { copyPresence, normalizeDays } from "./presence.js";
 
@@ -35,7 +36,7 @@ export function emptyBusiness() {
 }
 
 export function emptyTimesheet() {
-  return { clients: [], projects: [], entries: [], expenses: [], rates: {}, tasks: standardTasks(), days: {}, business: emptyBusiness() };
+  return { clients: [], projects: [], entries: [], expenses: [], recurring: [], rates: {}, tasks: standardTasks(), days: {}, business: emptyBusiness() };
 }
 
 const str = (v) => String(v ?? "").trim();
@@ -64,7 +65,7 @@ export function normalizeTimesheet(raw) {
   }));
   const projects = (Array.isArray(ts.projects) ? ts.projects : []).filter((p) => p && (str(p.number) || str(p.name))).map((p) => ({
     id: p.id ?? newId(), number: str(p.number), name: str(p.name), clientId: p.clientId ?? null,
-    rate: rateOrNull(p.rate), overtimeRate: rateOrNull(p.overtimeRate), archived: Boolean(p.archived),
+    rate: rateOrNull(p.rate), overtimeRate: rateOrNull(p.overtimeRate), archived: Boolean(p.archived), pinned: Boolean(p.pinned),
   }));
   const entries = (Array.isArray(ts.entries) ? ts.entries : [])
     .filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.projectId && num(e.hours) !== null && num(e.hours) >= 0)
@@ -87,7 +88,8 @@ export function normalizeTimesheet(raw) {
   const known = new Set(projects.map((p) => p.id));
   const clientIds = new Set(clients.map((c) => c.id));
   const expenses = normalizeExpenses(ts.expenses).filter((e) => (e.projectId ? known.has(e.projectId) : clientIds.has(e.clientId)));
-  return { clients, projects, entries, expenses, rates: normalizeRates(ts.rates), tasks: normalizeTasks(ts.tasks), days: normalizeDays(ts.days), business };
+  const recurring = normalizeRecurring(ts.recurring).filter((r) => (r.projectId ? known.has(r.projectId) : clientIds.has(r.clientId)));
+  return { clients, projects, entries, expenses, recurring, rates: normalizeRates(ts.rates), tasks: normalizeTasks(ts.tasks), days: normalizeDays(ts.days), business };
 }
 
 // « 2,75 », « 2.75 », « 2:45 », « 2h45 », « 2 h 45 », « 45 min » -> heures décimales (ou null).
@@ -149,12 +151,18 @@ export function previousWorkday(ts, date) {
   return ts.entries.reduce((best, e) => (e.date < date && e.date > (best ?? "") ? e.date : best), null);
 }
 
-// Lignes d'une période, triées par date, pour un client (ou tous).
+// Ordre des projets sur la facture : ceux « toujours en premier », puis par numéro.
+export function projectOrder(a, b) {
+  return Number(Boolean(b?.pinned)) - Number(Boolean(a?.pinned))
+    || (a?.number || a?.name || "").localeCompare(b?.number || b?.name || "", undefined, { numeric: true });
+}
+
+// Lignes d'une période, triées par date puis par projet, pour un client (ou tous).
 export function periodEntries(ts, from, to, clientId = null) {
   return ts.entries
     .filter((e) => e.date >= from && e.date <= to)
     .filter((e) => !clientId || getProject(ts, e.projectId)?.clientId === clientId)
-    .sort((a, b) => a.date.localeCompare(b.date) || projectLabel(getProject(ts, a.projectId)).localeCompare(projectLabel(getProject(ts, b.projectId))));
+    .sort((a, b) => a.date.localeCompare(b.date) || projectOrder(getProject(ts, a.projectId), getProject(ts, b.projectId)));
 }
 
 // Résumé d'une période : par projet et par type d'heures (régulières, puis
@@ -173,8 +181,7 @@ export function periodSummary(ts, from, to, clientId = null) {
       const rate = rateFor(r.project, r.overtime);
       return { ...r, rate, amount: rate != null ? round(r.hours * rate) : null };
     })
-    .sort((a, b) => (a.project?.number ?? "").localeCompare(b.project?.number ?? "", undefined, { numeric: true })
-      || (a.project?.name ?? "").localeCompare(b.project?.name ?? "") || Number(a.overtime) - Number(b.overtime));
+    .sort((a, b) => projectOrder(a.project, b.project) || (a.project?.name ?? "").localeCompare(b.project?.name ?? "") || Number(a.overtime) - Number(b.overtime));
   const byDay = new Map();
   for (const e of entries) byDay.set(e.date, round((byDay.get(e.date) ?? 0) + e.hours));
   return {
@@ -243,6 +250,7 @@ export const deleteProject = (ts, id) => ({
   projects: ts.projects.filter((p) => p.id !== id),
   entries: ts.entries.filter((e) => e.projectId !== id),
   expenses: ts.expenses.filter((e) => e.projectId !== id),
+  recurring: (ts.recurring ?? []).filter((r) => r.projectId !== id),
 });
 export const projectEntryCount = (ts, id) => ts.entries.filter((e) => e.projectId === id).length + ts.expenses.filter((e) => e.projectId === id).length;
 
@@ -252,6 +260,7 @@ export const deleteClient = (ts, id) => ({
   clients: ts.clients.filter((c) => c.id !== id),
   projects: ts.projects.map((p) => (p.clientId === id ? { ...p, clientId: null } : p)),
   expenses: ts.expenses.filter((e) => e.clientId !== id),
+  recurring: (ts.recurring ?? []).filter((r) => r.clientId !== id),
 });
 
 export function addClient(ts, fields) {

@@ -704,4 +704,13 @@ export default {
   "ts.presenceCol.worked": "Trabajado (h)",
   "ts.presenceCol.logged": "Anotadas (h)",
   "ts.presenceCol.gap": "Diferencia (h)",
+  "ts.pinFirst": "Siempre primero en la factura",
+  "ts.monthly": "Repetir cada mes, el día {day}",
+  "ts.monthlyList": { one: "{count} gasto mensual", other: "{count} gastos mensuales" },
+  "ts.monthlyDay": "el día {day} de cada mes",
+  "ts.stop": "Detener",
+  "ts.monthlyHint": "Se añaden automáticamente cada mes (con el mes en la descripción). El nuevo importe vale para los meses siguientes; un gasto ya añadido se modifica con ✏️.",
+  "ts.confirmStopMonthly": "¿Detener este gasto mensual? Los gastos ya añadidos se conservan.",
+  "ts.monthlyStopped": "Gasto mensual detenido.",
+  "ts.monthlyAdded": "Gasto añadido. Volverá el día {day} de cada mes.",
 };

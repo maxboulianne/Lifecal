@@ -701,4 +701,13 @@ export default {
   "ts.presenceCol.worked": "Đã làm (giờ)",
   "ts.presenceCol.logged": "Đã ghi (giờ)",
   "ts.presenceCol.gap": "Chênh lệch (giờ)",
+  "ts.pinFirst": "Luôn đứng đầu trên hóa đơn",
+  "ts.monthly": "Lặp lại mỗi tháng, vào ngày {day}",
+  "ts.monthlyList": { one: "{count} chi phí hằng tháng", other: "{count} chi phí hằng tháng" },
+  "ts.monthlyDay": "ngày {day} hằng tháng",
+  "ts.stop": "Dừng",
+  "ts.monthlyHint": "Tự động thêm mỗi tháng (có tên tháng trong mô tả). Số tiền mới áp dụng cho các tháng sau; chi phí đã thêm thì sửa bằng ✏️.",
+  "ts.confirmStopMonthly": "Dừng chi phí hằng tháng này? Các chi phí đã thêm vẫn được giữ.",
+  "ts.monthlyStopped": "Đã dừng chi phí hằng tháng.",
+  "ts.monthlyAdded": "Đã thêm chi phí. Chi phí sẽ lặp lại vào ngày {day} hằng tháng.",
 };

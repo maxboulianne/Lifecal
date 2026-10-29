@@ -138,6 +138,8 @@ function expenseForm(ts, date, projects, chosen, editing) {
     <label data-role="km-row" ${mileage ? "" : "hidden"}>${t("ts.km")} <input name="km" inputmode="decimal" value="${e && mileage ? esc(fmt.hours(e.qty)) : ""}"
       placeholder="${esc(t("ts.example", { value: "128" }))}" autocomplete="off">
       <span class="hint">${esc(t("ts.mileageHint", { rate: fmt.money(e && mileage ? e.unitPrice : ts.business.mileageRate) }))}</span></label>
+    ${e ? "" : `<label class="switch" data-role="monthly-row" ${mileage ? "hidden" : ""}><input type="checkbox" name="monthly">
+      <span>🔁 ${esc(t("ts.monthly", { day: dayOfMonth(date.slice(8)) }))}</span></label>`}
     <p class="ts-expense-preview" data-role="expense-preview" aria-live="polite">${e ? `= ${esc(fmt.money(expenseTotal(e)))}` : ""}</p>
     <p class="form-errors" data-role="errors" role="alert"></p>
     <div class="actions">
@@ -145,6 +147,30 @@ function expenseForm(ts, date, projects, chosen, editing) {
       <button type="submit" class="btn primary">${t(e ? "ts.saveChanges" : "ts.saveExpense")}</button>
     </div>
   </form>`;
+}
+
+// « 1er » en français pour le premier du mois
+export const dayOfMonth = (day) => (getLanguage() === "fr" && Number(day) === 1 ? "1er" : String(Number(day)));
+
+// Dépenses mensuelles en cours (ex. le cellulaire) : montant modifiable, arrêter.
+function monthlyList(ts) {
+  if (!ts.recurring?.length) return "";
+  return `<details class="ts-monthly">
+    <summary>🔁 ${esc(t("ts.monthlyList", { count: ts.recurring.length }))}</summary>
+    <ul class="ts-monthly-list">${ts.recurring.map((r) => {
+      const p = r.projectId ? getProject(ts, r.projectId) : null;
+      const target = p ? p.number || p.name : t("ts.generalShort", { client: getClient(ts, r.clientId)?.name ?? "" });
+      return `<li>
+        <span aria-hidden="true">${EXPENSE_ICONS[r.type]}</span>
+        <div><strong>${esc(r.description || t(`ts.expenseType.${r.type}`))}</strong>
+          <span class="hint">${esc(target)} · ${esc(t("ts.monthlyDay", { day: dayOfMonth(r.day) }))}</span></div>
+        <label class="ts-monthly-amount">${r.currency}
+          <input data-action="ts-recurring-amount" data-id="${esc(r.id)}" value="${esc(fmt.hours(r.amount))}" inputmode="decimal" aria-label="${esc(t("ts.amount"))}"></label>
+        <button type="button" class="btn link danger" data-action="ts-recurring-stop" data-id="${esc(r.id)}">${t("ts.stop")}</button>
+      </li>`;
+    }).join("")}</ul>
+    <p class="hint">${t("ts.monthlyHint")}</p>
+  </details>`;
 }
 
 function expensesBlock(ts, date, projects, chosen, editingId) {
@@ -156,6 +182,7 @@ function expensesBlock(ts, date, projects, chosen, editingId) {
     ${list.length ? `<ul class="ts-expense-list">${list.map((e) => (editing?.id === e.id
       ? `<li class="ts-expense-edit">${expenseForm(ts, date, projects, chosen, editing)}</li>`
       : expenseRow(ts, e))).join("")}</ul>` : ""}
+    ${monthlyList(ts)}
     ${canAdd && !editing ? `<details class="ts-new-wrap" data-role="expense-wrap">
       <summary class="btn soft">＋ ${t("ts.addExpense")}</summary>
       ${expenseForm(ts, date, projects, chosen, null)}
@@ -298,6 +325,7 @@ function projectCard(ts, p) {
       ${field("overtimeRate", `${t("ts.rateOvertime")} ($/h)`, `<input ${attrs("overtimeRate")} value="${rateValue(p.overtimeRate)}" inputmode="decimal"
         placeholder="${p.rate != null ? esc(fmt.hours(rateFor(p, true))) : ""}">`)}
     </div>
+    <label class="switch"><input type="checkbox" data-action="ts-project-pin" data-id="${esc(p.id)}" ${p.pinned ? "checked" : ""}><span>📌 ${t("ts.pinFirst")}</span></label>
     <div class="ts-card-actions">
       ${p.archived ? "" : `<button type="button" class="btn soft" data-action="ts-pick" data-id="${esc(p.id)}">⏱️ ${t("ts.logHours")}</button>`}
       <button type="button" class="btn link" data-action="ts-archive" data-id="${esc(p.id)}">${t(p.archived ? "ts.unarchive" : "ts.archive")}</button>
