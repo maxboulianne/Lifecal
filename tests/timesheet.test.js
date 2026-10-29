@@ -381,3 +381,62 @@ test("présence : début, fin, pause, heures travaillées, recopie, export", asy
   // 8 h travaillées, 8 h notées le 19 : écart 0
   assert.deepEqual(presence.rows[4].slice(5).map((c) => c.v), [8, 8, 0]);
 });
+
+test("dépenses mensuelles : ajoutées chaque mois au jour prévu, sans revenir si effacées", async () => {
+  const { addExpense, addRecurring, dayInMonth, monthLabel, removeExpense, removeRecurring, syncRecurring, updateRecurring } = await import("../js/timesheet/expenses.js");
+  assert.equal(monthLabel("2026-10"), "October 2026");
+  assert.equal(dayInMonth("2026-02", 31), "2026-02-28");
+  let { ts } = sample();
+  const p = ts.projects.find((x) => x.number === "P-100");
+  const r = addExpense(ts, { date: "2026-08-01", type: "phone", description: "Cell Phone fees August 2026", projectId: p.id, amount: 65, currency: "CAD" });
+  ts = addRecurring(r.ts, { ...r.expense, description: "Cell Phone fees" });
+  assert.equal(ts.recurring.length, 1);
+  assert.deepEqual([ts.recurring[0].day, ts.recurring[0].start, ts.recurring[0].months], [1, "2026-08", ["2026-08"]]);
+  // le 29 octobre : septembre et octobre ajoutés
+  ts = syncRecurring(ts, "2026-10-29");
+  const phones = ts.expenses.filter((e) => e.type === "phone").map((e) => [e.date, e.description, e.amount, e.projectId === p.id]);
+  assert.deepEqual(phones, [
+    ["2026-08-01", "Cell Phone fees August 2026", 65, true],
+    ["2026-09-01", "Cell Phone fees September 2026", 65, true],
+    ["2026-10-01", "Cell Phone fees October 2026", 65, true],
+  ]);
+  // à jour : rien ne change ; une dépense effacée ne revient pas
+  assert.equal(syncRecurring(ts, "2026-10-30"), ts);
+  const oct = ts.expenses.find((e) => e.date === "2026-10-01");
+  ts = syncRecurring(removeExpense(ts, oct.id), "2026-10-30");
+  assert.equal(ts.expenses.filter((e) => e.type === "phone").length, 2);
+  // nouveau montant pour les mois suivants ; arrêter
+  ts = updateRecurring(ts, ts.recurring[0].id, { amount: 70 });
+  ts = syncRecurring(ts, "2026-11-01");
+  assert.equal(ts.expenses.find((e) => e.date === "2026-11-01").amount, 70);
+  ts = removeRecurring(ts, ts.recurring[0].id);
+  assert.equal(syncRecurring(ts, "2026-12-15"), ts);
+  assert.equal(normalizeTimesheet(addRecurring(ts, { ...oct, id: "x" })).recurring.length, 1);
+});
+
+test("facture : un projet « toujours en premier » passe avant les autres", async () => {
+  const { invoiceData } = await import("../js/timesheet/invoice.js");
+  const { addExpense } = await import("../js/timesheet/expenses.js");
+  const { updateProject } = await import("../js/timesheet/timesheet.js");
+  let s = sample();
+  let ts = s.ts;
+  let r = addProject(ts, { number: "CAQUA", name: "Qualité", clientId: s.client.id, rate: 68 });
+  ts = r.ts;
+  const qa = r.project;
+  ts = addEntry(ts, { date: "2026-10-20", projectId: qa.id, hours: 1 });
+  ts = addExpense(ts, { date: "2026-10-20", type: "phone", description: "Cell", projectId: qa.id, amount: 65, currency: "CAD" }).ts;
+  const p200 = ts.projects.find((x) => x.number === "P-200");
+  ts = addExpense(ts, { date: "2026-10-20", type: "food", description: "Lunch", projectId: p200.id, amount: 20, currency: "CAD" }).ts;
+  const options = { from: "2026-10-19", to: "2026-10-25", clientId: s.client.id, number: "1", date: "2026-10-26" };
+  assert.deepEqual(invoiceData(ts, options).summary.map((x) => x.project), ["CAQUA", "P-100", "P-200"], "ordre alphabétique sans option");
+  ts = updateProject(ts, qa.id, { pinned: true });
+  const d = invoiceData(ts, options);
+  assert.deepEqual(d.summary.map((x) => x.project), ["CAQUA", "P-100", "P-200"]);
+  // même si son code venait après dans l'alphabet
+  ts = updateProject(ts, qa.id, { number: "ZQUA" });
+  const d2 = invoiceData(ts, options);
+  assert.equal(d2.summary[0].project, "ZQUA");
+  const day = d2.days.find((x) => x.date === "2026-10-20");
+  assert.deepEqual(day.lines.map((l) => [l.kind, l.project]), [["expense", "ZQUA"], ["expense", "P-200"], ["hours", "ZQUA"], ["hours", "P-200"]]);
+  assert.equal(normalizeTimesheet(ts).projects.find((x) => x.number === "ZQUA").pinned, true);
+});

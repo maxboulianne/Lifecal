@@ -1226,3 +1226,12 @@ body.player-open { overflow: hidden; }
 .ts-balance.is-left { color: #b45309; }
 .ts-balance.is-over { color: var(--danger); }
 .ts-fill-gap { min-height: 34px; padding: 4px 12px; }
+
+/* Dépenses mensuelles */
+.ts-monthly { margin: 0 0 10px; padding: 8px 12px; border-radius: 12px; background: var(--soft); }
+.ts-monthly > summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+.ts-monthly-list { list-style: none; margin: 6px 0; padding: 0; }
+.ts-monthly-list li { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.ts-monthly-list .hint { display: block; }
+.ts-monthly-amount { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); }
+.ts-monthly-amount input { width: 5.5em; min-height: 36px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font: inherit; font-size: 16px; text-align: right; }

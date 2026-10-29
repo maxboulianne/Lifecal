@@ -95,3 +95,69 @@ export function updateExpense(ts, id, patch) {
 
 export const removeExpense = (ts, id) => ({ ...ts, expenses: ts.expenses.filter((e) => e.id !== id) });
 export const setRate = (ts, currency, rate) => ({ ...ts, rates: normalizeRates({ ...ts.rates, [currency]: rate }) });
+
+// ---- Dépenses mensuelles (ex. le cellulaire, facturé au début de chaque mois) ----
+//
+// Rangées dans doc.timesheet.recurring :
+//   [{ id, type, description, projectId, clientId, amount, currency, rate, day, start, months }]
+//   day : jour du mois (1 = le 1er ; 31 = le dernier jour des mois plus courts)
+//   start : premier mois (« 2026-10 ») ; months : mois déjà ajoutés (une dépense
+//   effacée à la main ne revient donc pas)
+// Chaque mois, à partir du jour prévu, la dépense est ajoutée avec le mois dans sa
+// description (« Cell Phone fees October 2026 ») ; elle se modifie comme les autres.
+
+const MONTH = /^\d{4}-\d{2}$/;
+const MONTH_EN = new Intl.DateTimeFormat("en-CA", { month: "long", year: "numeric", timeZone: "UTC" });
+export const monthLabel = (month) => MONTH_EN.format(new Date(`${month}-15T12:00:00Z`));
+const nextMonth = (m) => {
+  const [y, mo] = m.split("-").map(Number);
+  return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`;
+};
+// Date du jour prévu dans un mois (le 31 devient le 30, ou le 28 en février…)
+export function dayInMonth(month, day) {
+  const [y, m] = month.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${month}-${String(Math.min(day, last)).padStart(2, "0")}`;
+}
+
+export function normalizeRecurring(list) {
+  return (Array.isArray(list) ? list : []).flatMap((r) => {
+    const base = normalizeExpense({ ...r, date: "2000-01-01" });
+    const day = Math.round(Number(r?.day));
+    if (!base || isMileage(base) || !(day >= 1 && day <= 31) || !MONTH.test(r.start)) return [];
+    const { date, qty, unitPrice, ...fields } = base;
+    return [{ ...fields, day, start: r.start, months: (Array.isArray(r.months) ? r.months : []).filter((m) => MONTH.test(m)) }];
+  });
+}
+
+// Nouvelle dépense mensuelle à partir d'une dépense (son jour, son mois de départ).
+export function addRecurring(ts, expense) {
+  const month = expense.date.slice(0, 7);
+  const [rec] = normalizeRecurring([{ ...expense, id: newId(), day: Number(expense.date.slice(8)), start: month, months: [month] }]);
+  return rec ? { ...ts, recurring: [...(ts.recurring ?? []), rec] } : ts;
+}
+
+export const updateRecurring = (ts, id, patch) => ({
+  ...ts, recurring: normalizeRecurring((ts.recurring ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r))),
+});
+export const removeRecurring = (ts, id) => ({ ...ts, recurring: (ts.recurring ?? []).filter((r) => r.id !== id) });
+
+// Ajoute les dépenses mensuelles arrivées à échéance (jusqu'à aujourd'hui) ; rien si tout est à jour.
+export function syncRecurring(ts, today) {
+  let changed = false;
+  let next = ts;
+  const recurring = (ts.recurring ?? []).map((r) => {
+    const months = new Set(r.months);
+    for (let m = r.start; m <= today.slice(0, 7); m = nextMonth(m)) {
+      const date = dayInMonth(m, r.day);
+      if (months.has(m) || date > today) continue;
+      const { id, day, start, months: done, description, ...fields } = r;
+      const added = addExpense(next, { ...fields, date, description: [description, monthLabel(m)].filter(Boolean).join(" ") });
+      next = added.ts;
+      months.add(m);
+      changed = true;
+    }
+    return { ...r, months: [...months].sort() };
+  });
+  return changed ? { ...next, recurring } : ts;
+}

@@ -704,4 +704,13 @@ export default {
   "ts.presenceCol.worked": "Worked (h)",
   "ts.presenceCol.logged": "Logged (h)",
   "ts.presenceCol.gap": "Gap (h)",
+  "ts.pinFirst": "Always first on the invoice",
+  "ts.monthly": "Repeat every month, on day {day}",
+  "ts.monthlyList": { one: "{count} monthly expense", other: "{count} monthly expenses" },
+  "ts.monthlyDay": "day {day} of every month",
+  "ts.stop": "Stop",
+  "ts.monthlyHint": "Added automatically every month (with the month in the description). A new amount applies to the following months; an expense already added is edited with ✏️.",
+  "ts.confirmStopMonthly": "Stop this monthly expense? Expenses already added stay.",
+  "ts.monthlyStopped": "Monthly expense stopped.",
+  "ts.monthlyAdded": "Expense added. It will come back on day {day} of every month.",
 };

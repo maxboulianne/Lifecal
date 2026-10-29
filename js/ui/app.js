@@ -40,7 +40,7 @@ import { MAX_CHAINS, fetchHotels, fetchSuggestions, getChain } from "../travel/d
 import { geocode } from "../travel/geocode.js";
 import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited, cachedHotels, cachedSuggestions, destQuery, getDest, hotelsKey, suggestionsKey } from "../travel/trip.js";
 import { settingsPage } from "./pages/settings.js";
-import { CUSTOM_TASK, rangeDates, timesheetPage } from "./pages/timesheet.js";
+import { CUSTOM_TASK, dayOfMonth, rangeDates, timesheetPage } from "./pages/timesheet.js";
 import { addTask, getTask, removeTask, taskUseCount, updateTask } from "../timesheet/tasks.js";
 import { normalizeTime, parsePause, setPresence } from "../timesheet/presence.js";
 import {
@@ -49,7 +49,9 @@ import {
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
-import { addExpense, expenseTotal as expenseTotalOf, removeExpense, setRate, updateExpense } from "../timesheet/expenses.js";
+import {
+  addExpense, addRecurring, expenseTotal as expenseTotalOf, monthLabel, removeExpense, removeRecurring, setRate, syncRecurring, updateExpense, updateRecurring,
+} from "../timesheet/expenses.js";
 import { invoicePreview } from "./components/invoice-view.js";
 import { XLSX_TYPE, buildXlsx } from "../export/xlsx.js";
 import { DEFAULT_VIEW, VIEWS, VIEW_ORDER } from "./views/index.js";
@@ -303,6 +305,7 @@ export class App {
         count: this.repo.all().length,
       });
       $("#nudges").innerHTML = "";
+      if (this.page === "timesheet") this.#syncMonthly();
       if (this.page === "trip") {
         this.#mountTripMap();
         this.#discoverTrip(this.tripId);
@@ -936,6 +939,10 @@ export class App {
       if (!task || !confirm(msg)) return;
       return this.#updateTimesheet(removeTask(ts, task.code)).then(() => toast(t("ts.deleted")));
     },
+    "ts-recurring-stop": (el) => {
+      if (!confirm(t("ts.confirmStopMonthly"))) return;
+      return this.#updateTimesheet(removeRecurring(this.repo.timesheet(), el.dataset.id)).then(() => toast(t("ts.monthlyStopped")));
+    },
     "ts-expense-remove": (el) => this.#updateTimesheet(removeExpense(this.repo.timesheet(), el.dataset.id)),
     "ts-logo-remove": () => this.#updateTimesheet(updateBusiness(this.repo.timesheet(), { logo: "", logoSize: null })),
     "ts-invoice-preview": (el) => {
@@ -1353,6 +1360,13 @@ export class App {
     if (focusSelector) $(focusSelector)?.focus();
   }
 
+  // Dépenses mensuelles arrivées à échéance (ex. le cellulaire du 1er) : ajoutées en ouvrant « Mes heures ».
+  #syncMonthly() {
+    const ts = this.repo.timesheet();
+    const next = syncRecurring(ts, todayISO());
+    if (next !== ts) this.repo.updateTimesheet(next).catch((err) => console.error(err));
+  }
+
   // Aller à une journée (flèches, semaine, calendrier), en gardant la position dans la page.
   #showTimesheetDay(date) {
     if (!isISODate(date)) return;
@@ -1423,6 +1437,13 @@ export class App {
           return this.#updateTimesheet(setPresence(ts, date, { pause }));
         }
         return this.#updateTimesheet(setPresence(ts, date, { [field]: normalizeTime(el.value) }));
+      }
+      case "ts-project-pin":
+        return this.#updateTimesheet(updateProject(ts, id, { pinned: el.checked }));
+      case "ts-recurring-amount": {
+        const amount = readNumber(el.value);
+        if (amount === null) return toast(t("ts.errors.expenseAmount"));
+        return this.#updateTimesheet(updateRecurring(ts, id, { amount }));
       }
       case "ts-goto":
         return this.#showTimesheetDay(el.value);
@@ -1556,6 +1577,8 @@ export class App {
     const currency = f.currency.value;
     $("[data-role=money-row]", form).hidden = mileage;
     $("[data-role=km-row]", form).hidden = !mileage;
+    const monthlyRow = $("[data-role=monthly-row]", form);
+    if (monthlyRow) monthlyRow.hidden = mileage;
     $("[data-role=rate-row]", form).hidden = mileage || currency === "CAD";
     if (currencyChanged) {
       const rates = JSON.parse(form.dataset.rates || "{}");
@@ -1596,9 +1619,15 @@ export class App {
       const saved = next.expenses.find((e) => e.id === form.dataset.edit);
       return toast(t("ts.expenseSaved", { amount: fmt.money(expenseTotalOf(saved)) }));
     }
-    const { ts: next, expense } = addExpense(ts, fields);
+    // Chaque mois : la dépense porte le mois dans sa description (« Cell Phone fees October 2026 »)
+    const monthly = f.get("monthly") === "on" && type !== "mileage";
+    const typed = fields.description;
+    if (monthly) fields.description = [typed, monthLabel(fields.date.slice(0, 7))].filter(Boolean).join(" ");
+    const { ts: added, expense } = addExpense(ts, fields);
     if (!expense) return (errors.textContent = t("ts.errors.expenseAmount"));
+    const next = monthly ? syncRecurring(addRecurring(added, { ...expense, description: typed }), todayISO()) : added;
     await this.#updateTimesheet(next);
+    if (monthly) toast(t("ts.monthlyAdded", { day: dayOfMonth(expense.date.slice(8)) }));
     // Le formulaire reste ouvert : on note souvent plusieurs dépenses d'affilée.
     const wrap = $("[data-role=expense-wrap]");
     if (wrap) wrap.open = true;

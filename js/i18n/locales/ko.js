@@ -701,4 +701,13 @@ export default {
   "ts.presenceCol.worked": "근무 (시간)",
   "ts.presenceCol.logged": "기록 (시간)",
   "ts.presenceCol.gap": "차이 (시간)",
+  "ts.pinFirst": "청구서에서 항상 맨 앞",
+  "ts.monthly": "매달 {day}일에 반복",
+  "ts.monthlyList": { one: "월별 경비 {count}개", other: "월별 경비 {count}개" },
+  "ts.monthlyDay": "매달 {day}일",
+  "ts.stop": "중지",
+  "ts.monthlyHint": "매달 자동으로 추가돼요 (설명에 월 표시). 새 금액은 다음 달부터 적용되고, 이미 추가된 경비는 ✏️로 수정해요.",
+  "ts.confirmStopMonthly": "이 월별 경비를 중지할까요? 이미 추가된 경비는 남아요.",
+  "ts.monthlyStopped": "월별 경비를 중지했어요.",
+  "ts.monthlyAdded": "경비를 추가했어요. 매달 {day}일에 다시 추가돼요.",
 };
