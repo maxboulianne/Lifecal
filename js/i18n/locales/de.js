@@ -656,8 +656,7 @@ export default {
   "ts.prevWeek": "Vorherige Woche",
   "ts.nextWeek": "Nächste Woche",
   "ts.pickDate": "Datum wählen",
-  "ts.showTaskCodes": "Aufgabencodes auf der Rechnung anzeigen",
-  "ts.showTaskCodesHint": "Aktiviert: „P-713 — PSR01 : Painting specification review“. Deaktiviert: „P-713 — Painting specification review“. Die Codes bleiben im Tab „Heures“.",
+  "ts.showTaskCodes": "Aufgabencode",
   "ts.task": "Aufgabe",
   "ts.noTask": "— Keine Aufgabe —",
   "ts.quickTasks": "Schnellauswahl",
@@ -679,4 +678,8 @@ export default {
   "ts.confirmDeleteTask": "Aufgabe {code} — {name} aus dem Katalog entfernen?",
   "ts.taskStillUsed": { one: "Sie wird in 1 Stundenzeile verwendet: Die Zeile behält Code und Beschreibung.", other: "Sie wird in {count} Stundenzeilen verwendet: Sie behalten Code und Beschreibung." },
   "ts.col.work": "Ausgeführte Arbeit",
+  "ts.invoiceLines": "Rechnungszeilen",
+  "ts.invoiceLinesHint": "Der Projektcode erscheint immer. Wähle, was jede Zeile zusätzlich zeigt (die ausgeführte Arbeit erscheint immer, wenn sie ausgefüllt ist).",
+  "ts.showProjectName": "Projektname",
+  "ts.showTaskDescription": "Aufgabenbeschreibung",
 };

@@ -332,3 +332,28 @@ test("tâches standard : catalogue, sélection rapide, travail effectué sur la 
   assert.equal(line.text, "P-200  —  QA04 : Painting specification review  —  Reviewed galvanizing requirements");
   assert.equal(normalizeTimesheet(ts).entries.find((e) => e.taskCode === "QA04").work, "Reviewed galvanizing requirements");
 });
+
+test("facture : afficher ou non le nom du projet, le code et la description de la tâche", async () => {
+  const { invoiceData, invoiceSheets } = await import("../js/timesheet/invoice.js");
+  const { updateBusiness } = await import("../js/timesheet/timesheet.js");
+  const s = sample();
+  const p = s.ts.projects.find((x) => x.number === "P-200");
+  let ts = addEntry(s.ts, { date: "2026-10-21", projectId: p.id, hours: 1, taskCode: "QA04", task: "Painting specification review", work: "Galvanizing" });
+  const options = { from: "2026-10-21", to: "2026-10-21", clientId: s.client.id, number: "1", date: "2026-10-26" };
+  const text = (opts) => invoiceData(updateBusiness(ts, opts), options).lines.find((l) => l.code === "QA04").text;
+  const all = { showProjectName: true, showTaskCodes: true, showTaskDescription: true };
+  assert.equal(text(all), "P-200 · Projet A  —  QA04 : Painting specification review  —  Galvanizing");
+  assert.equal(text({ ...all, showProjectName: false }), "P-200  —  QA04 : Painting specification review  —  Galvanizing");
+  assert.equal(text({ ...all, showTaskCodes: false }), "P-200 · Projet A  —  Painting specification review  —  Galvanizing");
+  assert.equal(text({ ...all, showTaskDescription: false }), "P-200 · Projet A  —  QA04  —  Galvanizing");
+  assert.equal(text({ showProjectName: false, showTaskCodes: false, showTaskDescription: false }), "P-200  —  Galvanizing");
+  // par défaut : code du projet, code et description de la tâche (sans le nom du projet)
+  assert.deepEqual([ts.business.showProjectName, ts.business.showTaskCodes, ts.business.showTaskDescription], [false, true, true]);
+  // la formule Excel suit les mêmes options ; « Heures » garde tout
+  const formula = (opts) => invoiceSheets(updateBusiness(ts, opts), options).sheets[0].rows.flat().find((c) => c?.f?.startsWith("Heures!C")).f;
+  assert.match(formula(all), /^Heures!C2&" · Projet A"&IF\(IF\(Heures!D2="",Heures!E2,/);
+  assert.ok(!formula({ ...all, showTaskCodes: false }).includes("Heures!D2"));
+  assert.ok(!formula({ ...all, showTaskDescription: false }).includes("Heures!E2"));
+  const heures = invoiceSheets(updateBusiness(ts, { showTaskCodes: false, showTaskDescription: false }), options).sheets[1];
+  assert.deepEqual(heures.rows[1].slice(3, 6).map((c) => c.v), ["QA04", "Painting specification review", "Galvanizing"]);
+});

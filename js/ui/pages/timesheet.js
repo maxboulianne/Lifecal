@@ -368,6 +368,12 @@ function clientsSection(ts) {
   });
 }
 
+// Exemple d'une ligne de facture selon les options choisies
+function lineExample(b) {
+  const task = [b.showTaskCodes ? "QA04" : "", b.showTaskDescription ? "Painting specification review" : ""].filter(Boolean).join(" : ");
+  return `CA15713${b.showProjectName ? " · Siemens Grand Tower" : ""}${task ? `  —  ${task}` : ""}  —  Reviewed galvanizing requirements`;
+}
+
 function businessSection(ts) {
   const b = ts.business;
   const attrs = (f) => `data-action="ts-business-field" data-field="${f}" autocomplete="off"`;
@@ -389,9 +395,11 @@ function businessSection(ts) {
         <div class="row">${field("phone", t("ts.phone"), 'type="tel"')}${field("email", t("ts.email"), 'type="email"')}</div>
         <div class="row">${field("tpsNumber", t("ts.tpsNumber"))}${field("tvqNumber", t("ts.tvqNumber"))}</div>
         <div class="row">${field("terms", t("ts.terms"), 'inputmode="numeric"')}${field("nextInvoice", t("ts.nextInvoice"), `placeholder="${esc(t("ts.example", { value: "2026-115" }))}"`)}</div>
-        <label class="switch"><input type="checkbox" data-action="ts-business-toggle" data-field="showTaskCodes" ${b.showTaskCodes ? "checked" : ""}>
-          <span>${t("ts.showTaskCodes")}</span></label>
-        <p class="hint">${t("ts.showTaskCodesHint")}</p>
+        <h3>${t("ts.invoiceLines")}</h3>
+        <p class="hint">${t("ts.invoiceLinesHint")}</p>
+        ${["showProjectName", "showTaskCodes", "showTaskDescription"].map((f) => `<label class="switch">
+          <input type="checkbox" data-action="ts-business-toggle" data-field="${f}" ${b[f] ? "checked" : ""}><span>${t(`ts.${f}`)}</span></label>`).join("")}
+        <p class="hint ts-line-example" data-role="line-example">${esc(t("ts.example", { value: lineExample(b) }))}</p>
         <label>${t("ts.mileageRate")} <input ${attrs("mileageRate")} value="${esc(fmt.hours(b.mileageRate))}" inputmode="decimal"></label>
         <h3>${t("ts.rates")}</h3>
         ${Object.keys(ts.rates).length

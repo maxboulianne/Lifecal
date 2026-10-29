@@ -653,8 +653,7 @@ export default {
   "ts.prevWeek": "지난주",
   "ts.nextWeek": "다음 주",
   "ts.pickDate": "날짜 선택",
-  "ts.showTaskCodes": "청구서에 작업 코드 표시",
-  "ts.showTaskCodesHint": "켜기: «P-713 — PSR01 : Painting specification review». 끄기: «P-713 — Painting specification review». 코드는 «Heures» 탭에 남아요.",
+  "ts.showTaskCodes": "작업 코드",
   "ts.task": "작업",
   "ts.noTask": "— 작업 없음 —",
   "ts.quickTasks": "빠른 선택",
@@ -676,4 +675,8 @@ export default {
   "ts.confirmDeleteTask": "{code} — {name} 작업을 목록에서 삭제할까요?",
   "ts.taskStillUsed": { one: "시간 기록 1줄에서 사용 중이에요. 그 줄은 코드와 설명을 유지해요.", other: "시간 기록 {count}줄에서 사용 중이에요. 그 줄들은 코드와 설명을 유지해요." },
   "ts.col.work": "수행한 작업",
+  "ts.invoiceLines": "청구서 줄",
+  "ts.invoiceLinesHint": "프로젝트 코드는 항상 표시돼요. 각 줄에 추가할 항목을 선택하세요 (수행한 작업은 입력되어 있으면 항상 표시돼요).",
+  "ts.showProjectName": "프로젝트 이름",
+  "ts.showTaskDescription": "작업 설명",
 };
