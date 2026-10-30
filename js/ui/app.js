@@ -11,7 +11,7 @@ import { $, esc } from "../core/dom.js";
 import { currentStreak } from "../data/habit-stats.js";
 import { FREQ, doneInWeek, yearlyDate } from "../data/recurrence.js";
 import { ValidationError } from "../data/repository.js";
-import { isCancelled } from "../data/item.js";
+import { isCancelled, newId } from "../data/item.js";
 import { addEntry, fromLines, getChecklist, progress, removeEntry, toggleEntry } from "../data/checklist.js";
 import { getCurrentPosition, watchPosition } from "../geo/geo.js";
 import { fmt, getLanguage, setLanguage, t, tList } from "../i18n/index.js";
@@ -49,6 +49,15 @@ import {
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
+import { deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
+import { invoicePdf } from "../timesheet/invoice-pdf.js";
+import { receiptsPdf } from "../timesheet/receipts-pdf.js";
+import { PDF_TYPE, jpegInfo } from "../export/pdf.js";
+import { scanImage } from "./components/scanner.js";
+import { attachmentsView } from "./components/attachments-view.js";
+import {
+  addAttachment, attachmentIds, removeAttachment, updateAttachment,
+} from "../timesheet/expenses.js";
 import {
   addExpense, addRecurring, expenseTotal as expenseTotalOf, monthLabel, removeExpense, removeRecurring, setRate, syncRecurring, updateExpense, updateRecurring,
 } from "../timesheet/expenses.js";
@@ -130,6 +139,7 @@ export class App {
   timesheetProject = null; // dernier projet choisi pour ajouter des heures
   timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
   #invoicePending = null; // facture affichée dans l'aperçu
+  #pruned = false; // justificatifs inutilisés déjà effacés pendant ce lancement
   editingExpense = null; // dépense en cours de modification
   #map = null;
 
@@ -919,7 +929,7 @@ export class App {
     },
     "ts-range": (el) => {
       const { from, to } = rangeDates(this.timesheetExport.range, todayISO(), this.timesheetExport);
-      this.timesheetExport = { ...this.timesheetExport, range: el.dataset.range, from, to };
+      this.timesheetExport = { ...this.timesheetExport, range: el.dataset.range, from, to, invoiceNumber: "" };
       this.#renderKeepingScroll();
     },
     "ts-export": (el) => this.#exportTimesheet(el.dataset.from, el.dataset.to, el.dataset.client),
@@ -945,6 +955,18 @@ export class App {
       if (!task || !confirm(msg)) return;
       return this.#updateTimesheet(removeTask(ts, task.code)).then(() => toast(t("ts.deleted")));
     },
+    "ts-attach": (el) => this.#openAttachments(el.dataset.id),
+    "ts-attach-remove": async (el) => {
+      if (!confirm(t("attach.confirmRemove"))) return;
+      await this.#updateTimesheet(removeAttachment(this.repo.timesheet(), el.dataset.expense, el.dataset.id));
+      await deleteFile(el.dataset.id).catch(() => {});
+      this.#openAttachments(el.dataset.expense);
+    },
+    "ts-invoice-pdf": (el) => this.#sendInvoice(this.#invoiceOptions(el.closest("[data-role=ts-invoice]")), { invoice: true }),
+    "ts-receipts-pdf": (el) => this.#sendInvoice(this.#invoiceOptions(el.closest("[data-role=ts-invoice]")), { receipts: true }),
+    "ts-invoice-email": (el) => this.#sendInvoice(this.#invoiceOptions(el.closest("[data-role=ts-invoice]")), { invoice: true, receipts: true, email: true }),
+    "ts-invoice-pdf-pending": () => this.#sendInvoice(this.#invoicePending, { invoice: true }),
+    "ts-invoice-email-pending": () => this.#sendInvoice(this.#invoicePending, { invoice: true, receipts: true, email: true }),
     "ts-recurring-stop": (el) => {
       if (!confirm(t("ts.confirmStopMonthly"))) return;
       return this.#updateTimesheet(removeRecurring(this.repo.timesheet(), el.dataset.id)).then(() => toast(t("ts.monthlyStopped")));
@@ -1369,6 +1391,11 @@ export class App {
   // Dépenses mensuelles arrivées à échéance (ex. le cellulaire du 1er) : ajoutées en ouvrant « Mes heures ».
   #syncMonthly() {
     const ts = this.repo.timesheet();
+    // Une fois par lancement : effacer les justificatifs qui ne servent plus (dépense supprimée…)
+    if (!this.#pruned) {
+      this.#pruned = true;
+      pruneFiles(attachmentIds(ts)).catch(() => {});
+    }
     const next = syncRecurring(ts, todayISO());
     if (next !== ts) this.repo.updateTimesheet(next).catch((err) => console.error(err));
   }
@@ -1445,6 +1472,14 @@ export class App {
         }
         return this.#updateTimesheet(setPresence(ts, date, { [field]: normalizeTime(el.value) }));
       }
+      case "ts-attach-kind":
+        return this.#updateTimesheet(updateAttachment(ts, el.dataset.expense, el.dataset.id, { kind: el.value }));
+      case "ts-attach-file": {
+        const file = el.files?.[0];
+        el.value = "";
+        if (file) await this.#addAttachmentFile(el.dataset.expense, file);
+        return undefined;
+      }
       case "ts-project-pin":
         return this.#updateTimesheet(updateProject(ts, id, { pinned: el.checked }));
       case "ts-recurring-amount": {
@@ -1483,10 +1518,10 @@ export class App {
       case "ts-client-tax":
         return this.#updateTimesheet(updateClient(ts, id, { [el.dataset.tax]: el.checked }));
       case "ts-export-date":
-        this.timesheetExport = { ...this.timesheetExport, [el.dataset.field]: el.value };
+        this.timesheetExport = { ...this.timesheetExport, [el.dataset.field]: el.value, invoiceNumber: "" };
         return this.#renderKeepingScroll();
       case "ts-export-client":
-        this.timesheetExport = { ...this.timesheetExport, clientId: el.value };
+        this.timesheetExport = { ...this.timesheetExport, clientId: el.value, invoiceNumber: "" };
         return this.#renderKeepingScroll();
       default:
     }
@@ -1698,13 +1733,149 @@ export class App {
     const { clientId, from, to, number, date, po } = options;
     let ts = this.repo.timesheet();
     const { sheets, styles, totals } = invoiceSheets(ts, { from, to, clientId, number, date, po });
-    // Retenir le PO du client et proposer le numéro suivant la prochaine fois.
-    ts = updateClient(ts, clientId, { po });
-    ts = updateBusiness(ts, { nextInvoice: nextInvoiceNumber(number) });
-    await this.#updateTimesheet(ts);
+    await this.#rememberInvoice(options);
     const name = `${t("ts.invoiceFile")}-${number.replace(/[^\w.-]+/g, "_")}.xlsx`;
     await this.#shareFile(new File([buildXlsx({ sheets, styles })], name, { type: XLSX_TYPE }));
     toast(t("ts.invoiceReady", { total: fmt.money(totals.total) }));
+  }
+
+  // Retenir le PO du client et proposer le numéro suivant la prochaine fois ; le numéro
+  // de cette facture reste affiché (Excel, PDF et courriel portent le même numéro).
+  async #rememberInvoice({ clientId, number, po }) {
+    let ts = this.repo.timesheet();
+    ts = updateClient(ts, clientId, { po });
+    ts = updateBusiness(ts, { nextInvoice: nextInvoiceNumber(number) });
+    this.timesheetExport = { ...this.timesheetExport, invoiceNumber: number };
+    await this.#updateTimesheet(ts);
+  }
+
+  // ---- Justificatifs (photos scannées, PDF) ----
+
+  #openAttachments(expenseId) {
+    const ts = this.repo.timesheet();
+    const expense = ts.expenses.find((e) => e.id === expenseId);
+    if (!expense) return;
+    const p = expense.projectId ? getProject(ts, expense.projectId) : null;
+    const target = p ? p.number || p.name : t("ts.generalShort", { client: getClient(ts, expense.clientId)?.name ?? "" });
+    openModal(attachmentsView(expense, target), { labelledBy: "attach-title" });
+    // Les images et les PDF sont dans IndexedDB : on les montre une fois chargés
+    for (const el of document.querySelectorAll("#modal [data-file], #modal [data-file-link]")) {
+      getFile(el.dataset.file ?? el.dataset.fileLink).then((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        if (el.dataset.file) el.src = url;
+        else el.href = url;
+      }).catch(() => {});
+    }
+  }
+
+  // Une photo passe par le scanner (recadrée, redressée) ; un PDF est gardé tel quel.
+  async #addAttachmentFile(expenseId, file) {
+    const pdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const blob = pdf ? file : await scanImage(file);
+    if (!blob) return this.#openAttachments(expenseId);
+    const ts = this.repo.timesheet();
+    const expense = ts.expenses.find((e) => e.id === expenseId);
+    const kinds = new Set(expense?.attachments.map((a) => a.kind));
+    const kind = !kinds.has("invoice") ? "invoice" : !kinds.has("proof") ? "proof" : "other";
+    const id = newId();
+    try {
+      await putFile(id, blob);
+    } catch {
+      toast(t("attach.storageError"));
+      return this.#openAttachments(expenseId);
+    }
+    await this.#updateTimesheet(addAttachment(ts, expenseId, { id, kind, type: pdf ? "application/pdf" : "image/jpeg", name: pdf ? file.name : "" }));
+    toast(t("attach.added", { kind: t(`attach.kind.${kind}`) }));
+    this.#openAttachments(expenseId);
+  }
+
+  // ---- Facture PDF, justificatifs PDF, courriel au client ----
+
+  // Largeur du texte dans le PDF (Helvetica ≈ Arial), mesurée avec le canvas
+  #measure() {
+    const ctx = document.createElement("canvas").getContext("2d");
+    return (text, size, bold, italic) => {
+      ctx.font = `${italic ? "italic " : ""}${bold ? "bold " : ""}${size}px Helvetica, Arial, sans-serif`;
+      return ctx.measureText(text).width;
+    };
+  }
+
+  // Image (Blob) -> JPEG prêt pour le PDF { bytes, width, height } (fond blanc pour un PNG)
+  async #jpegForPdf(blob) {
+    if (blob.type !== "image/jpeg") {
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0);
+      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+    }
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    return { bytes, ...jpegInfo(bytes) };
+  }
+
+  async #sendInvoice(options, { invoice = false, receipts = false, email = false }) {
+    if (!options) return;
+    const ts = this.repo.timesheet();
+    const d = invoiceData(ts, options);
+    const safe = options.number.replace(/[^\w.-]+/g, "_");
+    const measure = this.#measure();
+    const files = [];
+    toast(t("ts.pdfWorking"));
+    if (invoice) {
+      const logo = ts.business.logo ? await this.#jpegForPdf(await (await fetch(ts.business.logo)).blob()).catch(() => null) : null;
+      files.push(new File([invoicePdf(d, { logo, measure })], `${t("ts.invoiceFile")}-${safe}.pdf`, { type: PDF_TYPE }));
+    }
+    if (receipts) {
+      if (!d.expenseLines.length && !invoice) return toast(t("ts.noReceipts"));
+      if (d.expenseLines.length) {
+        const images = {};
+        const extra = [];
+        for (const l of d.expenseLines) {
+          for (const a of l.attachments) {
+            const blob = await getFile(a.id).catch(() => null);
+            if (!blob) continue;
+            if (a.type === "application/pdf") extra.push(new File([blob], a.name || `${a.id}.pdf`, { type: PDF_TYPE }));
+            else images[a.id] = await this.#jpegForPdf(blob);
+          }
+        }
+        files.push(new File([receiptsPdf(d, images, { measure })], `${t("ts.receiptsFile")}-${safe}.pdf`, { type: PDF_TYPE }), ...extra);
+        const missing = d.expenseLines.filter((l) => !l.attachments.length).length;
+        if (missing) toast(t("ts.receiptsMissing", { count: missing }));
+      }
+    }
+    await this.#rememberInvoice(options);
+    await this.#shareFiles(files, email ? {
+      title: t("ts.emailSubject", { number: options.number }),
+      text: t("ts.emailBody", { number: options.number, total: fmt.money(d.totals.total), due: d.totals.dueDate, name: ts.business.contact || ts.business.name }),
+    } : {});
+  }
+
+  // Partager plusieurs fichiers (Mail, Fichiers…) ; sinon les télécharger un à un
+  async #shareFiles(files, { title, text } = {}) {
+    if (!files.length) return;
+    if (navigator.canShare?.({ files })) {
+      try {
+        await navigator.share({ files, ...(title ? { title } : {}), ...(text ? { text } : {}) });
+        return;
+      } catch (err) {
+        if (err?.name === "AbortError") return;
+      }
+    }
+    for (const file of files) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+    toast(t("ts.exported"));
   }
 
   async #shareFile(file) {

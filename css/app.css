@@ -1239,3 +1239,34 @@ body.player-open { overflow: hidden; }
 .ts-presence-row input.is-suggested { color: var(--muted); font-style: italic; border-style: dashed; }
 @keyframes ts-new-card { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 0 transparent; } }
 .ts-card.is-new { animation: ts-new-card 2.5s ease-out; }
+
+/* Scanner de justificatifs */
+.sheet:has(.scanner), .sheet:has(.attachments) { max-width: 640px; }
+.scanner .hint { margin: 0 0 8px; }
+.scan-stage { position: relative; display: flex; justify-content: center; margin: 4px 0 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.scan-stage canvas { display: block; max-width: 100%; border-radius: 8px; }
+.scan-quad { position: absolute; top: 0; pointer-events: none; overflow: visible; }
+.scan-quad polygon { fill: rgb(91 124 111 / 0.15); stroke: var(--accent); stroke-width: 2.5; }
+.scan-handle { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 3px solid #fff;
+  background: var(--accent); box-shadow: 0 1px 6px rgb(0 0 0 / 0.4); touch-action: none; cursor: grab; padding: 0; }
+.scan-mode { margin-bottom: 8px; }
+.scan-mode label { display: flex; }
+.scan-mode input { position: absolute; opacity: 0; pointer-events: none; }
+.scan-mode span { display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border-radius: 9px; cursor: pointer; }
+.scan-mode input:checked + span { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+
+/* Justificatifs d'une dépense */
+.attach-expense { margin: 0 0 6px; }
+.attach-expense .hint { display: block; }
+.attach-list { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.attach-list li { display: grid; gap: 6px; }
+.attach-preview { border: 1px solid var(--line); border-radius: 8px; background: #fff; min-height: 80px; display: grid; place-items: center; overflow: hidden; }
+.attach-preview img { display: block; width: 100%; max-height: 300px; object-fit: contain; }
+.attach-pdf { padding: 16px 8px; text-align: center; word-break: break-word; }
+.attach-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.attach-meta select { min-height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: inherit; font-size: 16px; }
+.attach-add label.btn { display: inline-flex; cursor: pointer; }
+.ts-expense-row { grid-template-columns: 1.6em minmax(0, 1fr) auto auto 2em 2em; }
+.ts-attach-btn { border: none; background: none; cursor: pointer; font-size: 1rem; padding: 4px; opacity: 0.55; display: inline-flex; align-items: center; gap: 2px; }
+.ts-attach-btn.has-files { opacity: 1; }
+.ts-attach-btn span { font-size: 0.75rem; font-weight: 700; color: var(--accent); }

@@ -8,6 +8,9 @@
 //     qty       : 1, ou le nombre de km pour le kilométrage
 //     amount    : montant d'origine, dans la devise (currency) ; rate : $ CA pour 1 unité de la devise
 //     unitPrice : kilométrage seulement : $ CA par km (ex. 0,65)
+//     attachments : justificatifs [{ id, kind, type, name }] ; le fichier lui-même est dans
+//                   IndexedDB (data/files.js) ; kind : invoice (facture) | proof (preuve de
+//                   transaction) | other ; type : image/jpeg ou application/pdf
 //   rates    { VND: 0.000053931, … }   dernier taux de change utilisé pour chaque devise
 // Le montant en dollars canadiens : arrondi au cent, comme sur la facture.
 
@@ -38,10 +41,21 @@ export const expenseUnitPrice = (e) => (isMileage(e) ? e.unitPrice : round2(e.am
 export const expenseTotal = (e) => round2(e.qty * expenseUnitPrice(e));
 export const sumExpenses = (list) => round2(list.reduce((s, e) => s + expenseTotal(e), 0));
 
+export const ATTACHMENT_KINDS = ["invoice", "proof", "other"];
+
+export function normalizeAttachments(list) {
+  return (Array.isArray(list) ? list : []).flatMap((a) => (a && typeof a.id === "string" && /^(image\/(jpeg|png)|application\/pdf)$/.test(a.type)
+    ? [{ id: a.id, kind: ATTACHMENT_KINDS.includes(a.kind) ? a.kind : "other", type: a.type, name: str(a.name) }]
+    : []));
+}
+
 export function normalizeExpense(e) {
   if (!e || !/^\d{4}-\d{2}-\d{2}$/.test(e.date) || !EXPENSE_TYPES.includes(e.type)) return null;
   if (!e.projectId && !e.clientId) return null;
-  const base = { id: e.id ?? newId(), date: e.date, type: e.type, description: str(e.description), projectId: e.projectId ?? null, clientId: e.projectId ? null : e.clientId };
+  const base = {
+    id: e.id ?? newId(), date: e.date, type: e.type, description: str(e.description), projectId: e.projectId ?? null, clientId: e.projectId ? null : e.clientId,
+    attachments: normalizeAttachments(e.attachments),
+  };
   if (e.type === "mileage") {
     const qty = positive(e.qty);
     const unitPrice = positive(e.unitPrice);
@@ -94,6 +108,19 @@ export function updateExpense(ts, id, patch) {
 }
 
 export const removeExpense = (ts, id) => ({ ...ts, expenses: ts.expenses.filter((e) => e.id !== id) });
+
+// Justificatifs d'une dépense : ajouter, changer le type (facture / preuve), retirer
+export const addAttachment = (ts, expenseId, attachment) => updateExpense(ts, expenseId, {
+  attachments: [...(ts.expenses.find((e) => e.id === expenseId)?.attachments ?? []), attachment],
+});
+export const updateAttachment = (ts, expenseId, id, patch) => updateExpense(ts, expenseId, {
+  attachments: (ts.expenses.find((e) => e.id === expenseId)?.attachments ?? []).map((a) => (a.id === id ? { ...a, ...patch } : a)),
+});
+export const removeAttachment = (ts, expenseId, id) => updateExpense(ts, expenseId, {
+  attachments: (ts.expenses.find((e) => e.id === expenseId)?.attachments ?? []).filter((a) => a.id !== id),
+});
+// Tous les fichiers utilisés (pour effacer ceux qui ne servent plus)
+export const attachmentIds = (ts) => ts.expenses.flatMap((e) => e.attachments.map((a) => a.id));
 export const setRate = (ts, currency, rate) => ({ ...ts, rates: normalizeRates({ ...ts.rates, [currency]: rate }) });
 
 // ---- Dépenses mensuelles (ex. le cellulaire, facturé au début de chaque mois) ----
@@ -125,7 +152,7 @@ export function normalizeRecurring(list) {
     const base = normalizeExpense({ ...r, date: "2000-01-01" });
     const day = Math.round(Number(r?.day));
     if (!base || isMileage(base) || !(day >= 1 && day <= 31) || !MONTH.test(r.start)) return [];
-    const { date, qty, unitPrice, ...fields } = base;
+    const { date, qty, unitPrice, attachments, ...fields } = base;
     return [{ ...fields, day, start: r.start, months: (Array.isArray(r.months) ? r.months : []).filter((m) => MONTH.test(m)) }];
   });
 }
