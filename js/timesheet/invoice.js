@@ -11,7 +11,7 @@
 import { addDays, parseISODate, toISODate } from "../core/dates.js";
 import { FORMATS } from "../export/xlsx.js";
 import { getClient, getProject, periodEntries, projectOrder, rateFor, TPS_RATE, TVQ_RATE } from "./timesheet.js";
-import { EXPENSE_CATEGORY, expenseTotal, expenseUnitPrice, isMileage, periodExpenses } from "./expenses.js";
+import { EXPENSE_CATEGORY, expenseText, expenseTotal, expenseUnitPrice, isMileage, periodExpenses } from "./expenses.js";
 
 export const EXPENSE_CATEGORIES = ["hotel", "food", "material", "phone", "transport"];
 // Nom court de chaque colonne de frais (onglets « Frais » et « Par projet »)
@@ -136,7 +136,7 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
     const line = {
       kind: "expense", id: e.id, attachments: e.attachments ?? [], date: e.date, weekday: weekdayFr(e.date), project: e.projectId ? projectKey(getProject(ts, e.projectId)) : GENERAL,
       label: e.projectId ? projectLabel(getProject(ts, e.projectId), business) : GENERAL,
-      type: e.type, category: EXPENSE_CATEGORY[e.type], description: e.description, qty: e.qty, unit: isMileage(e) ? "KM" : "EA",
+      type: e.type, category: EXPENSE_CATEGORY[e.type], description: expenseText(e), qty: e.qty, unit: isMileage(e) ? "KM" : "EA",
       unitPrice: expenseUnitPrice(e), amount: expenseTotal(e), currency: e.currency, origAmount: e.amount, rate: e.rate,
     };
     return { ...line, text: expenseDescription(line) };

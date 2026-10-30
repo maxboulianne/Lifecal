@@ -8,6 +8,7 @@
 //     qty       : 1, ou le nombre de km pour le kilométrage
 //     amount    : montant d'origine, dans la devise (currency) ; rate : $ CA pour 1 unité de la devise
 //     unitPrice : kilométrage seulement : $ CA par km (ex. 0,65)
+//     meal      : repas seulement : breakfast | lunch | dinner, ou null (« Food », générique)
 //     attachments : justificatifs [{ id, kind, type, name }] ; le fichier lui-même est dans
 //                   IndexedDB (data/files.js) ; kind : invoice (facture) | proof (preuve de
 //                   transaction) | other ; type : image/jpeg ou application/pdf
@@ -43,6 +44,19 @@ export const sumExpenses = (list) => round2(list.reduce((s, e) => s + expenseTot
 
 export const ATTACHMENT_KINDS = ["invoice", "proof", "other"];
 
+// Repas : déjeuner, dîner, souper (ou simplement « Food »). Sur la facture au client, en anglais.
+export const MEALS = ["breakfast", "lunch", "dinner"];
+export const MEAL_LABELS = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner" };
+// Le repas selon l'heure du paiement : avant 10 h 30 déjeuner, avant 16 h dîner, sinon souper.
+export function mealAt(hour, minute = 0) {
+  const m = hour * 60 + minute;
+  if (m < 4 * 60) return "dinner"; // tard le soir, après minuit
+  if (m < 10 * 60 + 30) return "breakfast";
+  return m < 16 * 60 ? "lunch" : "dinner";
+}
+// Texte de la dépense sur la facture : « Lunch », « Lunch · Shanghai », ou la description seule
+export const expenseText = (e) => [MEAL_LABELS[e.meal], e.description].filter(Boolean).join(" · ");
+
 export function normalizeAttachments(list) {
   return (Array.isArray(list) ? list : []).flatMap((a) => (a && typeof a.id === "string" && /^(image\/(jpeg|png)|application\/pdf)$/.test(a.type)
     ? [{ id: a.id, kind: ATTACHMENT_KINDS.includes(a.kind) ? a.kind : "other", type: a.type, name: str(a.name) }]
@@ -54,6 +68,7 @@ export function normalizeExpense(e) {
   if (!e.projectId && !e.clientId) return null;
   const base = {
     id: e.id ?? newId(), date: e.date, type: e.type, description: str(e.description), projectId: e.projectId ?? null, clientId: e.projectId ? null : e.clientId,
+    meal: e.type === "food" && MEALS.includes(e.meal) ? e.meal : null,
     attachments: normalizeAttachments(e.attachments),
   };
   if (e.type === "mileage") {
@@ -119,6 +134,12 @@ export const updateAttachment = (ts, expenseId, id, patch) => updateExpense(ts, 
 export const removeAttachment = (ts, expenseId, id) => updateExpense(ts, expenseId, {
   attachments: (ts.expenses.find((e) => e.id === expenseId)?.attachments ?? []).filter((a) => a.id !== id),
 });
+// Déplacer un justificatif vers une autre dépense (ex. scanné par erreur sur le kilométrage)
+export function moveAttachment(ts, fromId, toId, id) {
+  const a = ts.expenses.find((e) => e.id === fromId)?.attachments.find((x) => x.id === id);
+  if (!a || fromId === toId || !ts.expenses.some((e) => e.id === toId)) return ts;
+  return addAttachment(removeAttachment(ts, fromId, id), toId, a);
+}
 // Tous les fichiers utilisés (pour effacer ceux qui ne servent plus)
 export const attachmentIds = (ts) => ts.expenses.flatMap((e) => e.attachments.map((a) => a.id));
 export const setRate = (ts, currency, rate) => ({ ...ts, rates: normalizeRates({ ...ts.rates, [currency]: rate }) });

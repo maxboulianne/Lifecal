@@ -8,7 +8,7 @@ import {
   activeProjects, dayEntries, dayTotal, getClient, getProject, lastTask, periodSummary, previousWorkday, projectOrder, rateFor, weekTotal,
 } from "../../timesheet/timesheet.js";
 import {
-  CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
+  CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, MEALS, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
 } from "../../timesheet/expenses.js";
 import { getTask, otherTasks, quickTasks } from "../../timesheet/tasks.js";
 import { getPresence, presenceHours, SUGGESTED, withSuggestions } from "../../timesheet/presence.js";
@@ -83,7 +83,7 @@ function expenseRow(ts, e) {
     : e.currency !== "CAD" ? `${fmt.hours(e.amount)} ${e.currency} × ${rateText(e.rate)}` : "";
   return `<li class="ts-expense-row">
     <span class="ts-expense-icon" aria-hidden="true">${EXPENSE_ICONS[e.type]}</span>
-    <div class="ts-expense-text"><strong>${esc(t(`ts.expenseType.${e.type}`))}</strong>${e.description ? ` · ${esc(e.description)}` : ""}
+    <div class="ts-expense-text"><strong>${esc(t(`ts.expenseType.${e.type}`))}</strong>${e.meal ? ` · ${esc(t(`ts.meal.${e.meal}`))}` : ""}${e.description ? ` · ${esc(e.description)}` : ""}
       <span class="hint">${esc(target)}${origin ? ` · ${esc(origin)}` : ""}</span></div>
     <span class="ts-expense-amount">${esc(fmt.money(expenseTotal(e)))}</span>
     <button type="button" class="ts-attach-btn ${e.attachments.length ? "has-files" : ""}" data-action="ts-attach" data-id="${esc(e.id)}"
@@ -112,41 +112,49 @@ function currencyLabel(code) {
   }
 }
 
-// Formulaire d'une dépense : nouvelle, ou modification de `editing`.
-function expenseForm(ts, date, projects, chosen, editing) {
-  const e = editing;
+// Formulaire d'une dépense : nouvelle, ou modification de `editing`, ou (`receipt`) une
+// dépense préremplie par la lecture d'un reçu scanné : { description, date, amount, currency, type, target }.
+export function expenseForm(ts, date, projects, chosen, editing, receipt = null) {
+  const e = editing ?? (receipt && { ...receipt, attachments: [] });
   const lastCurrency = [...ts.expenses].sort((x, y) => x.date.localeCompare(y.date)).filter((x) => !isMileage(x)).at(-1)?.currency ?? "CAD";
-  const currency = e && !isMileage(e) ? e.currency : lastCurrency;
+  const currency = (e && !isMileage(e) ? e.currency : null) || lastCurrency;
   const type = e?.type ?? EXPENSE_TYPES[0];
   const mileage = type === "mileage";
-  const target = e ? (e.projectId ? `p:${e.projectId}` : `c:${e.clientId}`) : `p:${chosen}`;
-  const rate = e && !isMileage(e) && e.currency !== "CAD" ? e.rate : ts.rates[currency];
+  const target = receipt?.target ?? (editing ? (e.projectId ? `p:${e.projectId}` : `c:${e.clientId}`) : `p:${chosen}`);
+  const rate = editing && !isMileage(e) && e.currency !== "CAD" ? e.rate : ts.rates[currency];
   const currencies = CURRENCIES.includes(currency) ? CURRENCIES : [...CURRENCIES, currency];
-  return `<form class="form ts-new ts-expense-form" data-role="ts-expense" data-date="${date}" ${e ? `data-edit="${esc(e.id)}"` : ""}
-      data-rates="${esc(JSON.stringify(ts.rates))}" data-mileage="${e && mileage ? e.unitPrice : ts.business.mileageRate}">
-    ${e ? `<h3>✏️ ${t("ts.editExpense")}</h3>` : ""}
+  return `<form class="form ts-new ts-expense-form" data-role="ts-expense" data-date="${date}" ${editing ? `data-edit="${esc(e.id)}"` : ""} ${receipt ? "data-receipt" : ""}
+      data-rates="${esc(JSON.stringify(ts.rates))}" data-mileage="${editing && mileage ? e.unitPrice : ts.business.mileageRate}">
+    ${editing ? `<h3>✏️ ${t("ts.editExpense")}</h3>` : ""}
     <div class="ts-expense-types">${EXPENSE_TYPES.map((x) => `<label class="ts-project-chip">
       <input type="radio" name="type" value="${x}" ${x === type ? "checked" : ""}><span>${EXPENSE_ICONS[x]} ${t(`ts.expenseType.${x}`)}</span></label>`).join("")}</div>
-    ${e ? `<label>${t("ts.expenseDate")} <input type="date" name="date" value="${e.date}"></label>` : ""}
+    <fieldset class="ts-meal-row" data-role="meal-row" ${type === "food" ? "" : "hidden"}>
+      <legend>${t("ts.mealLabel")}</legend>
+      <div class="ts-expense-types">${["", ...MEALS].map((m) => `<label class="ts-project-chip">
+        <input type="radio" name="meal" value="${m}" ${(e?.meal ?? "") === m ? "checked" : ""}><span>${esc(t(`ts.meal.${m || "food"}`))}</span></label>`).join("")}</div>
+      <p class="hint">${t("ts.mealHint")}</p>
+    </fieldset>
+    ${e ? `<label>${t("ts.expenseDate")} <input type="date" name="date" value="${esc(e.date ?? date)}"></label>` : ""}
     <label>${t("ts.expenseDesc")} <input name="description" value="${esc(e?.description ?? "")}" placeholder="${esc(t("ts.expenseDescPlaceholder"))}" autocomplete="off"></label>
     <label>${t("ts.expenseFor")} <select name="target">${targetOptions(ts, projects, chosen, target, e)}</select></label>
     <div class="row" data-role="money-row" ${mileage ? "hidden" : ""}>
-      <label>${t("ts.amount")} <input name="amount" inputmode="decimal" value="${e && !mileage ? esc(fmt.hours(e.amount)) : ""}"
+      <label>${t("ts.amount")} <input name="amount" inputmode="decimal" value="${e?.amount && !mileage ? esc(fmt.hours(e.amount)) : ""}"
         placeholder="${esc(t("ts.example", { value: "25,50" }))}" autocomplete="off"></label>
       <label>${t("ts.currency")} <select name="currency">${currencies.map((c) => `<option value="${c}" ${c === currency ? "selected" : ""}>${esc(currencyLabel(c))}</option>`).join("")}</select></label>
     </div>
     <label data-role="rate-row" ${mileage || currency === "CAD" ? "hidden" : ""}><span data-role="rate-label">${esc(t("ts.rateFor", { currency }))}</span>
       <input name="rate" inputmode="decimal" value="${esc(rateText(rate))}" autocomplete="off"></label>
-    <label data-role="km-row" ${mileage ? "" : "hidden"}>${t("ts.km")} <input name="km" inputmode="decimal" value="${e && mileage ? esc(fmt.hours(e.qty)) : ""}"
+    <label data-role="km-row" ${mileage ? "" : "hidden"}>${t("ts.km")} <input name="km" inputmode="decimal" value="${editing && mileage ? esc(fmt.hours(e.qty)) : ""}"
       placeholder="${esc(t("ts.example", { value: "128" }))}" autocomplete="off">
-      <span class="hint">${esc(t("ts.mileageHint", { rate: fmt.money(e && mileage ? e.unitPrice : ts.business.mileageRate) }))}</span></label>
+      <span class="hint">${esc(t("ts.mileageHint", { rate: fmt.money(editing && mileage ? e.unitPrice : ts.business.mileageRate) }))}</span></label>
     ${e ? "" : `<label class="switch" data-role="monthly-row" ${mileage ? "hidden" : ""}><input type="checkbox" name="monthly">
       <span>🔁 ${esc(t("ts.monthly", { day: dayOfMonth(date.slice(8)) }))}</span></label>`}
-    <p class="ts-expense-preview" data-role="expense-preview" aria-live="polite">${e ? `= ${esc(fmt.money(expenseTotal(e)))}` : ""}</p>
+    <p class="ts-expense-preview" data-role="expense-preview" aria-live="polite">${editing ? `= ${esc(fmt.money(expenseTotal(e)))}` : ""}</p>
     <p class="form-errors" data-role="errors" role="alert"></p>
     <div class="actions">
-      ${e ? `<button type="button" class="btn ghost" data-action="ts-expense-cancel">${t("form.cancel")}</button>` : ""}
-      <button type="submit" class="btn primary">${t(e ? "ts.saveChanges" : "ts.saveExpense")}</button>
+      ${editing ? `<button type="button" class="btn ghost" data-action="ts-expense-cancel">${t("form.cancel")}</button>` : ""}
+      ${receipt ? `<button type="button" class="btn ghost" data-action="close">${t("form.cancel")}</button>` : ""}
+      <button type="submit" class="btn primary">${t(editing ? "ts.saveChanges" : receipt ? "receipt.create" : "ts.saveExpense")}</button>
     </div>
   </form>`;
 }
@@ -185,7 +193,10 @@ function expensesBlock(ts, date, projects, chosen, editingId) {
       ? `<li class="ts-expense-edit">${expenseForm(ts, date, projects, chosen, editing)}</li>`
       : expenseRow(ts, e))).join("")}</ul>` : ""}
     ${monthlyList(ts)}
-    ${canAdd && !editing ? `<details class="ts-new-wrap" data-role="expense-wrap">
+    ${canAdd && !editing ? `<div class="actions start ts-receipt-start">
+      <button type="button" class="btn primary" data-action="ts-receipt" data-date="${date}">🧾 ${t("receipt.scan")}</button>
+    </div>
+    <details class="ts-new-wrap" data-role="expense-wrap">
       <summary class="btn soft">＋ ${t("ts.addExpense")}</summary>
       ${expenseForm(ts, date, projects, chosen, null)}
     </details>` : ""}

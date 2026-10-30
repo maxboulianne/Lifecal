@@ -1241,7 +1241,7 @@ body.player-open { overflow: hidden; }
 .ts-card.is-new { animation: ts-new-card 2.5s ease-out; }
 
 /* Scanner de justificatifs */
-.sheet:has(.scanner), .sheet:has(.attachments) { max-width: 640px; }
+.sheet:has(.scanner), .sheet:has(.attachments), .sheet:has(.receipt) { max-width: 640px; }
 .scanner .hint { margin: 0 0 8px; }
 .scan-stage { position: relative; display: flex; justify-content: center; margin: 4px 0 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
 .scan-stage canvas { display: block; max-width: 100%; border-radius: 8px; }
@@ -1266,7 +1266,30 @@ body.player-open { overflow: hidden; }
 .attach-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .attach-meta select { min-height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: inherit; font-size: 16px; }
 .attach-add label.btn { display: inline-flex; cursor: pointer; }
+.attach-meta select { max-width: 100%; min-width: 0; }
+.attach-new { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: var(--soft); }
+.attach-new .hint { margin: 0 0 8px; }
+
+/* Scanner un reçu : deux cases (facture, preuve de transaction), puis la dépense préremplie */
+.ts-receipt-start { margin: 4px 0 8px; }
+.receipt-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; margin: 10px 0; }
+.receipt-slot { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.receipt-slot.empty { display: block; border-style: dashed; }
+.receipt-slot.empty .hint { margin: 2px 0 8px; }
+.receipt-slot label.btn { display: inline-flex; cursor: pointer; }
+.receipt-slot-title { margin: 0; font-weight: 700; }
+.receipt-slot-text { min-width: 0; }
+.receipt-slot-text .hint { margin: 2px 0; }
+.receipt-thumb { flex: 0 0 72px; height: 96px; border: 1px solid var(--line); border-radius: 6px; background: #fff; display: grid; place-items: center; overflow: hidden; font-size: 2rem; }
+.receipt-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.receipt-check { margin: 4px 0 0; font-weight: 600; }
+.receipt .ts-expense-form { margin-top: 6px; }
 .ts-expense-row { grid-template-columns: 1.6em minmax(0, 1fr) auto auto 2em 2em; }
 .ts-attach-btn { border: none; background: none; cursor: pointer; font-size: 1rem; padding: 4px; opacity: 0.55; display: inline-flex; align-items: center; gap: 2px; }
 .ts-attach-btn.has-files { opacity: 1; }
 .ts-attach-btn span { font-size: 0.75rem; font-weight: 700; color: var(--accent); }
+
+/* Repas : Nourriture (Food), déjeuner, dîner, souper */
+.ts-meal-row { border: none; margin: 0 0 6px; padding: 0; min-width: 0; }
+.ts-meal-row legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
+.ts-meal-row .hint { margin: 4px 0 0; }
