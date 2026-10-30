@@ -370,8 +370,15 @@ test("présence : début, fin, pause, heures travaillées, recopie, export", asy
   ts = setPresence(ts, "2026-10-19", { start: "08:00", end: "17:00", pause: 1 });
   assert.deepEqual(getPresence(ts, "2026-10-19"), { start: "08:00", end: "17:00", pause: 1 });
   assert.deepEqual(normalizeTimesheet(ts).days["2026-10-19"], { start: "08:00", end: "17:00", pause: 1 });
-  // effacer tout : la journée disparaît
-  assert.equal(setPresence(ts, "2026-10-19", { start: "", end: "", pause: 0 }).days["2026-10-19"], undefined);
+  // effacer tout : la journée disparaît ; une pause de 0 confirmée, elle, reste
+  assert.equal(setPresence(ts, "2026-10-19", { start: "", end: "", pause: null }).days["2026-10-19"], undefined);
+  assert.deepEqual(setPresence(ts, "2026-10-19", { start: "", end: "", pause: 0 }).days["2026-10-19"], { start: "", end: "", pause: 0 });
+  // valeurs proposées : début 9 h 30, fin 17 h, pause 0,5 (non enregistrées)
+  const { withSuggestions, SUGGESTED } = await import("../js/timesheet/presence.js");
+  assert.deepEqual(SUGGESTED, { start: "09:30", end: "17:00", pause: 0.5 });
+  assert.equal(presenceHours(withSuggestions(getPresence({ days: {} }, "2026-10-20"))), 7);
+  assert.equal(presenceHours(withSuggestions({ start: "08:00", end: "", pause: 0 })), 9);
+  assert.deepEqual(getPresence({ days: {} }, "2026-10-20"), { start: "", end: "", pause: null });
   // recopier une journée recopie aussi la présence
   assert.deepEqual(copyDay(ts, "2026-10-19", "2026-10-28").days["2026-10-28"], { start: "08:00", end: "17:00", pause: 1 });
   const P = { sheet: "Présence", date: "Date", day: "Jour", start: "Début", end: "Fin", pause: "Pause", worked: "Travaillé", logged: "Notées", gap: "Écart" };
