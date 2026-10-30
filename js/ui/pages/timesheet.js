@@ -86,6 +86,8 @@ function expenseRow(ts, e) {
     <div class="ts-expense-text"><strong>${esc(t(`ts.expenseType.${e.type}`))}</strong>${e.description ? ` · ${esc(e.description)}` : ""}
       <span class="hint">${esc(target)}${origin ? ` · ${esc(origin)}` : ""}</span></div>
     <span class="ts-expense-amount">${esc(fmt.money(expenseTotal(e)))}</span>
+    <button type="button" class="ts-attach-btn ${e.attachments.length ? "has-files" : ""}" data-action="ts-attach" data-id="${esc(e.id)}"
+      aria-label="${esc(t("attach.title"))} (${e.attachments.length})" title="${esc(t("attach.title"))}">📎${e.attachments.length ? `<span>${e.attachments.length}</span>` : ""}</button>
     <button type="button" class="ts-expense-edit-btn" data-action="ts-expense-edit" data-id="${esc(e.id)}" aria-label="${esc(t("ts.editExpense"))}" title="${esc(t("ts.editExpense"))}">✏️</button>
     <button type="button" class="check-remove" data-action="ts-expense-remove" data-id="${esc(e.id)}" aria-label="${esc(t("ts.remove"))}">×</button>
   </li>`;
@@ -478,13 +480,13 @@ function businessSection(ts) {
   });
 }
 
-function invoiceBlock(ts, today, clientId, from, to, hasHours) {
+function invoiceBlock(ts, today, clientId, from, to, hasHours, invoiceNumber = "") {
   const client = getClient(ts, clientId);
   if (!client) return `<div class="ts-invoice"><h3>🧾 ${t("ts.invoice")}</h3><p class="ts-empty-export">${t("ts.invoicePickClient")}</p></div>`;
   return `<div class="ts-invoice form" data-role="ts-invoice" data-client="${esc(client.id)}" data-from="${from}" data-to="${to}">
     <h3>🧾 ${t("ts.invoice")} — ${esc(client.name)}</h3>
     <div class="row">
-      <label>${t("ts.invoiceNumber")} <input name="number" value="${esc(ts.business.nextInvoice)}" placeholder="${esc(t("ts.example", { value: "2026-115" }))}" autocomplete="off"></label>
+      <label>${t("ts.invoiceNumber")} <input name="number" value="${esc(invoiceNumber || ts.business.nextInvoice)}" placeholder="${esc(t("ts.example", { value: "2026-115" }))}" autocomplete="off"></label>
       <label>${t("ts.invoiceDate")} <input name="date" type="date" value="${today}"></label>
     </div>
     <label>${t("ts.po")} <input name="po" value="${esc(client.po)}" autocomplete="off"></label>
@@ -492,7 +494,15 @@ function invoiceBlock(ts, today, clientId, from, to, hasHours) {
     ${hasHours ? `<div class="actions start">
         <button type="button" class="btn primary" data-action="ts-invoice-preview">👁️ ${t("ts.invoicePreview")}</button>
         <button type="button" class="btn soft" data-action="ts-invoice">📊 ${t("ts.createInvoice")}</button>
-      </div>` : ""}
+      </div>
+      <div class="actions start">
+        <button type="button" class="btn soft" data-action="ts-invoice-pdf">📄 ${t("ts.invoicePdf")}</button>
+        <button type="button" class="btn soft" data-action="ts-receipts-pdf">🧾 ${t("ts.receiptsPdf")}</button>
+      </div>
+      <div class="actions start">
+        <button type="button" class="btn primary" data-action="ts-invoice-email">✉️ ${t("ts.sendToClient")}</button>
+      </div>
+      <p class="hint">${t("ts.sendHint")}</p>` : ""}
   </div>`;
 }
 
@@ -523,7 +533,7 @@ function exportSection(ts, today, exp) {
         </table>
         <button type="button" class="btn soft" data-action="ts-export" data-from="${from}" data-to="${to}" data-client="${esc(clientId)}">📊 ${t("ts.exportExcel")}</button>`
       : `<p class="ts-empty-export">${t("ts.nothingToExport")}</p>`}
-      ${invoiceBlock(ts, today, clientId, from, to, s.projects.length > 0 || spent > 0)}`,
+      ${invoiceBlock(ts, today, clientId, from, to, s.projects.length > 0 || spent > 0, exp.invoiceNumber)}`,
   });
 }
 

@@ -113,6 +113,8 @@ export function invoicePreview(d) {
       <p class="hint">${t("ts.invoicePreviewHint")}</p>
       <div class="actions start">
         <button type="button" class="btn primary" data-action="ts-invoice-xlsx">📊 ${t("ts.createInvoice")}</button>
+        <button type="button" class="btn soft" data-action="ts-invoice-pdf-pending">📄 ${t("ts.invoicePdf")}</button>
+        <button type="button" class="btn soft" data-action="ts-invoice-email-pending">✉️ ${t("ts.sendToClient")}</button>
         <button type="button" class="btn soft" data-action="ts-invoice-print">🖨️ ${t("ts.printInvoice")}</button>
         <button type="button" class="btn ghost" data-action="close">${t("detail.close")}</button>
       </div>

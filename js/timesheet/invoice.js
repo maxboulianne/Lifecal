@@ -134,7 +134,7 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
   });
   const expenseLines = periodExpenses(ts, from, to, clientId).map((e) => {
     const line = {
-      kind: "expense", date: e.date, weekday: weekdayFr(e.date), project: e.projectId ? projectKey(getProject(ts, e.projectId)) : GENERAL,
+      kind: "expense", id: e.id, attachments: e.attachments ?? [], date: e.date, weekday: weekdayFr(e.date), project: e.projectId ? projectKey(getProject(ts, e.projectId)) : GENERAL,
       label: e.projectId ? projectLabel(getProject(ts, e.projectId), business) : GENERAL,
       type: e.type, category: EXPENSE_CATEGORY[e.type], description: e.description, qty: e.qty, unit: isMileage(e) ? "KM" : "EA",
       unitPrice: expenseUnitPrice(e), amount: expenseTotal(e), currency: e.currency, origAmount: e.amount, rate: e.rate,
