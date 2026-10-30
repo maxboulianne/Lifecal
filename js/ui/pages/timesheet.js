@@ -5,7 +5,7 @@ import { addDays, parseISODate, startOfWeek, toISODate } from "../../core/dates.
 import { esc } from "../../core/dom.js";
 import { fmt, getLanguage, t } from "../../i18n/index.js";
 import {
-  activeProjects, dayEntries, dayTotal, getClient, getProject, lastTask, periodSummary, previousWorkday, rateFor, weekTotal,
+  activeProjects, dayEntries, dayTotal, getClient, getProject, lastTask, periodSummary, previousWorkday, projectOrder, rateFor, weekTotal,
 } from "../../timesheet/timesheet.js";
 import {
   CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
@@ -190,6 +190,9 @@ function expensesBlock(ts, date, projects, chosen, editingId) {
   </div>`;
 }
 
+// Fin de journée proposée (à confirmer en ouvrant la roulette) quand elle n'est pas encore écrite
+export const SUGGESTED_END = "17:00";
+
 // Présence de la journée : début, fin, pause ; heures travaillées comparées aux heures notées.
 function presenceBlock(ts, date) {
   const p = getPresence(ts, date);
@@ -197,7 +200,7 @@ function presenceBlock(ts, date) {
   const logged = dayTotal(ts, date);
   const gap = worked === null ? 0 : Math.round((worked - logged) * 100) / 100;
   const input = (field, extra) => `data-action="ts-presence" data-field="${field}" data-date="${date}" ${extra}`;
-  let status = `<p class="hint">${t("ts.presenceHint")}</p>`;
+  let status = `<p class="hint">${t(p.end ? "ts.presenceHint" : "ts.endSuggested")}</p>`;
   if (worked !== null) {
     const balance = gap === 0
       ? `<span class="ts-balance is-ok">✓ ${t("ts.balanced")}</span>`
@@ -212,7 +215,7 @@ function presenceBlock(ts, date) {
     <h3>🕘 ${t("ts.presence")}</h3>
     <div class="ts-presence-row">
       <label>${t("ts.start")} <input type="time" ${input("start", `value="${p.start}"`)}></label>
-      <label>${t("ts.end")} <input type="time" ${input("end", `value="${p.end}"`)}></label>
+      <label>${t("ts.end")} <input type="time" ${input("end", p.end ? `value="${p.end}"` : `data-suggest="${SUGGESTED_END}" class="is-suggested"`)}></label>
       <label>${t("ts.pause")} <input ${input("pause", `value="${p.pause ? esc(fmt.hours(p.pause)) : ""}" inputmode="decimal" autocomplete="off" placeholder="${esc(t("ts.pausePlaceholder"))}"`)}></label>
     </div>
     ${status}
@@ -314,7 +317,7 @@ const addBlock = (open, summary, form) => `<details class="ts-new-wrap" ${open ?
 function projectCard(ts, p) {
   const field = (name, label, input) => `<label>${label} ${input}</label>`;
   const attrs = (f) => `data-action="ts-project-field" data-id="${esc(p.id)}" data-field="${f}" autocomplete="off"`;
-  return `<li class="ts-card ${p.archived ? "is-archived" : ""}">
+  return `<li class="ts-card ${p.archived ? "is-archived" : ""}" data-project-card="${esc(p.id)}">
     <div class="row">
       ${field("number", t("ts.number"), `<input ${attrs("number")} value="${esc(p.number)}">`)}
       ${field("name", t("ts.projectName"), `<input ${attrs("name")} value="${esc(p.name)}">`)}
@@ -335,7 +338,7 @@ function projectCard(ts, p) {
 }
 
 function projectsSection(ts) {
-  const list = [...ts.projects].sort((a, b) => Number(a.archived) - Number(b.archived) || a.number.localeCompare(b.number, undefined, { numeric: true }));
+  const list = [...ts.projects].sort((a, b) => Number(a.archived) - Number(b.archived) || projectOrder(a, b));
   return foldSection("ts-projects", {
     title: esc(t("ts.projects")),
     extra: String(ts.projects.filter((p) => !p.archived).length),

@@ -732,4 +732,6 @@ export default {
   "ts.confirmStopMonthly": "Arrêter cette dépense mensuelle ? Les dépenses déjà ajoutées restent.",
   "ts.monthlyStopped": "Dépense mensuelle arrêtée.",
   "ts.monthlyAdded": "Dépense ajoutée. Elle reviendra le {day} de chaque mois.",
+  "ts.endSuggested": "Fin proposée : 17 h (en gris). Touche-la et confirme avec ✓ pour l'accepter, ou choisis une autre heure.",
+  "ts.projectAddedRate": "Projet ajouté : {name} · {rate}/h",
 };

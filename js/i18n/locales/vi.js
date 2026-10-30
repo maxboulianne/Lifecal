@@ -710,4 +710,6 @@ export default {
   "ts.confirmStopMonthly": "Dừng chi phí hằng tháng này? Các chi phí đã thêm vẫn được giữ.",
   "ts.monthlyStopped": "Đã dừng chi phí hằng tháng.",
   "ts.monthlyAdded": "Đã thêm chi phí. Chi phí sẽ lặp lại vào ngày {day} hằng tháng.",
+  "ts.endSuggested": "Giờ kết thúc đề xuất: 17 giờ (màu xám). Chạm vào và xác nhận bằng ✓ để chấp nhận, hoặc chọn giờ khác.",
+  "ts.projectAddedRate": "Đã thêm dự án: {name} · {rate}/giờ",
 };
