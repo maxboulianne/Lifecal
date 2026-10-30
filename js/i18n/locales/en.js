@@ -713,6 +713,7 @@ export default {
   "ts.confirmStopMonthly": "Stop this monthly expense? Expenses already added stay.",
   "ts.monthlyStopped": "Monthly expense stopped.",
   "ts.monthlyAdded": "Expense added. It will come back on day {day} of every month.",
-  "ts.endSuggested": "Suggested end: 5 PM (in grey). Tap it and confirm with ✓ to accept, or pick another time.",
   "ts.projectAddedRate": "Project added: {name} · {rate}/h",
+  "ts.suggestedHint": "In grey: suggested values (start 9:30, end 17:00, break 0.5). Tap a field and confirm (✓) to accept it, or change it.",
+  "ts.rateSuggestedHint": "Suggested rate: the one from your last project (editable). Overtime left empty: 1.5 × the regular rate.",
 };

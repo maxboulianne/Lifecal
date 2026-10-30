@@ -713,6 +713,7 @@ export default {
   "ts.confirmStopMonthly": "Parar esta despesa mensal? As despesas já adicionadas permanecem.",
   "ts.monthlyStopped": "Despesa mensal parada.",
   "ts.monthlyAdded": "Despesa adicionada. Ela voltará no dia {day} de cada mês.",
-  "ts.endSuggested": "Fim sugerido: 17 h (em cinza). Toque nele e confirme com ✓ para aceitar, ou escolha outro horário.",
   "ts.projectAddedRate": "Projeto adicionado: {name} · {rate}/h",
+  "ts.suggestedHint": "Em cinza: valores sugeridos (início 9:30, fim 17:00, pausa 0,5). Toque num campo e confirme (✓) para aceitar, ou altere-o.",
+  "ts.rateSuggestedHint": "Taxa sugerida: a do seu último projeto (editável). Hora extra vazia: 1,5 × a taxa normal.",
 };

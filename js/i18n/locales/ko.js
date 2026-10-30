@@ -710,6 +710,7 @@ export default {
   "ts.confirmStopMonthly": "이 월별 경비를 중지할까요? 이미 추가된 경비는 남아요.",
   "ts.monthlyStopped": "월별 경비를 중지했어요.",
   "ts.monthlyAdded": "경비를 추가했어요. 매달 {day}일에 다시 추가돼요.",
-  "ts.endSuggested": "제안된 종료 시간: 오후 5시 (회색). 눌러서 ✓로 확인하거나 다른 시간을 고르세요.",
   "ts.projectAddedRate": "프로젝트 추가됨: {name} · 시간당 {rate}",
+  "ts.suggestedHint": "회색: 제안 값 (시작 9:30, 종료 17:00, 휴식 0.5). 칸을 눌러 ✓로 확인하거나 바꾸세요.",
+  "ts.rateSuggestedHint": "제안 단가: 최근 프로젝트의 단가 (수정 가능). 초과 근무 단가를 비워 두면: 정규 단가 × 1.5",
 };

@@ -713,6 +713,7 @@ export default {
   "ts.confirmStopMonthly": "¿Detener este gasto mensual? Los gastos ya añadidos se conservan.",
   "ts.monthlyStopped": "Gasto mensual detenido.",
   "ts.monthlyAdded": "Gasto añadido. Volverá el día {day} de cada mes.",
-  "ts.endSuggested": "Fin propuesta: 17 h (en gris). Tócala y confirma con ✓ para aceptarla, o elige otra hora.",
   "ts.projectAddedRate": "Proyecto añadido: {name} · {rate}/h",
+  "ts.suggestedHint": "En gris: valores propuestos (inicio 9:30, fin 17:00, pausa 0,5). Toca una casilla y confirma (✓) para aceptarla, o cámbiala.",
+  "ts.rateSuggestedHint": "Tarifa propuesta: la de tu último proyecto (modificable). Horas extra vacía: 1,5 × la tarifa normal.",
 };

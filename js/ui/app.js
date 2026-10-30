@@ -154,7 +154,9 @@ export class App {
     document.addEventListener("change", (e) => this.#onChange(e));
     // Roulettes d'heure et de date (iPhone, iPad) : enregistrer quand on les referme.
     document.addEventListener("focusout", (e) => {
-      if (savesOnClose(e.target) && e.target.isConnected && e.target.value !== e.target.defaultValue) {
+      // Aussi une valeur proposée (en gris) qu'on confirme en la touchant puis en la quittant
+      const confirmable = savesOnClose(e.target) || (e.target.dataset?.suggest && e.target.dataset.action?.startsWith("ts-"));
+      if (confirmable && e.target.isConnected && e.target.value !== e.target.defaultValue) {
         this.#onTimesheetChange(e.target);
       }
     });
@@ -1436,8 +1438,9 @@ export class App {
       case "ts-presence": {
         const { field, date } = el.dataset;
         if (field === "pause") {
-          const pause = parsePause(el.value);
-          if (pause === null) return toast(t("ts.errors.pause"));
+          // Champ vidé : la pause redevient « proposée » ; sinon un nombre (0 compris)
+          const pause = el.value.trim() === "" ? null : parsePause(el.value);
+          if (pause === null && el.value.trim() !== "") return toast(t("ts.errors.pause"));
           return this.#updateTimesheet(setPresence(ts, date, { pause }));
         }
         return this.#updateTimesheet(setPresence(ts, date, { [field]: normalizeTime(el.value) }));

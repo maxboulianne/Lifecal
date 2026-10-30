@@ -11,7 +11,7 @@ import {
   CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
 } from "../../timesheet/expenses.js";
 import { getTask, otherTasks, quickTasks } from "../../timesheet/tasks.js";
-import { getPresence, presenceHours } from "../../timesheet/presence.js";
+import { getPresence, presenceHours, SUGGESTED, withSuggestions } from "../../timesheet/presence.js";
 import { foldSection, isFoldOpen } from "../components/fold.js";
 import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
 
@@ -190,18 +190,17 @@ function expensesBlock(ts, date, projects, chosen, editingId) {
   </div>`;
 }
 
-// Fin de journée proposée (à confirmer en ouvrant la roulette) quand elle n'est pas encore écrite
-export const SUGGESTED_END = "17:00";
-
 // Présence de la journée : début, fin, pause ; heures travaillées comparées aux heures notées.
+// Une valeur pas encore confirmée est proposée en gris (début 9 h 30, fin 17 h, pause 0,5)
+// et sert au balancement ; elle n'est enregistrée qu'une fois confirmée.
 function presenceBlock(ts, date) {
   const p = getPresence(ts, date);
-  // Fin pas encore confirmée : le balancement se calcule avec la fin proposée (17 h)
-  const worked = presenceHours(p.end ? p : { ...p, end: SUGGESTED_END });
+  const worked = presenceHours(withSuggestions(p));
+  const suggesting = !p.start || !p.end || p.pause === null;
   const logged = dayTotal(ts, date);
   const gap = worked === null ? 0 : Math.round((worked - logged) * 100) / 100;
   const input = (field, extra) => `data-action="ts-presence" data-field="${field}" data-date="${date}" ${extra}`;
-  let status = `<p class="hint">${t(p.end ? "ts.presenceHint" : "ts.endSuggested")}</p>`;
+  let status = `<p class="hint">${t("ts.presenceHint")}</p>`;
   if (worked !== null) {
     const balance = gap === 0
       ? `<span class="ts-balance is-ok">✓ ${t("ts.balanced")}</span>`
@@ -211,14 +210,15 @@ function presenceBlock(ts, date) {
         : `<span class="ts-balance is-over">${esc(t("ts.overPresence", { hours: h(-gap) }))}</span>`;
     status = `<p class="ts-presence-status"><strong>${esc(t("ts.worked", { hours: h(worked) }))}</strong>
       <span class="hint">${esc(t("ts.logged", { hours: h(logged) }))}</span></p><div class="ts-balance-row">${balance}</div>
-      ${p.end ? "" : `<p class="hint">${t("ts.endSuggested")}</p>`}`;
+      ${suggesting ? `<p class="hint">${t("ts.suggestedHint")}</p>` : ""}`;
   }
   return `<div class="ts-presence">
     <h3>🕘 ${t("ts.presence")}</h3>
     <div class="ts-presence-row">
-      <label>${t("ts.start")} <input type="time" ${input("start", `value="${p.start}"`)}></label>
-      <label>${t("ts.end")} <input type="time" ${input("end", p.end ? `value="${p.end}"` : `data-suggest="${SUGGESTED_END}" class="is-suggested"`)}></label>
-      <label>${t("ts.pause")} <input ${input("pause", `value="${p.pause ? esc(fmt.hours(p.pause)) : ""}" inputmode="decimal" autocomplete="off" placeholder="${esc(t("ts.pausePlaceholder"))}"`)}></label>
+      <label>${t("ts.start")} <input type="time" ${input("start", p.start ? `value="${p.start}"` : `data-suggest="${SUGGESTED.start}" class="is-suggested"`)}></label>
+      <label>${t("ts.end")} <input type="time" ${input("end", p.end ? `value="${p.end}"` : `data-suggest="${SUGGESTED.end}" class="is-suggested"`)}></label>
+      <label>${t("ts.pause")} <input ${input("pause", `${p.pause !== null ? `value="${esc(fmt.hours(p.pause))}"` : `data-suggest="${esc(fmt.hours(SUGGESTED.pause))}" class="is-suggested"`}
+        inputmode="decimal" autocomplete="off" placeholder="${esc(t("ts.pausePlaceholder"))}"`)}></label>
     </div>
     ${status}
   </div>`;
@@ -341,6 +341,8 @@ function projectCard(ts, p) {
 
 function projectsSection(ts) {
   const list = [...ts.projects].sort((a, b) => Number(a.archived) - Number(b.archived) || projectOrder(a, b));
+  // Taux du dernier projet ajouté, proposé (déjà écrit) pour le nouveau projet
+  const suggestedRate = [...ts.projects].reverse().find((p) => p.rate != null)?.rate ?? null;
   return foldSection("ts-projects", {
     title: esc(t("ts.projects")),
     extra: String(ts.projects.filter((p) => !p.archived).length),
@@ -353,10 +355,12 @@ function projectsSection(ts) {
         </div>
         <label>${t("ts.client")} <select name="clientId">${clientOptions(ts, ts.clients[0]?.id ?? "")}</select></label>
         <div class="row">
-          <label>${t("ts.rateRegular")} ($/h) <input name="rate" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "68" }))}" autocomplete="off"></label>
-          <label>${t("ts.rateOvertime")} ($/h) <input name="overtimeRate" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "102" }))}" autocomplete="off"></label>
+          <label>${t("ts.rateRegular")} ($/h) <input name="rate" inputmode="decimal" autocomplete="off"
+            ${suggestedRate ? `value="${esc(fmt.hours(suggestedRate))}"` : `placeholder="${esc(t("ts.example", { value: "68" }))}"`}></label>
+          <label>${t("ts.rateOvertime")} ($/h) <input name="overtimeRate" inputmode="decimal" autocomplete="off"
+            placeholder="${esc(suggestedRate ? fmt.hours(suggestedRate * 1.5) : t("ts.example", { value: "102" }))}"></label>
         </div>
-        <p class="hint">${t("ts.overtimeHint")}</p>
+        <p class="hint">${t(suggestedRate ? "ts.rateSuggestedHint" : "ts.overtimeHint")}</p>
         <p class="form-errors" data-role="errors" role="alert"></p>
         <div class="actions"><button type="submit" class="btn primary">${t("ts.addProject")}</button></div>
       </form>`)}`,
