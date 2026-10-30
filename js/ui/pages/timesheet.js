@@ -196,7 +196,8 @@ export const SUGGESTED_END = "17:00";
 // Présence de la journée : début, fin, pause ; heures travaillées comparées aux heures notées.
 function presenceBlock(ts, date) {
   const p = getPresence(ts, date);
-  const worked = presenceHours(p);
+  // Fin pas encore confirmée : le balancement se calcule avec la fin proposée (17 h)
+  const worked = presenceHours(p.end ? p : { ...p, end: SUGGESTED_END });
   const logged = dayTotal(ts, date);
   const gap = worked === null ? 0 : Math.round((worked - logged) * 100) / 100;
   const input = (field, extra) => `data-action="ts-presence" data-field="${field}" data-date="${date}" ${extra}`;
@@ -209,7 +210,8 @@ function presenceBlock(ts, date) {
            <button type="button" class="btn soft ts-fill-gap" data-action="ts-fill-gap" data-hours="${gap}">＋ ${esc(t("ts.fillGap", { hours: h(gap) }))}</button>`
         : `<span class="ts-balance is-over">${esc(t("ts.overPresence", { hours: h(-gap) }))}</span>`;
     status = `<p class="ts-presence-status"><strong>${esc(t("ts.worked", { hours: h(worked) }))}</strong>
-      <span class="hint">${esc(t("ts.logged", { hours: h(logged) }))}</span></p><div class="ts-balance-row">${balance}</div>`;
+      <span class="hint">${esc(t("ts.logged", { hours: h(logged) }))}</span></p><div class="ts-balance-row">${balance}</div>
+      ${p.end ? "" : `<p class="hint">${t("ts.endSuggested")}</p>`}`;
   }
   return `<div class="ts-presence">
     <h3>🕘 ${t("ts.presence")}</h3>
