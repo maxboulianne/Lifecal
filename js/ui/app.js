@@ -305,7 +305,11 @@ export class App {
         count: this.repo.all().length,
       });
       $("#nudges").innerHTML = "";
-      if (this.page === "timesheet") this.#syncMonthly();
+      if (this.page === "timesheet") {
+        this.#syncMonthly();
+        // Heure proposée (ex. fin à 17 h) : affichée, mais enregistrée seulement une fois confirmée
+        for (const el of document.querySelectorAll("input[data-suggest]")) if (!el.value) el.value = el.dataset.suggest;
+      }
       if (this.page === "trip") {
         this.#mountTripMap();
         this.#discoverTrip(this.tripId);
@@ -1520,8 +1524,9 @@ export class App {
     }
     if (form.dataset.role === "ts-new-project") {
       if (!text("number") && !text("name")) return (errors.textContent = t("ts.errors.project"));
+      // « 68 », « 68,00 $ », « 68 $/h » : le taux horaire
       const readRate = (name) => {
-        const raw = text(name).replace(/[$\s]/g, "");
+        const raw = text(name).replace(/[$\s\u00a0]/g, "").replace(/\/h(r|eure)?$/i, "");
         return raw ? parseAmount(raw) ?? NaN : null;
       };
       const rate = readRate("rate");
@@ -1530,7 +1535,12 @@ export class App {
       const { ts: next, project } = addProject(ts, { number: text("number"), name: text("name"), clientId: text("clientId") || null, rate, overtimeRate });
       this.timesheetProject = project.id;
       await this.#updateTimesheet(next);
-      return toast(t("ts.projectAdded", { name: [project.number, project.name].filter(Boolean).join(" ") }));
+      // Montrer la fiche du nouveau projet (avec son taux) pour confirmer
+      const card = $(`[data-project-card="${project.id}"]`);
+      card?.scrollIntoView({ block: "center" });
+      card?.classList.add("is-new");
+      const name = [project.number, project.name].filter(Boolean).join(" ");
+      return toast(project.rate != null ? t("ts.projectAddedRate", { name, rate: fmt.money(project.rate) }) : t("ts.projectAdded", { name }));
     }
     if (form.dataset.role === "ts-new-client") {
       if (!text("name")) return (errors.textContent = t("ts.errors.client"));

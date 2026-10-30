@@ -713,4 +713,6 @@ export default {
   "ts.confirmStopMonthly": "Diese monatliche Ausgabe beenden? Bereits hinzugefügte Ausgaben bleiben.",
   "ts.monthlyStopped": "Monatliche Ausgabe beendet.",
   "ts.monthlyAdded": "Ausgabe hinzugefügt. Sie kommt am {day}. jedes Monats wieder.",
+  "ts.endSuggested": "Vorgeschlagenes Ende: 17 Uhr (grau). Tippe darauf und bestätige mit ✓, oder wähle eine andere Zeit.",
+  "ts.projectAddedRate": "Projekt hinzugefügt: {name} · {rate}/h",
 };

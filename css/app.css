@@ -1235,3 +1235,7 @@ body.player-open { overflow: hidden; }
 .ts-monthly-list .hint { display: block; }
 .ts-monthly-amount { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); }
 .ts-monthly-amount input { width: 5.5em; min-height: 36px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font: inherit; font-size: 16px; text-align: right; }
+/* Heure proposée (pas encore confirmée) ; nouveau projet mis en évidence */
+.ts-presence-row input.is-suggested { color: var(--muted); font-style: italic; border-style: dashed; }
+@keyframes ts-new-card { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 0 transparent; } }
+.ts-card.is-new { animation: ts-new-card 2.5s ease-out; }

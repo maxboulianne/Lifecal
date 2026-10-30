@@ -137,13 +137,15 @@ export function weekTotal(ts, date) {
   return sumHours(ts.entries.filter((e) => e.date >= start && e.date <= end));
 }
 
-// Projets actifs, les plus récemment utilisés d'abord (puis par numéro).
+// Projets actifs : « toujours en premier », puis les plus récemment utilisés (puis par numéro).
 export function activeProjects(ts) {
   const lastUse = new Map();
   for (const e of ts.entries) if ((lastUse.get(e.projectId) ?? "") < e.date) lastUse.set(e.projectId, e.date);
+  // Les projets « toujours en premier » d'abord, puis les plus récemment utilisés
   return ts.projects
     .filter((p) => !p.archived)
-    .sort((a, b) => (lastUse.get(b.id) ?? "").localeCompare(lastUse.get(a.id) ?? "") || a.number.localeCompare(b.number, undefined, { numeric: true }));
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
+      || (lastUse.get(b.id) ?? "").localeCompare(lastUse.get(a.id) ?? "") || a.number.localeCompare(b.number, undefined, { numeric: true }));
 }
 
 // Dernière journée (avant `date`) où des heures ont été notées.

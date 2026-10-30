@@ -713,4 +713,6 @@ export default {
   "ts.confirmStopMonthly": "¿Detener este gasto mensual? Los gastos ya añadidos se conservan.",
   "ts.monthlyStopped": "Gasto mensual detenido.",
   "ts.monthlyAdded": "Gasto añadido. Volverá el día {day} de cada mes.",
+  "ts.endSuggested": "Fin propuesta: 17 h (en gris). Tócala y confirma con ✓ para aceptarla, o elige otra hora.",
+  "ts.projectAddedRate": "Proyecto añadido: {name} · {rate}/h",
 };
