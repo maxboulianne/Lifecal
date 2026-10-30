@@ -769,4 +769,10 @@ export default {
   "attach.moved": "Beleg verschoben.",
   "attach.newExpense": "Ausgabe mit diesen Belegen erstellen",
   "attach.newExpenseHint": "Diese Belege hängen an einer Kilometer-Ausgabe. Wenn sie von einem Restaurant (o. Ä.) sind, erstelle die richtige Ausgabe: Sie werden dorthin verschoben.",
+  "ts.meal.food": "Verpflegung (Food)",
+  "ts.meal.breakfast": "Frühstück",
+  "ts.meal.lunch": "Mittagessen",
+  "ts.meal.dinner": "Abendessen",
+  "ts.mealLabel": "Mahlzeit",
+  "ts.mealHint": "Auf der Kundenrechnung auf Englisch: „Food“ oder „Breakfast“, „Lunch“, „Dinner“. Ein gescannter Beleg wählt nach der Zahlungszeit; du kannst es ändern.",
 };

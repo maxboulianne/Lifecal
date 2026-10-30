@@ -2,12 +2,16 @@
 // L'OCR se trompe parfois (« Paurhoire », « 2626-18-15 ») : on ne garde que ce qui
 // a du sens, et la personne vérifie toujours avant d'enregistrer.
 //
-//   parseReceipt(text) -> { merchant, date, total, amounts, currency }
+//   parseReceipt(text) -> { merchant, date, time, total, amounts, currency }
+//     time    : l'heure du paiement { hour, minute }, qui dit le repas (déjeuner, dîner, souper)
 //     total   : le total payé (lignes « Total », « Vente », « Montant »… mais pas
 //               « Sous-total ») ; à défaut, le plus grand montant
-//   receiptExpense({ invoice, proof }) -> { description, date, amount, currency }
+//   receiptExpense({ invoice, proof }) -> { meal, date, amount, currency }
+//     La dépense ne nomme pas le commerce : seulement le repas, selon l'heure.
 //     Le montant réclamé est celui de la preuve de transaction (pourboire compris) ;
 //     la facture sert si la preuve est absente ou illisible.
+
+import { mealAt } from "../timesheet/expenses.js";
 
 // Un montant a toujours deux décimales : « 99,65 », « 1 075,02 », « $170.16 »
 const AMOUNT = /(?<![\d.,])(\d{1,3}(?:[  .,]\d{3})+|\d+)[.,](\d{2})(?![.,]?\d)/g;
@@ -56,6 +60,16 @@ export function findDate(text) {
   return best?.date ?? null;
 }
 
+// Première heure lisible : « 12:44:31 », « 12h39min35s p.m. », « 7:15 PM »
+export function findTime(text) {
+  const m = /(?<!\d)([01]?\d|2[0-3])\s?[:h]\s?([0-5]\d)(?!\d)(.{0,12})/i.exec(text);
+  if (!m) return null;
+  let hour = Number(m[1]);
+  if (/p\.?\s?m\b|p\.m/i.test(m[3]) && hour < 12) hour += 12;
+  if (/a\.?\s?m\b|a\.m/i.test(m[3]) && hour === 12) hour = 0;
+  return { hour, minute: Number(m[2]) };
+}
+
 const titleCase = (s) => (s === s.toUpperCase() ? s.toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase()) : s);
 
 // Le commerce : la première ligne qui ressemble à un nom (au moins 3 lettres, pas un numéro)
@@ -84,17 +98,19 @@ export function parseReceipt(text) {
   return {
     merchant: findMerchant(String(text ?? "")),
     date: findDate(String(text ?? "")),
+    time: findTime(String(text ?? "")),
     total: pick.length ? Math.max(...pick) : null,
     amounts,
     currency: findCurrency(String(text ?? "")),
   };
 }
 
-// Ce que l'on propose pour la dépense : la preuve de transaction d'abord pour le montant
-// et la date (c'est ce qui a été payé), la facture d'abord pour le nom du commerce.
+// Ce que l'on propose pour la dépense : la preuve de transaction d'abord (c'est ce qui a
+// été payé, pourboire compris) ; le repas vient de l'heure du paiement.
 export function receiptExpense({ invoice = null, proof = null } = {}) {
+  const time = proof?.time ?? invoice?.time ?? null;
   return {
-    description: invoice?.merchant || proof?.merchant || "",
+    meal: time ? mealAt(time.hour, time.minute) : null,
     date: proof?.date ?? invoice?.date ?? null,
     amount: proof?.total ?? invoice?.total ?? null,
     currency: proof?.currency ?? invoice?.currency ?? null,

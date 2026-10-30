@@ -1288,3 +1288,8 @@ body.player-open { overflow: hidden; }
 .ts-attach-btn { border: none; background: none; cursor: pointer; font-size: 1rem; padding: 4px; opacity: 0.55; display: inline-flex; align-items: center; gap: 2px; }
 .ts-attach-btn.has-files { opacity: 1; }
 .ts-attach-btn span { font-size: 0.75rem; font-weight: 700; color: var(--accent); }
+
+/* Repas : Nourriture (Food), déjeuner, dîner, souper */
+.ts-meal-row { border: none; margin: 0 0 6px; padding: 0; min-width: 0; }
+.ts-meal-row legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
+.ts-meal-row .hint { margin: 4px 0 0; }

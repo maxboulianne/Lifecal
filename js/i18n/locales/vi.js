@@ -766,4 +766,10 @@ export default {
   "attach.moved": "Đã chuyển chứng từ.",
   "attach.newExpense": "Tạo chi phí với các chứng từ này",
   "attach.newExpenseHint": "Các chứng từ này đang ở chi phí số km. Nếu chúng của nhà hàng (hoặc khác), hãy tạo đúng chi phí: chúng sẽ được chuyển sang đó.",
+  "ts.meal.food": "Ăn uống (Food)",
+  "ts.meal.breakfast": "Bữa sáng",
+  "ts.meal.lunch": "Bữa trưa",
+  "ts.meal.dinner": "Bữa tối",
+  "ts.mealLabel": "Bữa ăn",
+  "ts.mealHint": "Trên hóa đơn gửi khách, bằng tiếng Anh: «Food», hoặc «Breakfast», «Lunch», «Dinner». Hóa đơn quét sẽ chọn theo giờ thanh toán; bạn có thể đổi.",
 };

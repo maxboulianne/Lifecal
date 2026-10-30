@@ -769,4 +769,10 @@ export default {
   "attach.moved": "Comprovante movido.",
   "attach.newExpense": "Criar uma despesa com estes comprovantes",
   "attach.newExpenseHint": "Estes comprovantes estão numa despesa de quilometragem. Se forem de um restaurante (ou outro), crie a despesa certa: eles serão movidos para ela.",
+  "ts.meal.food": "Alimentação (Food)",
+  "ts.meal.breakfast": "Café da manhã",
+  "ts.meal.lunch": "Almoço",
+  "ts.meal.dinner": "Jantar",
+  "ts.mealLabel": "Refeição",
+  "ts.mealHint": "Na fatura ao cliente, em inglês: «Food», ou «Breakfast», «Lunch», «Dinner». Um recibo digitalizado escolhe pela hora do pagamento; você pode mudar.",
 };

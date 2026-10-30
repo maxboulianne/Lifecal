@@ -788,4 +788,10 @@ export default {
   "attach.moved": "Justificatif déplacé.",
   "attach.newExpense": "Créer une dépense avec ces justificatifs",
   "attach.newExpenseHint": "Ces justificatifs sont sur une dépense de kilométrage. S'ils sont d'un restaurant (ou autre), crée la bonne dépense : ils y seront déplacés.",
+  "ts.meal.food": "Nourriture (Food)",
+  "ts.meal.breakfast": "Déjeuner",
+  "ts.meal.lunch": "Dîner",
+  "ts.meal.dinner": "Souper",
+  "ts.mealLabel": "Repas",
+  "ts.mealHint": "Sur la facture au client, en anglais : « Food », ou « Breakfast », « Lunch », « Dinner ». Un reçu scanné choisit selon l'heure du paiement ; tu peux changer.",
 };

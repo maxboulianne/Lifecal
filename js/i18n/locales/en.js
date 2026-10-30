@@ -769,4 +769,10 @@ export default {
   "attach.moved": "Receipt moved.",
   "attach.newExpense": "Create an expense with these receipts",
   "attach.newExpenseHint": "These receipts are on a mileage expense. If they are from a restaurant (or something else), create the right expense: they will be moved to it.",
+  "ts.meal.food": "Food",
+  "ts.meal.breakfast": "Breakfast",
+  "ts.meal.lunch": "Lunch",
+  "ts.meal.dinner": "Dinner",
+  "ts.mealLabel": "Meal",
+  "ts.mealHint": "On the client invoice: “Food”, or “Breakfast”, “Lunch”, “Dinner”. A scanned receipt picks one from the payment time; you can change it.",
 };

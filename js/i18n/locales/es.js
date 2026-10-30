@@ -769,4 +769,10 @@ export default {
   "attach.moved": "Justificante movido.",
   "attach.newExpense": "Crear un gasto con estos justificantes",
   "attach.newExpenseHint": "Estos justificantes están en un gasto de kilometraje. Si son de un restaurante (u otro), crea el gasto correcto: se moverán allí.",
+  "ts.meal.food": "Comida (Food)",
+  "ts.meal.breakfast": "Desayuno",
+  "ts.meal.lunch": "Almuerzo",
+  "ts.meal.dinner": "Cena",
+  "ts.mealLabel": "Comida",
+  "ts.mealHint": "En la factura al cliente, en inglés: «Food», o «Breakfast», «Lunch», «Dinner». Un recibo escaneado elige según la hora del pago; puedes cambiarlo.",
 };

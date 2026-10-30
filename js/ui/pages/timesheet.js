@@ -8,7 +8,7 @@ import {
   activeProjects, dayEntries, dayTotal, getClient, getProject, lastTask, periodSummary, previousWorkday, projectOrder, rateFor, weekTotal,
 } from "../../timesheet/timesheet.js";
 import {
-  CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
+  CURRENCIES, EXPENSE_ICONS, EXPENSE_TYPES, MEALS, dayExpenses, expenseTotal, isMileage, periodExpenses, sumExpenses,
 } from "../../timesheet/expenses.js";
 import { getTask, otherTasks, quickTasks } from "../../timesheet/tasks.js";
 import { getPresence, presenceHours, SUGGESTED, withSuggestions } from "../../timesheet/presence.js";
@@ -83,7 +83,7 @@ function expenseRow(ts, e) {
     : e.currency !== "CAD" ? `${fmt.hours(e.amount)} ${e.currency} × ${rateText(e.rate)}` : "";
   return `<li class="ts-expense-row">
     <span class="ts-expense-icon" aria-hidden="true">${EXPENSE_ICONS[e.type]}</span>
-    <div class="ts-expense-text"><strong>${esc(t(`ts.expenseType.${e.type}`))}</strong>${e.description ? ` · ${esc(e.description)}` : ""}
+    <div class="ts-expense-text"><strong>${esc(t(`ts.expenseType.${e.type}`))}</strong>${e.meal ? ` · ${esc(t(`ts.meal.${e.meal}`))}` : ""}${e.description ? ` · ${esc(e.description)}` : ""}
       <span class="hint">${esc(target)}${origin ? ` · ${esc(origin)}` : ""}</span></div>
     <span class="ts-expense-amount">${esc(fmt.money(expenseTotal(e)))}</span>
     <button type="button" class="ts-attach-btn ${e.attachments.length ? "has-files" : ""}" data-action="ts-attach" data-id="${esc(e.id)}"
@@ -128,6 +128,12 @@ export function expenseForm(ts, date, projects, chosen, editing, receipt = null)
     ${editing ? `<h3>✏️ ${t("ts.editExpense")}</h3>` : ""}
     <div class="ts-expense-types">${EXPENSE_TYPES.map((x) => `<label class="ts-project-chip">
       <input type="radio" name="type" value="${x}" ${x === type ? "checked" : ""}><span>${EXPENSE_ICONS[x]} ${t(`ts.expenseType.${x}`)}</span></label>`).join("")}</div>
+    <fieldset class="ts-meal-row" data-role="meal-row" ${type === "food" ? "" : "hidden"}>
+      <legend>${t("ts.mealLabel")}</legend>
+      <div class="ts-expense-types">${["", ...MEALS].map((m) => `<label class="ts-project-chip">
+        <input type="radio" name="meal" value="${m}" ${(e?.meal ?? "") === m ? "checked" : ""}><span>${esc(t(`ts.meal.${m || "food"}`))}</span></label>`).join("")}</div>
+      <p class="hint">${t("ts.mealHint")}</p>
+    </fieldset>
     ${e ? `<label>${t("ts.expenseDate")} <input type="date" name="date" value="${esc(e.date ?? date)}"></label>` : ""}
     <label>${t("ts.expenseDesc")} <input name="description" value="${esc(e?.description ?? "")}" placeholder="${esc(t("ts.expenseDescPlaceholder"))}" autocomplete="off"></label>
     <label>${t("ts.expenseFor")} <select name="target">${targetOptions(ts, projects, chosen, target, e)}</select></label>

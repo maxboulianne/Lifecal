@@ -1646,6 +1646,7 @@ export class App {
     const mileage = form.querySelector("[name=type]:checked")?.value === "mileage";
     const currency = f.currency.value;
     $("[data-role=money-row]", form).hidden = mileage;
+    $("[data-role=meal-row]", form).hidden = form.querySelector("[name=type]:checked")?.value !== "food";
     $("[data-role=km-row]", form).hidden = !mileage;
     const monthlyRow = $("[data-role=monthly-row]", form);
     if (monthlyRow) monthlyRow.hidden = mileage;
@@ -1665,7 +1666,7 @@ export class App {
     const text = (name) => String(f.get(name) ?? "").trim();
     const type = text("type");
     const [kind, id] = text("target").split(":");
-    const fields = { date: form.dataset.date, type, description: text("description"), projectId: kind === "p" ? id : null, clientId: kind === "c" ? id : null };
+    const fields = { date: form.dataset.date, type, meal: text("meal") || null, description: text("description"), projectId: kind === "p" ? id : null, clientId: kind === "c" ? id : null };
     if (!id) return (errors.textContent = t("ts.errors.expenseTarget"));
     const ts = this.repo.timesheet();
     if (type === "mileage") {
@@ -1828,8 +1829,8 @@ export class App {
     this.receipt = {
       date,
       slots: { invoice: null, proof: null },
-      values: { type: "food", date, target: chosen ? `p:${chosen}` : undefined, description: "", amount: null, currency: null, ...values },
-      auto: { date, description: "", amount: null },
+      values: { type: "food", meal: null, date, target: chosen ? `p:${chosen}` : undefined, description: "", amount: null, currency: null, ...values },
+      auto: { date, meal: null, amount: null },
     };
     this.#showReceipt();
   }
@@ -1855,6 +1856,7 @@ export class App {
     const f = form.elements;
     Object.assign(this.receipt.values, {
       type: form.querySelector("[name=type]:checked")?.value ?? "food",
+      meal: form.querySelector("[name=meal]:checked")?.value || null,
       date: f.date.value || this.receipt.date,
       description: f.description.value,
       target: f.target.value,
@@ -1928,7 +1930,7 @@ export class App {
     if (form) this.#captureReceiptForm();
     const v = r.values;
     const free = (field) => !v[field] || v[field] === r.auto[field];
-    for (const field of ["description", "date", "amount", "currency"]) {
+    for (const field of ["meal", "date", "amount", "currency"]) {
       if (found[field] && free(field)) {
         v[field] = found[field];
         r.auto[field] = found[field];
@@ -1936,7 +1938,8 @@ export class App {
     }
     if (!form) return;
     const f = form.elements;
-    f.description.value = v.description ?? "";
+    const meal = form.querySelector(`[name=meal][value="${v.meal ?? ""}"]`);
+    if (meal) meal.checked = true;
     f.date.value = v.date ?? r.date;
     f.amount.value = v.amount ? fmt.hours(v.amount) : "";
     const currencyChanged = v.currency && f.currency.value !== v.currency && [...f.currency.options].some((o) => o.value === v.currency);

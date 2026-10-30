@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { amountsIn, findDate, findMerchant, parseReceipt, receiptExpense } from "../js/scan/receipt.js";
+import { amountsIn, findDate, findMerchant, findTime, parseReceipt, receiptExpense } from "../js/scan/receipt.js";
 import { emptyTimesheet } from "../js/timesheet/timesheet.js";
-import { addExpense, moveAttachment, addAttachment } from "../js/timesheet/expenses.js";
+import { addExpense, expenseText, mealAt, moveAttachment, addAttachment } from "../js/timesheet/expenses.js";
 
 // Textes inventés, tels que l'OCR les rend (avec ses petites erreurs)
 const INVOICE = `BISTRO DU COIN
@@ -74,10 +74,12 @@ test("Reçu : le total ignore le sous-total, et la preuve compte le pourboire", 
 test("Reçu : la dépense proposée prend le montant de la preuve de transaction", () => {
   const invoice = parseReceipt(INVOICE);
   const proof = parseReceipt(PROOF);
-  assert.deepEqual(receiptExpense({ invoice, proof }), { description: "Bistro Du Coin", date: "2026-09-22", amount: 64.57, currency: null });
+  // Le commerce n'est pas nommé : seulement le repas, selon l'heure du paiement
+  assert.deepEqual(receiptExpense({ invoice, proof }), { meal: "lunch", date: "2026-09-22", amount: 64.57, currency: null });
   assert.equal(receiptExpense({ invoice }).amount, 54.57); // sans preuve : le total de la facture
-  assert.equal(receiptExpense({ proof: parseReceipt(PROOF_SALE) }).description, "Café Exemple");
-  assert.deepEqual(receiptExpense(), { description: "", date: null, amount: null, currency: null });
+  assert.equal(receiptExpense({ proof: parseReceipt("Total 20,00\n7:45 AM") }).meal, "breakfast");
+  assert.equal(receiptExpense({ proof: parseReceipt("Total 80,00\n2026-10-01 19:12") }).meal, "dinner");
+  assert.deepEqual(receiptExpense(), { meal: null, date: null, amount: null, currency: null }); // sans heure : « Food »
 });
 
 test("Justificatif déplacé d'une dépense à une autre", () => {
@@ -89,4 +91,19 @@ test("Justificatif déplacé d'une dépense à une autre", () => {
   assert.deepEqual(moved.expenses.find((e) => e.id === a.expense.id).attachments, []);
   assert.deepEqual(moved.expenses.find((e) => e.id === b.expense.id).attachments.map((x) => x.id), ["f1"]);
   assert.equal(moveAttachment(ts, a.expense.id, "inconnu", "f1"), ts);
+});
+
+test("Repas : selon l'heure, et sur la facture en anglais", () => {
+  assert.deepEqual(findTime("15-oct.-2026 12h39min35s p.m."), { hour: 12, minute: 39 });
+  assert.deepEqual(findTime("7:15 PM"), { hour: 19, minute: 15 });
+  assert.equal(findTime("ID: 055574"), null);
+  assert.deepEqual([mealAt(7, 30), mealAt(10, 29), mealAt(10, 30), mealAt(15, 59), mealAt(16, 0), mealAt(1, 0)],
+    ["breakfast", "breakfast", "lunch", "lunch", "dinner", "dinner"]);
+  let ts = { ...emptyTimesheet(), clients: [{ id: "c1", name: "Entreprise ABC" }] };
+  const { expense } = addExpense(ts, { date: "2026-10-15", type: "food", meal: "lunch", clientId: "c1", amount: 34.5 });
+  assert.equal(expenseText(expense), "Lunch");
+  assert.equal(expenseText({ ...expense, description: "Shanghai" }), "Lunch · Shanghai");
+  assert.equal(expenseText({ ...expense, meal: null }), ""); // « Repas / Food » seul sur la facture
+  // Un repas seulement pour la nourriture
+  assert.equal(addExpense(ts, { date: "2026-10-15", type: "hotel", meal: "lunch", clientId: "c1", amount: 100 }).expense.meal, null);
 });

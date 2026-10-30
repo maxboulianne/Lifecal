@@ -766,4 +766,10 @@ export default {
   "attach.moved": "증빙을 옮겼어요.",
   "attach.newExpense": "이 증빙으로 경비 만들기",
   "attach.newExpenseHint": "이 증빙은 주행 거리 경비에 붙어 있어요. 식당(또는 다른) 영수증이면 맞는 경비를 만드세요. 증빙이 그쪽으로 옮겨져요.",
+  "ts.meal.food": "식비 (Food)",
+  "ts.meal.breakfast": "아침",
+  "ts.meal.lunch": "점심",
+  "ts.meal.dinner": "저녁",
+  "ts.mealLabel": "식사",
+  "ts.mealHint": "고객 청구서에는 영어로: «Food», 또는 «Breakfast», «Lunch», «Dinner». 스캔한 영수증은 결제 시간으로 정해요. 바꿀 수 있어요.",
 };
