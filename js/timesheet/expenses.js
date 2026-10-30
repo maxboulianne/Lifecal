@@ -119,6 +119,12 @@ export const updateAttachment = (ts, expenseId, id, patch) => updateExpense(ts, 
 export const removeAttachment = (ts, expenseId, id) => updateExpense(ts, expenseId, {
   attachments: (ts.expenses.find((e) => e.id === expenseId)?.attachments ?? []).filter((a) => a.id !== id),
 });
+// Déplacer un justificatif vers une autre dépense (ex. scanné par erreur sur le kilométrage)
+export function moveAttachment(ts, fromId, toId, id) {
+  const a = ts.expenses.find((e) => e.id === fromId)?.attachments.find((x) => x.id === id);
+  if (!a || fromId === toId || !ts.expenses.some((e) => e.id === toId)) return ts;
+  return addAttachment(removeAttachment(ts, fromId, id), toId, a);
+}
 // Tous les fichiers utilisés (pour effacer ceux qui ne servent plus)
 export const attachmentIds = (ts) => ts.expenses.flatMap((e) => e.attachments.map((a) => a.id));
 export const setRate = (ts, currency, rate) => ({ ...ts, rates: normalizeRates({ ...ts.rates, [currency]: rate }) });

@@ -44,7 +44,7 @@ import { CUSTOM_TASK, dayOfMonth, rangeDates, timesheetPage } from "./pages/time
 import { addTask, getTask, removeTask, taskUseCount, updateTask } from "../timesheet/tasks.js";
 import { normalizeTime, parsePause, setPresence } from "../timesheet/presence.js";
 import {
-  addClient, addEntry as addTsEntry, addProject, copyDay, deleteClient, deleteProject, getClient, getProject, parseHours, projectEntryCount,
+  activeProjects, addClient, addEntry as addTsEntry, addProject, copyDay, deleteClient, deleteProject, getClient, getProject, parseHours, projectEntryCount,
   LOGO_MAX_LENGTH, nextInvoiceNumber, projectLabel, removeEntry as removeTsEntry, updateBusiness, updateClient, updateEntry as updateTsEntry, updateProject,
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
@@ -56,8 +56,11 @@ import { PDF_TYPE, jpegInfo } from "../export/pdf.js";
 import { scanImage } from "./components/scanner.js";
 import { attachmentsView } from "./components/attachments-view.js";
 import {
-  addAttachment, attachmentIds, removeAttachment, updateAttachment,
+  EXPENSE_ICONS, addAttachment, attachmentIds, moveAttachment, removeAttachment, updateAttachment,
 } from "../timesheet/expenses.js";
+import { RECEIPT_SLOTS, receiptView, slotStatus } from "./components/receipt-view.js";
+import { readText } from "../scan/ocr.js";
+import { parseReceipt, receiptExpense } from "../scan/receipt.js";
 import {
   addExpense, addRecurring, expenseTotal as expenseTotalOf, monthLabel, removeExpense, removeRecurring, setRate, syncRecurring, updateExpense, updateRecurring,
 } from "../timesheet/expenses.js";
@@ -137,6 +140,7 @@ export class App {
   tripId = null;
   timesheetDate = null; // null = aujourd'hui
   timesheetProject = null; // dernier projet choisi pour ajouter des heures
+  receipt = null; // « Scanner un reçu » en cours : { date, slots, values, auto }
   timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
   #invoicePending = null; // facture affichée dans l'aperçu
   #pruned = false; // justificatifs inutilisés déjà effacés pendant ce lancement
@@ -956,6 +960,13 @@ export class App {
       return this.#updateTimesheet(removeTask(ts, task.code)).then(() => toast(t("ts.deleted")));
     },
     "ts-attach": (el) => this.#openAttachments(el.dataset.id),
+    "ts-receipt": (el) => this.#openReceipt(el.dataset.date),
+    "ts-receipt-from": (el) => this.#receiptFromExpense(el.dataset.id),
+    "ts-receipt-clear": (el) => {
+      this.#captureReceiptForm();
+      this.#clearReceiptSlot(el.dataset.kind);
+      this.#showReceipt();
+    },
     "ts-attach-remove": async (el) => {
       if (!confirm(t("attach.confirmRemove"))) return;
       await this.#updateTimesheet(removeAttachment(this.repo.timesheet(), el.dataset.expense, el.dataset.id));
@@ -1474,6 +1485,17 @@ export class App {
       }
       case "ts-attach-kind":
         return this.#updateTimesheet(updateAttachment(ts, el.dataset.expense, el.dataset.id, { kind: el.value }));
+      case "ts-attach-move":
+        if (!el.value) return undefined;
+        await this.#updateTimesheet(moveAttachment(ts, el.dataset.expense, el.value, el.dataset.id));
+        toast(t("attach.moved"));
+        return this.#openAttachments(el.dataset.expense);
+      case "ts-receipt-file": {
+        const file = el.files?.[0];
+        el.value = "";
+        if (file) await this.#addReceiptFile(el.dataset.kind, file);
+        return undefined;
+      }
       case "ts-attach-file": {
         const file = el.files?.[0];
         el.value = "";
@@ -1657,6 +1679,7 @@ export class App {
       if (fields.amount === null) return (errors.textContent = t("ts.errors.expenseAmount"));
       if (fields.rate === null) return (errors.textContent = t("ts.errors.expenseRate"));
     }
+    if (form.hasAttribute("data-receipt")) return this.#saveReceipt(fields, text("date"), errors);
     if (form.dataset.edit) {
       // Modification : la dépense garde son identité ; la date peut changer.
       if (isISODate(text("date"))) fields.date = text("date");
@@ -1757,7 +1780,13 @@ export class App {
     if (!expense) return;
     const p = expense.projectId ? getProject(ts, expense.projectId) : null;
     const target = p ? p.number || p.name : t("ts.generalShort", { client: getClient(ts, expense.clientId)?.name ?? "" });
-    openModal(attachmentsView(expense, target), { labelledBy: "attach-title" });
+    // Les autres dépenses de la même semaine (ou presque), pour y déplacer un justificatif
+    const days = (d) => parseISODate(d).getTime() / 86400000;
+    const others = ts.expenses
+      .filter((e) => e.id !== expense.id && Math.abs(days(e.date) - days(expense.date)) <= 7)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((e) => ({ id: e.id, label: `${e.date} · ${EXPENSE_ICONS[e.type]} ${e.description || t(`ts.expenseType.${e.type}`)} · ${fmt.money(expenseTotalOf(e))}` }));
+    openModal(attachmentsView(expense, target, others), { labelledBy: "attach-title" });
     // Les images et les PDF sont dans IndexedDB : on les montre une fois chargés
     for (const el of document.querySelectorAll("#modal [data-file], #modal [data-file-link]")) {
       getFile(el.dataset.file ?? el.dataset.fileLink).then((blob) => {
@@ -1788,6 +1817,180 @@ export class App {
     await this.#updateTimesheet(addAttachment(ts, expenseId, { id, kind, type: pdf ? "application/pdf" : "image/jpeg", name: pdf ? file.name : "" }));
     toast(t("attach.added", { kind: t(`attach.kind.${kind}`) }));
     this.#openAttachments(expenseId);
+  }
+
+  // ---- Scanner un reçu : la facture et la preuve de transaction créent la dépense ----
+
+  #openReceipt(date, values = {}) {
+    this.#discardReceipt();
+    const projects = activeProjects(this.repo.timesheet());
+    const chosen = projects.some((p) => p.id === this.timesheetProject) ? this.timesheetProject : projects[0]?.id;
+    this.receipt = {
+      date,
+      slots: { invoice: null, proof: null },
+      values: { type: "food", date, target: chosen ? `p:${chosen}` : undefined, description: "", amount: null, currency: null, ...values },
+      auto: { date, description: "", amount: null },
+    };
+    this.#showReceipt();
+  }
+
+  #showReceipt() {
+    const r = this.receipt;
+    if (!r) return;
+    const ts = this.repo.timesheet();
+    const projects = activeProjects(ts);
+    const chosen = projects.some((p) => p.id === this.timesheetProject) ? this.timesheetProject : projects[0]?.id;
+    openModal(receiptView(r, ts, r.date, projects, chosen), { labelledBy: "receipt-title" });
+    const form = $("#modal form[data-receipt]");
+    if (form) {
+      r.auto.currency ??= form.elements.currency.value;
+      this.#syncExpenseForm(form);
+    }
+  }
+
+  // Garder ce qui est écrit dans le formulaire (la fenêtre du scanner va le remplacer)
+  #captureReceiptForm() {
+    const form = $("#modal form[data-receipt]");
+    if (!this.receipt || !form) return;
+    const f = form.elements;
+    Object.assign(this.receipt.values, {
+      type: form.querySelector("[name=type]:checked")?.value ?? "food",
+      date: f.date.value || this.receipt.date,
+      description: f.description.value,
+      target: f.target.value,
+      amount: readNumber(f.amount.value),
+      currency: f.currency.value,
+    });
+  }
+
+  #clearReceiptSlot(kind) {
+    const slot = this.receipt?.slots[kind];
+    if (!slot) return;
+    if (slot.url) URL.revokeObjectURL(slot.url);
+    this.receipt.slots[kind] = null;
+  }
+
+  #discardReceipt() {
+    if (!this.receipt) return;
+    for (const k of RECEIPT_SLOTS) this.#clearReceiptSlot(k);
+    this.receipt = null;
+  }
+
+  // Une photo passe par le scanner, puis est lue ; un PDF est gardé tel quel (non lu).
+  async #addReceiptFile(kind, file) {
+    this.#captureReceiptForm();
+    const pdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const blob = pdf ? file : await scanImage(file);
+    if (!this.receipt) return;
+    if (blob) {
+      this.#clearReceiptSlot(kind);
+      this.#setReceiptSlot(kind, { blob, type: pdf ? "application/pdf" : "image/jpeg", name: pdf ? file.name : "" });
+    }
+    this.#showReceipt();
+  }
+
+  #setReceiptSlot(kind, slot) {
+    const r = this.receipt;
+    r.slots[kind] = { ...slot, url: URL.createObjectURL(slot.blob), status: slot.type === "application/pdf" ? "pdf" : "reading" };
+    if (slot.type !== "application/pdf") this.#readReceipt(kind, r.slots[kind]);
+  }
+
+  // Lecture du texte (sur l'appareil), puis la dépense est préremplie.
+  async #readReceipt(kind, slot) {
+    const r = this.receipt;
+    const refresh = () => {
+      const status = this.receipt === r && r.slots[kind] === slot && $(`#modal [data-slot=${kind}] [data-role=slot-status]`);
+      if (status) status.innerHTML = slotStatus(slot);
+    };
+    try {
+      const text = await readText(slot.blob, (m) => {
+        if (m.status === "recognizing text") {
+          slot.progress = m.progress;
+          refresh();
+        }
+      });
+      slot.parsed = parseReceipt(text);
+      slot.total = slot.parsed.total;
+      slot.status = "done";
+    } catch (err) {
+      console.error(err);
+      slot.status = "failed";
+    }
+    refresh();
+    if (this.receipt === r && r.slots[kind] === slot) this.#applyReceipt();
+  }
+
+  // Remplir la dépense avec ce que les reçus disent, sans écraser ce que la personne a changé.
+  #applyReceipt() {
+    const r = this.receipt;
+    const found = receiptExpense({ invoice: r.slots.invoice?.parsed, proof: r.slots.proof?.parsed });
+    const form = $("#modal form[data-receipt]");
+    if (form) this.#captureReceiptForm();
+    const v = r.values;
+    const free = (field) => !v[field] || v[field] === r.auto[field];
+    for (const field of ["description", "date", "amount", "currency"]) {
+      if (found[field] && free(field)) {
+        v[field] = found[field];
+        r.auto[field] = found[field];
+      }
+    }
+    if (!form) return;
+    const f = form.elements;
+    f.description.value = v.description ?? "";
+    f.date.value = v.date ?? r.date;
+    f.amount.value = v.amount ? fmt.hours(v.amount) : "";
+    const currencyChanged = v.currency && f.currency.value !== v.currency && [...f.currency.options].some((o) => o.value === v.currency);
+    if (currencyChanged) f.currency.value = v.currency;
+    this.#syncExpenseForm(form, currencyChanged);
+  }
+
+  async #saveReceipt(fields, date, errors) {
+    const r = this.receipt;
+    if (!r) return undefined;
+    if (isISODate(date)) fields.date = date;
+    let { ts, expense } = addExpense(this.repo.timesheet(), fields);
+    if (!expense) return (errors.textContent = t("ts.errors.expenseAmount"));
+    for (const kind of RECEIPT_SLOTS) {
+      const slot = r.slots[kind];
+      if (!slot) continue;
+      let id = slot.fileId;
+      if (id) {
+        ts = removeAttachment(ts, slot.from, id); // déplacé depuis une autre dépense
+      } else {
+        id = newId();
+        try {
+          await putFile(id, slot.blob);
+        } catch {
+          toast(t("attach.storageError"));
+          continue;
+        }
+      }
+      ts = addAttachment(ts, expense.id, { id, kind, type: slot.type, name: slot.name });
+    }
+    this.#discardReceipt();
+    closeModal();
+    this.timesheetDate = fields.date === todayISO() ? null : fields.date; // montrer la journée de la dépense
+    await this.#updateTimesheet(ts);
+    toast(t("ts.expenseAdded", { amount: fmt.money(expenseTotalOf(expense)) }));
+    return undefined;
+  }
+
+  // Les justificatifs d'une dépense (ex. scannés sur le kilométrage) deviennent une nouvelle dépense.
+  async #receiptFromExpense(expenseId) {
+    const expense = this.repo.timesheet().expenses.find((e) => e.id === expenseId);
+    if (!expense) return;
+    const target = expense.projectId ? `p:${expense.projectId}` : `c:${expense.clientId}`;
+    this.#openReceipt(expense.date, { target });
+    const r = this.receipt;
+    const order = [...expense.attachments].sort((a, b) => (a.kind === "proof") - (b.kind === "proof"));
+    for (const a of order) {
+      const kind = a.kind !== "other" && !r.slots[a.kind] ? a.kind : RECEIPT_SLOTS.find((k) => !r.slots[k]);
+      if (!kind) break;
+      const blob = await getFile(a.id).catch(() => null);
+      if (!blob || this.receipt !== r) continue;
+      this.#setReceiptSlot(kind, { blob, type: a.type, name: a.name, fileId: a.id, from: expense.id });
+    }
+    this.#showReceipt();
   }
 
   // ---- Facture PDF, justificatifs PDF, courriel au client ----
