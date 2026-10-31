@@ -123,3 +123,17 @@ test("Reçu : un article mal lu ne devient pas le total de la facture", () => {
   assert.equal(r.tip, 25.52);
   assert.equal(r.amount, 195.68);
 });
+
+test("Note de justification : sur la facture seulement si on la coche", () => {
+  const ts = { ...emptyTimesheet(), clients: [{ id: "c1", name: "Entreprise ABC" }] };
+  const base = { date: "2026-10-15", type: "food", meal: "lunch", clientId: "c1", amount: 80, note: "  With J. Smith   (supplier) " };
+  const hidden = addExpense(ts, base).expense;
+  assert.equal(hidden.note, "With J. Smith (supplier)");
+  assert.equal(hidden.showNote, false);
+  assert.equal(expenseText(hidden), "Lunch");
+  const shown = addExpense(ts, { ...base, showNote: true, description: "Laval" }).expense;
+  assert.equal(expenseText(shown), "Lunch · Laval — With J. Smith (supplier)");
+  const tool = addExpense(ts, { date: "2026-10-15", type: "material", clientId: "c1", amount: 20, note: "Paint thickness gauge", showNote: true }).expense;
+  assert.equal(expenseText(tool), "Paint thickness gauge");
+  assert.equal(addExpense(ts, { ...base, note: "", showNote: true }).expense.showNote, false); // rien à afficher
+});

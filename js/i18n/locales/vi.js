@@ -773,4 +773,8 @@ export default {
   "ts.mealLabel": "Bữa ăn",
   "ts.mealHint": "Trên hóa đơn gửi khách, bằng tiếng Anh: «Food», hoặc «Breakfast», «Lunch», «Dinner». Hóa đơn quét sẽ chọn theo giờ thanh toán; bạn có thể đổi.",
   "receipt.foundTip": "Tổng đọc được: {amount} (tiền boa {tip})",
+  "ts.expenseNote": "Ghi chú (lý do)",
+  "ts.expenseNotePlaceholder": "vd. With J. Smith and M. Roy (supplier), quote review",
+  "ts.showNote": "Hiện ghi chú trên hóa đơn gửi khách, sau phần mô tả",
+  "ts.noteShown": "trên hóa đơn",
 };

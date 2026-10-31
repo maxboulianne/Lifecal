@@ -773,4 +773,8 @@ export default {
   "ts.mealLabel": "식사",
   "ts.mealHint": "고객 청구서에는 영어로: «Food», 또는 «Breakfast», «Lunch», «Dinner». 스캔한 영수증은 결제 시간으로 정해요. 바꿀 수 있어요.",
   "receipt.foundTip": "읽은 합계: {amount} (팁 {tip})",
+  "ts.expenseNote": "메모 (사유)",
+  "ts.expenseNotePlaceholder": "예: With J. Smith and M. Roy (supplier), quote review",
+  "ts.showNote": "고객 청구서에 설명 다음으로 메모 표시",
+  "ts.noteShown": "청구서에 표시",
 };
