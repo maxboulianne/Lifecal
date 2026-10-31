@@ -1328,3 +1328,15 @@ body.player-open { overflow: hidden; }
 .ts-tax-table td:nth-child(2), .ts-tax-table td:nth-child(3), .ts-tax-table th:nth-child(2), .ts-tax-table th:nth-child(3) { text-align: left; }
 @media (max-width: 480px) { .ts-tax-form .row.three { grid-template-columns: 1fr 1fr; } }
 .ts-tax-table td:nth-child(-n+2), .ts-tax-table th:nth-child(-n+2) { white-space: nowrap; }
+.sheet:has(.tax-import) { max-width: 760px; }
+.tax-import-file { display: block; font-size: 0.75rem; font-weight: 400; }
+.tax-import tr.has-problem td { background: #fff4e5; }
+.tax-import tr.tax-import-note td { text-align: left; font-size: 0.85rem; color: var(--danger); background: #fff4e5; padding-top: 0; }
+.tax-import td:first-child input { width: 22px; height: 22px; }
+.ts-tax-import { margin-top: 8px; }
+.ts-tax-import label.btn { display: inline-flex; cursor: pointer; }
+.tax-import .ts-tax-table { min-width: 560px; }
+.tax-import .ts-tax-table td, .tax-import .ts-tax-table th { white-space: normal; }
+.tax-import .ts-tax-table td:nth-child(3) { white-space: nowrap; }
+.tax-import .tax-import-file { word-break: break-all; }
+.tax-import .ts-tax-table td:nth-child(4), .tax-import .ts-tax-table th:nth-child(4) { text-align: left; }
