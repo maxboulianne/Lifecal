@@ -1284,6 +1284,8 @@ body.player-open { overflow: hidden; }
 .receipt-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
 .receipt-check { margin: 4px 0 0; font-weight: 600; }
 .receipt .ts-expense-form { margin-top: 6px; }
+/* iPad : le champ date garde sinon sa largeur propre et dépasse de la fenêtre */
+.ts-expense-form input[type=date] { display: block; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; -webkit-appearance: none; appearance: none; }
 .ts-expense-row { grid-template-columns: 1.6em minmax(0, 1fr) auto auto 2em 2em; }
 .ts-attach-btn { border: none; background: none; cursor: pointer; font-size: 1rem; padding: 4px; opacity: 0.55; display: inline-flex; align-items: center; gap: 2px; }
 .ts-attach-btn.has-files { opacity: 1; }

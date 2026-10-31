@@ -750,7 +750,7 @@ export default {
   "ts.emailBody": "안녕하세요,\n\n청구서 {number} ({total}, {due}까지 지급)와 경비 증빙을 첨부합니다.\n\n감사합니다,\n{name}",
   "receipt.scan": "영수증 스캔",
   "receipt.title": "영수증 스캔",
-  "receipt.hint": "청구서와 결제 증빙을 스캔하세요. 앱이 상호, 날짜, 금액을 읽고 경비를 준비해요. 청구 금액은 결제 증빙의 합계예요 (팁 포함).",
+  "receipt.hint": "청구서와 결제 증빙을 스캔하세요. 앱이 날짜, 시간, 금액을 읽고 경비를 준비해요. 청구 금액은 결제 증빙의 합계예요 (팁 포함).",
   "receipt.check": "저장하기 전에 경비를 확인하세요. 읽기가 틀릴 수 있어요.",
   "receipt.invoiceHint": "가게의 청구서 (구매 내역).",
   "receipt.proofHint": "결제 단말기 영수증: 합계에 팁이 포함돼요.",
@@ -772,4 +772,5 @@ export default {
   "ts.meal.dinner": "저녁",
   "ts.mealLabel": "식사",
   "ts.mealHint": "고객 청구서에는 영어로: «Food», 또는 «Breakfast», «Lunch», «Dinner». 스캔한 영수증은 결제 시간으로 정해요. 바꿀 수 있어요.",
+  "receipt.foundTip": "읽은 합계: {amount} (팁 {tip})",
 };

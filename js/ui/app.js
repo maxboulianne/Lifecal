@@ -1926,6 +1926,13 @@ export class App {
   #applyReceipt() {
     const r = this.receipt;
     const found = receiptExpense({ invoice: r.slots.invoice?.parsed, proof: r.slots.proof?.parsed });
+    // Total de la facture vérifié avec la preuve, et le pourboire (la différence)
+    if (r.slots.invoice?.parsed) r.slots.invoice.total = found.invoiceTotal;
+    if (r.slots.proof) r.slots.proof.tip = found.tip;
+    for (const kind of RECEIPT_SLOTS) {
+      const status = r.slots[kind] && $(`#modal [data-slot=${kind}] [data-role=slot-status]`);
+      if (status) status.innerHTML = slotStatus(r.slots[kind]);
+    }
     const form = $("#modal form[data-receipt]");
     if (form) this.#captureReceiptForm();
     const v = r.values;

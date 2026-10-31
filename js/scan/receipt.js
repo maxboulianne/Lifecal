@@ -6,7 +6,7 @@
 //     time    : l'heure du paiement { hour, minute }, qui dit le repas (déjeuner, dîner, souper)
 //     total   : le total payé (lignes « Total », « Vente », « Montant »… mais pas
 //               « Sous-total ») ; à défaut, le plus grand montant
-//   receiptExpense({ invoice, proof }) -> { meal, date, amount, currency }
+//   receiptExpense({ invoice, proof }) -> { invoiceTotal, tip, meal, date, amount, currency }
 //     La dépense ne nomme pas le commerce : seulement le repas, selon l'heure.
 //     Le montant réclamé est celui de la preuve de transaction (pourboire compris) ;
 //     la facture sert si la preuve est absente ou illisible.
@@ -15,8 +15,13 @@ import { mealAt } from "../timesheet/expenses.js";
 
 // Un montant a toujours deux décimales : « 99,65 », « 1 075,02 », « $170.16 »
 const AMOUNT = /(?<![\d.,])(\d{1,3}(?:[  .,]\d{3})+|\d+)[.,](\d{2})(?![.,]?\d)/g;
-const TOTAL_WORDS = /total|vente|montant|achat|amount|paid|pay[ée]|purchase|sale|card|carte|due/i;
-const SUBTOTAL = /sous[\s-]*total|sub[\s-]*total/i;
+// Mots entiers seulement (« sale » n'est pas dans « salade »). « Total » mal lu (T0TAL,
+// TOTAI, 7OTAL…) compte aussi.
+const word = (body) => new RegExp(`(?<![\\p{L}\\d])(?:${body})(?![\\p{L}])`, "iu");
+const TOTAL = word("[t7][o0][t7][a4][l1iI|]");
+const PAID_WORDS = word("vente|montant|achat|amount|paid|pay[ée]|purchase|sale|card|carte|due");
+const SUBTOTAL = /(sous|sub)[\s-]*[t7][o0][t7]/i;
+const TAX = word("tps|tvq|gst|qst|hst|pst|tax|taxe|taxes|tva");
 const SKIP_MERCHANT = /transaction|re[çc]u|receipt|facture|invoice|bienvenue|welcome|copie|copy|client|merci|thank/i;
 
 const MONTHS = [
@@ -93,8 +98,14 @@ function findCurrency(text) {
 export function parseReceipt(text) {
   const lines = String(text ?? "").split(/\r?\n/);
   const amounts = lines.flatMap(amountsIn);
-  const totals = lines.filter((l) => TOTAL_WORDS.test(l) && !SUBTOTAL.test(l)).flatMap(amountsIn);
-  const pick = totals.length ? totals : amounts;
+  // 1. les lignes « Total », « Vente », « Montant », « Carte »… (sur la preuve, la vente
+  // comprend le pourboire : on garde le plus grand) ; 2. ce qui suit les taxes (le total
+  // vient après) ; 3. le plus grand montant.
+  const on = (re) => lines.filter((l) => re.test(l) && !SUBTOTAL.test(l)).flatMap(amountsIn);
+  const PAID = { test: (l) => TOTAL.test(l) || PAID_WORDS.test(l) };
+  const lastTax = lines.findLastIndex((l) => TAX.test(l));
+  const afterTaxes = lastTax >= 0 ? lines.slice(lastTax + 1).flatMap(amountsIn) : [];
+  const pick = [on(PAID), afterTaxes, amounts].find((list) => list.length) ?? [];
   return {
     merchant: findMerchant(String(text ?? "")),
     date: findDate(String(text ?? "")),
@@ -105,11 +116,27 @@ export function parseReceipt(text) {
   };
 }
 
+// Total de la facture, vérifié avec la preuve de transaction : il ne peut pas dépasser ce
+// qui a été payé (le pourboire s'ajoute), ni en être moins de la moitié. Un article mal lu
+// (« $26.00 » lu « 826.00 ») est ainsi écarté : on garde le plus grand montant qui convient.
+export function invoiceTotal(invoice, paid = null) {
+  if (!invoice) return null;
+  const fit = (n) => n <= paid + 0.005 && n >= paid / 2;
+  if (!paid || (invoice.total && fit(invoice.total))) return invoice.total;
+  const fits = invoice.amounts.filter(fit);
+  return fits.length ? Math.max(...fits) : null;
+}
+
 // Ce que l'on propose pour la dépense : la preuve de transaction d'abord (c'est ce qui a
 // été payé, pourboire compris) ; le repas vient de l'heure du paiement.
+//   invoiceTotal : le total de la facture (vérifié) ; tip : le pourboire (preuve − facture)
 export function receiptExpense({ invoice = null, proof = null } = {}) {
   const time = proof?.time ?? invoice?.time ?? null;
+  const billed = invoiceTotal(invoice, proof?.total);
+  const tip = billed && proof?.total ? Math.round((proof.total - billed) * 100) / 100 : null;
   return {
+    invoiceTotal: billed,
+    tip: tip > 0 ? tip : null,
     meal: time ? mealAt(time.hour, time.minute) : null,
     date: proof?.date ?? invoice?.date ?? null,
     amount: proof?.total ?? invoice?.total ?? null,
