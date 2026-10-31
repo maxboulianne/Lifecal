@@ -55,13 +55,24 @@ const FONT_REF = { regular: "F1", bold: "F2", italic: "F3", boldItalic: "F4" };
 const approxWidth = (text, size, bold) => String(text).length * size * (bold ? 0.56 : 0.52);
 
 // Dimensions d'un JPEG (marqueur SOF) et nombre de composantes (1 gris, 3 couleur)
+// Tolère les octets de remplissage (FF FF…) et les marqueurs sans longueur ; tous les types
+// de trame (SOF0 à SOF15, sauf DHT C4, JPG C8 et DAC CC).
 export function jpegInfo(bytes) {
+  if (bytes?.[0] !== 0xff || bytes[1] !== 0xd8) return null;
   let i = 2;
-  while (i < bytes.length) {
+  while (i + 3 < bytes.length) {
     if (bytes[i] !== 0xff) return null;
     const marker = bytes[i + 1];
+    if (marker === 0xff) {
+      i += 1;
+      continue;
+    }
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+      i += 2;
+      continue;
+    }
     const len = (bytes[i + 2] << 8) | bytes[i + 3];
-    if ([0xc0, 0xc1, 0xc2].includes(marker)) {
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
       return { height: (bytes[i + 5] << 8) | bytes[i + 6], width: (bytes[i + 7] << 8) | bytes[i + 8], components: bytes[i + 9] };
     }
     i += 2 + len;

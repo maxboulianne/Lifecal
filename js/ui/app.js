@@ -2039,21 +2039,36 @@ export class App {
     };
   }
 
-  // Image (Blob) -> JPEG prêt pour le PDF { bytes, width, height } (fond blanc pour un PNG)
-  async #jpegForPdf(blob) {
-    if (blob.type !== "image/jpeg") {
-      const bitmap = await createImageBitmap(blob);
+  // Image (Blob ou adresse data:) -> JPEG prêt pour le PDF { bytes, width, height }.
+  // Un JPEG lisible est gardé tel quel ; sinon (PNG du logo, JPEG d'un format inattendu)
+  // l'image est redessinée sur fond blanc avec <img> et un canvas, ce que Safari fait
+  // partout (createImageBitmap et fetch d'une adresse data: y échouaient parfois).
+  async #jpegForPdf(source) {
+    if (typeof source !== "string" && source.type === "image/jpeg") {
+      const bytes = new Uint8Array(await source.arrayBuffer());
+      const info = jpegInfo(bytes);
+      if (info) return { bytes, ...info };
+    }
+    const url = typeof source === "string" ? source : URL.createObjectURL(source);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
       const canvas = document.createElement("canvas");
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
       const ctx = canvas.getContext("2d");
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(bitmap, 0, 0);
-      blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      ctx.drawImage(img, 0, 0);
+      const base64 = canvas.toDataURL("image/jpeg", 0.9).split(",")[1];
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const info = jpegInfo(bytes);
+      if (!info) throw new Error("JPEG illisible");
+      return { bytes, ...info };
+    } finally {
+      if (typeof source !== "string") URL.revokeObjectURL(url);
     }
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    return { bytes, ...jpegInfo(bytes) };
   }
 
   async #sendInvoice(options, { invoice = false, receipts = false, email = false }) {
@@ -2065,7 +2080,8 @@ export class App {
     const files = [];
     toast(t("ts.pdfWorking"));
     if (invoice) {
-      const logo = ts.business.logo ? await this.#jpegForPdf(await (await fetch(ts.business.logo)).blob()).catch(() => null) : null;
+      const logo = ts.business.logo ? await this.#jpegForPdf(ts.business.logo).catch((err) => console.error(err)) : null;
+      if (ts.business.logo && !logo) toast(t("ts.errors.logoPdf"));
       files.push(new File([invoicePdf(d, { logo, measure })], `${t("ts.invoiceFile")}-${safe}.pdf`, { type: PDF_TYPE }));
     }
     if (receipts) {
@@ -2078,7 +2094,7 @@ export class App {
             const blob = await getFile(a.id).catch(() => null);
             if (!blob) continue;
             if (a.type === "application/pdf") extra.push(new File([blob], a.name || `${a.id}.pdf`, { type: PDF_TYPE }));
-            else images[a.id] = await this.#jpegForPdf(blob);
+            else images[a.id] = await this.#jpegForPdf(blob).catch((err) => console.error(err)); // illisible : la page de la dépense est sautée
           }
         }
         files.push(new File([receiptsPdf(d, images, { measure })], `${t("ts.receiptsFile")}-${safe}.pdf`, { type: PDF_TYPE }), ...extra);
