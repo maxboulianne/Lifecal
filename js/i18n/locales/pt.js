@@ -784,4 +784,5 @@ export default {
   "ts.logoMissing": "Nenhum logotipo salvo neste aparelho: a fatura (Excel e PDF) sairá sem logotipo.",
   "ts.confirmRemoveLogo": "Remover o logotipo? As próximas faturas não o terão mais.",
   "receipt.twins": { one: "Esta foto também está anexada a: {expense}. Remover dessa despesa para não ficar duplicada nos comprovantes?", other: "Estas {count} fotos também estão anexadas a: {expense}. Remover dessa despesa para não ficarem duplicadas nos comprovantes?" },
+  "ts.archived": "arquivado",
 };

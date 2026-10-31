@@ -781,4 +781,5 @@ export default {
   "ts.logoMissing": "Chưa lưu logo trên thiết bị này: hóa đơn (Excel và PDF) sẽ không có logo.",
   "ts.confirmRemoveLogo": "Xóa logo? Các hóa đơn sau sẽ không còn logo.",
   "receipt.twins": { one: "Ảnh này cũng đính kèm ở: {expense}. Xóa khỏi chi phí đó để không bị trùng trong chứng từ?", other: "{count} ảnh này cũng đính kèm ở: {expense}. Xóa khỏi chi phí đó để không bị trùng trong chứng từ?" },
+  "ts.archived": "đã lưu trữ",
 };
