@@ -779,4 +779,5 @@ export default {
   "ts.noteShown": "청구서에 표시",
   "receipt.language": "영수증 언어",
   "receipt.languageHint": "최근 경비의 통화로 정해져요. 한 언어로 처음 읽을 때 모델을 내려받아요 (1~3MB, 인터넷 필요). 이후에는 기기에 남아요.",
+  "ts.errors.logoPdf": "로고를 PDF에 넣을 수 없어요. «내 회사»에서 다시 추가하세요 (PNG 또는 JPEG).",
 };

@@ -23,7 +23,7 @@ const KIND_ORDER = { invoice: 0, proof: 1, other: 2 };
 export function receiptsPdf(d, files = {}, { measure } = {}) {
   const pdf = new PdfWriter({ measure, title: `Justificatifs — Facture ${d.number}` });
   const lines = d.expenseLines;
-  const images = new Map(Object.entries(files).map(([id, f]) => [id, pdf.addJpeg(f.bytes)]));
+  const images = new Map(Object.entries(files).filter(([, f]) => f?.bytes).map(([id, f]) => [id, pdf.addJpeg(f.bytes)]));
   const fit = (page, text, width, o) => {
     let s = String(text ?? "");
     if (page.measure(s, o) <= width) return s;

@@ -782,4 +782,5 @@ export default {
   "ts.noteShown": "na fatura",
   "receipt.language": "Idioma do recibo",
   "receipt.languageHint": "Escolhido pela moeda das suas últimas despesas. A primeira leitura em um idioma baixa o modelo (1 a 3 MB, requer internet); depois ele fica no aparelho.",
+  "ts.errors.logoPdf": "Não foi possível colocar o logotipo no PDF: adicione-o de novo em «Minha empresa» (PNG ou JPEG).",
 };

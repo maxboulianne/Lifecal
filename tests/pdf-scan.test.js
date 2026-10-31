@@ -101,3 +101,11 @@ test("facture PDF et justificatifs PDF", async () => {
   assert.match(rec, /Manquant \/ Missing/, "le taxi n'a pas de justificatif");
   assert.match(rec, /scan\.pdf/, "le PDF joint à part est nommé");
 });
+
+test("JPEG : octets de remplissage, marqueurs sans longueur, trames progressives", () => {
+  // SOI, remplissage FF FF, APP0 (longueur 4), RST0, SOF2 (progressif) 30 × 20, 3 composantes
+  const bytes = Uint8Array.from([0xff, 0xd8, 0xff, 0xff, 0xe0, 0x00, 0x04, 0x00, 0x00, 0xff, 0xd0,
+    0xff, 0xc2, 0x00, 0x11, 0x08, 0x00, 0x14, 0x00, 0x1e, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(jpegInfo(bytes), { width: 30, height: 20, components: 3 });
+  assert.equal(jpegInfo(Uint8Array.from([0x89, 0x50, 0x4e, 0x47])), null); // un PNG n'est pas un JPEG
+});
