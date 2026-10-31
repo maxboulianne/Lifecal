@@ -785,4 +785,5 @@ export default {
   "ts.errors.logoPdf": "Não foi possível colocar o logotipo no PDF: adicione-o de novo em «Minha empresa» (PNG ou JPEG).",
   "ts.logoMissing": "Nenhum logotipo salvo neste aparelho: a fatura (Excel e PDF) sairá sem logotipo.",
   "ts.confirmRemoveLogo": "Remover o logotipo? As próximas faturas não o terão mais.",
+  "receipt.twins": { one: "Esta foto também está anexada a: {expense}. Remover dessa despesa para não ficar duplicada nos comprovantes?", other: "Estas {count} fotos também estão anexadas a: {expense}. Remover dessa despesa para não ficarem duplicadas nos comprovantes?" },
 };

@@ -49,7 +49,7 @@ import {
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
-import { deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
+import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
 import { invoicePdf } from "../timesheet/invoice-pdf.js";
 import { receiptsPdf } from "../timesheet/receipts-pdf.js";
 import { PDF_TYPE, jpegInfo } from "../export/pdf.js";
@@ -969,8 +969,10 @@ export class App {
     },
     "ts-attach-remove": async (el) => {
       if (!confirm(t("attach.confirmRemove"))) return;
-      await this.#updateTimesheet(removeAttachment(this.repo.timesheet(), el.dataset.expense, el.dataset.id));
-      await deleteFile(el.dataset.id).catch(() => {});
+      const next = removeAttachment(this.repo.timesheet(), el.dataset.expense, el.dataset.id);
+      await this.#updateTimesheet(next);
+      // le fichier n'est effacé que si aucune autre dépense ne s'en sert
+      if (!attachmentIds(next).includes(el.dataset.id)) await deleteFile(el.dataset.id).catch(() => {});
       this.#openAttachments(el.dataset.expense);
     },
     "ts-invoice-pdf": (el) => this.#sendInvoice(this.#invoiceOptions(el.closest("[data-role=ts-invoice]")), { invoice: true }),
@@ -2005,12 +2007,37 @@ export class App {
       }
       ts = addAttachment(ts, expense.id, { id, kind, type: slot.type, name: slot.name });
     }
+    ts = await this.#dropTwins(ts, expense.id, RECEIPT_SLOTS.map((k) => r.slots[k]?.blob).filter(Boolean));
     this.#discardReceipt();
     closeModal();
     this.timesheetDate = fields.date === todayISO() ? null : fields.date; // montrer la journée de la dépense
     await this.#updateTimesheet(ts);
     toast(t("ts.expenseAdded", { amount: fmt.money(expenseTotalOf(expense)) }));
     return undefined;
+  }
+
+  // Les mêmes photos déjà jointes à une autre dépense du même mois (ex. choisies une première fois
+  // sur le kilométrage) : proposer de les y retirer, pour qu'elles ne soient pas en double.
+  async #dropTwins(ts, keepId, blobs) {
+    const kept = ts.expenses.find((e) => e.id === keepId);
+    const wanted = new Set(await Promise.all(blobs.map((b) => blobHash(b).catch(() => null))));
+    wanted.delete(null);
+    if (!kept || !wanted.size) return ts;
+    const days = (d) => parseISODate(d).getTime() / 86400000;
+    const twins = [];
+    for (const e of ts.expenses) {
+      if (e.id === keepId || Math.abs(days(e.date) - days(kept.date)) > 31) continue;
+      for (const a of e.attachments) {
+        const blob = await getFile(a.id).catch(() => null);
+        if (blob && wanted.has(await blobHash(blob).catch(() => null))) twins.push({ expense: e, id: a.id });
+      }
+    }
+    if (!twins.length) return ts;
+    const names = [...new Set(twins.map(({ expense: e }) => `${e.date} · ${t(`ts.expenseType.${e.type}`)}${e.description ? ` · ${e.description}` : ""}`))];
+    if (!confirm(t("receipt.twins", { count: twins.length, expense: names.join(", ") }))) return ts;
+    for (const { expense: e, id } of twins) ts = removeAttachment(ts, e.id, id);
+    for (const { id } of twins) if (!attachmentIds(ts).includes(id)) await deleteFile(id).catch(() => {});
+    return ts;
   }
 
   // Les justificatifs d'une dépense (ex. scannés sur le kilométrage) deviennent une nouvelle dépense.
@@ -2092,15 +2119,24 @@ export class App {
       if (d.expenseLines.length) {
         const images = {};
         const extra = [];
+        const hashes = {}; // une même pièce jointe à deux dépenses n'est envoyée qu'une fois
         for (const l of d.expenseLines) {
           for (const a of l.attachments) {
             const blob = await getFile(a.id).catch(() => null);
             if (!blob) continue;
-            if (a.type === "application/pdf") extra.push(new File([blob], a.name || `${a.id}.pdf`, { type: PDF_TYPE }));
-            else images[a.id] = await this.#jpegForPdf(blob).catch((err) => console.error(err)); // illisible : la page de la dépense est sautée
+            const hash = await blobHash(blob).catch(() => a.id);
+            const twin = Object.keys(hashes).find((id) => hashes[id] === hash);
+            hashes[a.id] = hash;
+            if (a.type === "application/pdf") {
+              if (!twin) extra.push(new File([blob], a.name || `${a.id}.pdf`, { type: PDF_TYPE }));
+            } else {
+              // la même photo n'est convertie qu'une fois ; illisible : sa page est sautée
+              const jpeg = twin ? images[twin] : await this.#jpegForPdf(blob).catch((err) => console.error(err));
+              if (jpeg) images[a.id] = jpeg;
+            }
           }
         }
-        files.push(new File([receiptsPdf(d, images, { measure })], `${t("ts.receiptsFile")}-${safe}.pdf`, { type: PDF_TYPE }), ...extra);
+        files.push(new File([receiptsPdf(d, images, { measure, hashes })], `${t("ts.receiptsFile")}-${safe}.pdf`, { type: PDF_TYPE }), ...extra);
         const missing = d.expenseLines.filter((l) => !l.attachments.length).length;
         if (missing) toast(t("ts.receiptsMissing", { count: missing }));
       }

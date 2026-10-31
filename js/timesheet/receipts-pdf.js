@@ -4,9 +4,12 @@
 // Les justificatifs reçus en PDF (ex. CamScanner) sont envoyés à part, à côté : le
 // sommaire les nomme.
 //
-//   receiptsPdf(data, files, { measure }) -> Uint8Array
+//   receiptsPdf(data, files, { measure, hashes }) -> Uint8Array
 //     data  : invoiceData() (data.expenseLines)
-//     files : { [idDuFichier]: { bytes, width, height } }  (JPEG prêts à insérer)
+//     files  : { [idDuFichier]: { bytes, width, height } }  (JPEG prêts à insérer)
+//     hashes : { [idDuFichier]: empreinte } pour reconnaître une même pièce enregistrée deux fois
+// Une même photo jointe à deux dépenses n'est montrée qu'une fois : avec la dépense qui
+// n'est pas du kilométrage de préférence ; l'autre dit « voir … » dans le sommaire.
 
 import { PdfWriter } from "../export/pdf.js";
 import { EXPENSE_LABELS } from "./invoice.js";
@@ -20,10 +23,15 @@ const money = (n) => `${Number(n).toLocaleString("en-CA", { minimumFractionDigit
 export const KIND_LABELS = { invoice: "Facture / Invoice", proof: "Preuve de transaction / Proof of payment", other: "Justificatif / Receipt" };
 const KIND_ORDER = { invoice: 0, proof: 1, other: 2 };
 
-export function receiptsPdf(d, files = {}, { measure } = {}) {
+export function receiptsPdf(d, files = {}, { measure, hashes = {} } = {}) {
   const pdf = new PdfWriter({ measure, title: `Justificatifs — Facture ${d.number}` });
   const lines = d.expenseLines;
-  const images = new Map(Object.entries(files).filter(([, f]) => f?.bytes).map(([id, f]) => [id, pdf.addJpeg(f.bytes)]));
+  // Les images ne sont mises dans le PDF que si elles y sont dessinées (une seule fois)
+  const embedded = new Map();
+  const image = (id) => {
+    if (!embedded.has(id)) embedded.set(id, pdf.addJpeg(files[id].bytes));
+    return embedded.get(id);
+  };
   const fit = (page, text, width, o) => {
     let s = String(text ?? "");
     if (page.measure(s, o) <= width) return s;
@@ -31,6 +39,12 @@ export function receiptsPdf(d, files = {}, { measure } = {}) {
     return `${s}…`;
   };
   const describe = (l) => `${EXPENSE_LABELS[l.type]}${l.description ? ` : ${l.description}` : ""}`;
+  const keyOf = (a) => hashes[a.id] ?? a.id;
+  const owner = new Map();
+  for (const l of [...lines.filter((x) => x.type !== "mileage"), ...lines.filter((x) => x.type === "mileage")]) {
+    for (const a of l.attachments) if (!owner.has(keyOf(a))) owner.set(keyOf(a), l);
+  }
+  const repeat = (l, a) => owner.get(keyOf(a)) !== l;
 
   // ---- Sommaire ----
   let page = pdf.addPage(PAGE_W, PAGE_H);
@@ -64,9 +78,12 @@ export function receiptsPdf(d, files = {}, { measure } = {}) {
       y = M + 10;
       head();
     }
-    const pics = l.attachments.filter((a) => a.type !== "application/pdf").length;
-    const pdfs = l.attachments.filter((a) => a.type === "application/pdf");
-    const filesText = !l.attachments.length ? "Manquant / Missing" : [pics ? `${pics} photo${pics > 1 ? "s" : ""}` : "", ...pdfs.map((a) => a.name || "PDF")].filter(Boolean).join(", ");
+    const own = l.attachments.filter((a) => !repeat(l, a));
+    const pics = own.filter((a) => a.type !== "application/pdf").length;
+    const pdfs = own.filter((a) => a.type === "application/pdf");
+    const seeAlso = [...new Set(l.attachments.filter((a) => repeat(l, a)).map((a) => owner.get(keyOf(a))))]
+      .map((o) => `voir / see ${o.date === l.date ? "" : `${o.date} `}${EXPENSE_LABELS[o.type]}`);
+    const filesText = !l.attachments.length ? "Manquant / Missing" : [pics ? `${pics} photo${pics > 1 ? "s" : ""}` : "", ...pdfs.map((a) => a.name || "PDF"), ...seeAlso].filter(Boolean).join(", ");
     const o = { size: 8.5, color: C.ink };
     page.text(l.date, cols[0].x, y + 12, o);
     page.text(fit(page, l.project, cols[1].w, o), cols[1].x, y + 12, o);
@@ -81,7 +98,7 @@ export function receiptsPdf(d, files = {}, { measure } = {}) {
   page.text("TOTAL", cols[0].x, y + 12.5, { size: 9, bold: true, color: C.navy });
   page.text(money(Math.round(total * 100) / 100), cols[4].x, y + 12.5, { size: 9, bold: true, color: C.navy, align: "right" });
   y += 34;
-  const sentApart = lines.flatMap((l) => l.attachments.filter((a) => a.type === "application/pdf"));
+  const sentApart = lines.flatMap((l) => l.attachments.filter((a) => a.type === "application/pdf" && !repeat(l, a)));
   if (sentApart.length) {
     page.text("Justificatifs en PDF joints séparément / PDF receipts attached separately :", M, y, { size: 8, italic: true, color: C.gray });
     sentApart.forEach((a, i) => page.text(`• ${a.name || "PDF"}`, M + 10, y + 13 + i * 12, { size: 8, color: C.gray }));
@@ -89,7 +106,7 @@ export function receiptsPdf(d, files = {}, { measure } = {}) {
 
   // ---- Une page par dépense : ses images, côte à côte (deux par page) ----
   for (const l of lines) {
-    const pics = l.attachments.filter((a) => images.has(a.id)).sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
+    const pics = l.attachments.filter((a) => files[a.id]?.bytes && !repeat(l, a)).sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
     for (let k = 0; k < pics.length; k += 2) {
       page = pdf.addPage(PAGE_W, PAGE_H);
       page.rect(M, M, RIGHT - M, 30, { fill: C.light });
@@ -102,7 +119,7 @@ export function receiptsPdf(d, files = {}, { measure } = {}) {
       const boxW = (RIGHT - M - (pair.length - 1) * 16) / pair.length;
       const boxH = PAGE_H - M - top - 14;
       pair.forEach((a, i) => {
-        const img = images.get(a.id);
+        const img = image(a.id);
         const x0 = M + i * (boxW + 16);
         page.text(KIND_LABELS[a.kind], x0, top - 6, { size: 8, bold: true, color: C.orange });
         const scale = Math.min(boxW / img.width, boxH / img.height);

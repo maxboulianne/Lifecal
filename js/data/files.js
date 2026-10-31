@@ -42,3 +42,10 @@ export async function pruneFiles(keep) {
   const wanted = new Set(keep);
   for (const id of await fileIds()) if (!wanted.has(id)) await deleteFile(id);
 }
+
+// Empreinte d'un fichier (SHA-256) : deux justificatifs identiques ont la même, même
+// enregistrés séparément (ex. la même photo choisie deux fois).
+export async function blobHash(blob) {
+  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
