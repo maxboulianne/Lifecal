@@ -11,6 +11,7 @@
 //             de la tâche ; work : travail effectué (paraît sur la facture) ; note : pour soi
 //   tasks     les tâches standard (voir tasks.js)
 //   days      les heures de présence de chaque journée : début, fin, pause (voir presence.js)
+//   invoices  le registre des factures émises, pour la TPS et la TVQ (voir taxes.js)
 //   expenses, recurring, rates : les dépenses à refacturer, les dépenses mensuelles (voir expenses.js)
 //   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, mileageRate, showProjectName, showTaskCodes, showTaskDescription, logo, logoSize }
 //             show… : ce qui paraît sur chaque ligne de la facture (le code du projet, toujours)
@@ -23,6 +24,7 @@ import { newId } from "../data/item.js";
 import { DEFAULT_MILEAGE_RATE, normalizeExpenses, normalizeRates, normalizeRecurring } from "./expenses.js";
 import { normalizeTasks, standardTasks } from "./tasks.js";
 import { copyPresence, normalizeDays } from "./presence.js";
+import { normalizeInvoices } from "./taxes.js";
 
 export const TPS_RATE = 0.05;
 export const TVQ_RATE = 0.09975;
@@ -36,7 +38,7 @@ export function emptyBusiness() {
 }
 
 export function emptyTimesheet() {
-  return { clients: [], projects: [], entries: [], expenses: [], recurring: [], rates: {}, tasks: standardTasks(), days: {}, business: emptyBusiness() };
+  return { clients: [], projects: [], entries: [], expenses: [], recurring: [], rates: {}, tasks: standardTasks(), days: {}, invoices: [], business: emptyBusiness() };
 }
 
 const str = (v) => String(v ?? "").trim();
@@ -89,7 +91,10 @@ export function normalizeTimesheet(raw) {
   const clientIds = new Set(clients.map((c) => c.id));
   const expenses = normalizeExpenses(ts.expenses).filter((e) => (e.projectId ? known.has(e.projectId) : clientIds.has(e.clientId)));
   const recurring = normalizeRecurring(ts.recurring).filter((r) => (r.projectId ? known.has(r.projectId) : clientIds.has(r.clientId)));
-  return { clients, projects, entries, expenses, recurring, rates: normalizeRates(ts.rates), tasks: normalizeTasks(ts.tasks), days: normalizeDays(ts.days), business };
+  return {
+    clients, projects, entries, expenses, recurring, rates: normalizeRates(ts.rates), tasks: normalizeTasks(ts.tasks), days: normalizeDays(ts.days),
+    invoices: normalizeInvoices(ts.invoices), business,
+  };
 }
 
 // « 2,75 », « 2.75 », « 2:45 », « 2h45 », « 2 h 45 », « 45 min » -> heures décimales (ou null).

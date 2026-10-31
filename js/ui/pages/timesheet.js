@@ -13,6 +13,8 @@ import {
 import { getTask, otherTasks, quickTasks } from "../../timesheet/tasks.js";
 import { getPresence, presenceHours, SUGGESTED, withSuggestions } from "../../timesheet/presence.js";
 import { foldSection, isFoldOpen } from "../components/fold.js";
+import { taxesSection } from "../components/taxes-view.js";
+import { reportQuarter } from "../../timesheet/taxes.js";
 import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
 
 export const QUICK_STEPS = [0.25, 0.5, 1];
@@ -574,7 +576,7 @@ export const timesheetPage = {
 
   title: () => t("nav.timesheet"),
 
-  render({ repo, today, timesheetDate, timesheetExport, timesheetProject, editingExpense }) {
+  render({ repo, today, timesheetDate, timesheetExport, timesheetProject, editingExpense, taxQuarter, taxEditing }) {
     const ts = repo.timesheet();
     const date = timesheetDate ?? today;
     return `<section class="page timesheet">
@@ -583,6 +585,7 @@ export const timesheetPage = {
       ${tasksSection(ts)}
       ${clientsSection(ts)}
       ${exportSection(ts, today, timesheetExport)}
+      ${taxesSection(ts, taxQuarter ?? reportQuarter(today), taxEditing)}
       ${businessSection(ts)}
     </section>`;
   },

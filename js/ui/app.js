@@ -49,6 +49,7 @@ import {
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
+import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
 import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
 import { invoicePdf } from "../timesheet/invoice-pdf.js";
 import { receiptsPdf } from "../timesheet/receipts-pdf.js";
@@ -143,6 +144,8 @@ export class App {
   tripId = null;
   timesheetDate = null; // null = aujourd'hui
   timesheetProject = null; // dernier projet choisi pour ajouter des heures
+  taxQuarter = null; // trimestre affiché dans « Taxes » (par défaut : celui qui vient de finir)
+  taxEditing = null; // facture du registre en cours de modification
   receipt = null; // « Scanner un reçu » en cours : { date, slots, values, auto }
   timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
   #invoicePending = null; // facture affichée dans l'aperçu
@@ -339,6 +342,8 @@ export class App {
         timesheetProject: this.timesheetProject,
         timesheetExport: this.timesheetExport,
         editingExpense: this.editingExpense,
+        taxQuarter: this.taxQuarter,
+        taxEditing: this.taxEditing,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -982,6 +987,27 @@ export class App {
       return this.#updateTimesheet(removeTask(ts, task.code)).then(() => toast(t("ts.deleted")));
     },
     "ts-attach": (el) => this.#openAttachments(el.dataset.id),
+    // Taxes : trimestre précédent ou suivant ; modifier ou retirer une facture du registre
+    "ts-tax-quarter": (el) => {
+      this.taxQuarter = shiftQuarter(this.taxQuarter ?? reportQuarter(todayISO()), Number(el.dataset.step));
+      this.taxEditing = null;
+      this.#renderKeepingScroll();
+    },
+    "ts-tax-edit": (el) => {
+      this.taxEditing = el.dataset.id;
+      this.#renderKeepingScroll();
+      $("[data-role=ts-tax-invoice][data-edit]")?.scrollIntoView({ block: "center" });
+    },
+    "ts-tax-cancel": () => {
+      this.taxEditing = null;
+      this.#renderKeepingScroll();
+    },
+    "ts-tax-remove": (el) => {
+      const ts = this.repo.timesheet();
+      const invoice = (ts.invoices ?? []).find((i) => i.id === el.dataset.id);
+      if (!invoice || !confirm(t("tax.confirmRemove", { number: invoice.number }))) return;
+      return this.#updateTimesheet(removeInvoice(ts, invoice.id));
+    },
     "ts-receipt": (el) => this.#openReceipt(el.dataset.date),
     "ts-receipt-from": (el) => this.#receiptFromExpense(el.dataset.id),
     "ts-receipt-clear": (el) => {
@@ -1166,6 +1192,11 @@ export class App {
     if (savesOnClose(el)) return;
     if (el.dataset.action?.startsWith("ts-")) return this.#onTimesheetChange(el);
     if (el.form?.dataset.role === "ts-expense") return this.#syncExpenseForm(el.form, el.name === "currency");
+    // Facture du registre pour un client hors de l'application : écrire son nom
+    if (el.form?.dataset.role === "ts-tax-invoice" && el.name === "clientId") {
+      $("[data-role=tax-client-name]", el.form).hidden = Boolean(el.value);
+      return undefined;
+    }
     // Choisir un projet propose sa dernière tâche ; choisir une tâche montre sa portée.
     if (el.name === "projectId" && el.form?.dataset.role === "ts-add") {
       const code = el.dataset.taskCode ?? "";
@@ -1599,6 +1630,7 @@ export class App {
     const fold = form.closest("[data-fold-id]")?.dataset.foldId;
     if (fold) setFoldOpen(fold, true);
     if (form.dataset.role === "ts-expense") return this.#addExpense(form, f, errors);
+    if (form.dataset.role === "ts-tax-invoice") return this.#saveTaxInvoice(form, f, errors);
     if (form.dataset.role === "ts-new-task") {
       if (!text("code") || !text("description")) return (errors.textContent = t("ts.errors.task"));
       const { ts: next, task } = addTask(ts, { code: text("code"), description: text("description"), scope: text("scope"), quick: f.get("quick") === "on" });
@@ -1746,6 +1778,42 @@ export class App {
     toast(t("ts.expenseAdded", { amount: fmt.money(expenseTotalOf(expense)) }));
   }
 
+  // Facture ajoutée (ou modifiée) à la main dans le registre des taxes. TPS et TVQ laissées
+  // vides : calculées (5 % et 9,975 %) selon les taxes facturées au client.
+  async #saveTaxInvoice(form, f, errors) {
+    const text = (name) => String(f.get(name) ?? "").trim();
+    const amount = (name) => (/^0+([.,]0+)?$/.test(text(name)) ? 0 : readNumber(text(name)));
+    let ts = this.repo.timesheet();
+    const number = text("number");
+    const date = text("date");
+    const subtotal = amount("subtotal");
+    if (!number) return (errors.textContent = t("ts.errors.invoiceNumber"));
+    if (!isISODate(date)) return (errors.textContent = t("tax.errors.date"));
+    if (subtotal === null) return (errors.textContent = t("tax.errors.subtotal"));
+    const client = getClient(ts, text("clientId"));
+    const auto = salesTaxes(subtotal, { tps: client?.tps !== false, tvq: client?.tvq !== false });
+    const tps = text("tps") ? amount("tps") : auto.tps;
+    const tvq = text("tvq") ? amount("tvq") : auto.tvq;
+    if (tps === null || tvq === null) return (errors.textContent = t("tax.errors.taxes"));
+    const editing = (ts.invoices ?? []).find((i) => i.id === form.dataset.edit);
+    const twin = (ts.invoices ?? []).find((i) => i.number === number && i.id !== editing?.id);
+    if (twin && !confirm(t("tax.confirmReplace", { number }))) return undefined;
+    if (editing && editing.number !== number) ts = removeInvoice(ts, editing.id);
+    if (twin) ts = removeInvoice(ts, twin.id);
+    const { ts: next, invoice } = recordInvoice(ts, {
+      id: editing?.id, number, date, clientId: client?.id ?? null, client: client?.name ?? text("client"),
+      subtotal, tps, tvq, source: editing?.source ?? "manual",
+    });
+    if (!invoice) return (errors.textContent = t("tax.errors.subtotal"));
+    this.taxEditing = null;
+    // Montrer le trimestre de la facture
+    const range = quarterRange(this.taxQuarter ?? reportQuarter(todayISO()));
+    if (date < range.from || date > range.to) this.taxQuarter = quarterOf(date);
+    await this.#updateTimesheet(next);
+    toast(t("tax.saved", { number, total: fmt.money(invoice.subtotal + invoice.tps + invoice.tvq) }));
+    return undefined;
+  }
+
   // Logo de l'entreprise : réduit (au plus 600 × 300 px) et gardé en PNG dans les données.
   async #setLogo(file) {
     try {
@@ -1804,8 +1872,15 @@ export class App {
 
   // Retenir le PO du client et proposer le numéro suivant la prochaine fois ; le numéro
   // de cette facture reste affiché (Excel, PDF et courriel portent le même numéro).
-  async #rememberInvoice({ clientId, number, po }) {
+  // La facture est aussi inscrite au registre des taxes (ventes, TPS et TVQ perçues).
+  async #rememberInvoice(options) {
+    const { clientId, number, po } = options;
     let ts = this.repo.timesheet();
+    const { totals } = invoiceData(ts, options);
+    ts = recordInvoice(ts, {
+      number, date: options.date, clientId, client: getClient(ts, clientId)?.name ?? "",
+      subtotal: totals.due, tps: totals.tps, tvq: totals.tvq, source: "app",
+    }).ts;
     ts = updateClient(ts, clientId, { po });
     ts = updateBusiness(ts, { nextInvoice: nextInvoiceNumber(number) });
     this.timesheetExport = { ...this.timesheetExport, invoiceNumber: number };

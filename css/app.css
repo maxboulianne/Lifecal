@@ -1311,3 +1311,20 @@ body.player-open { overflow: hidden; }
 .ts-project-card .fold-btn { font-weight: 400; }
 .ts-project-card .fold-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ts-project-card > .fold-body { margin-top: 8px; }
+
+/* Taxes (TPS/TVQ) : trimestre, registre des factures */
+.ts-tax-quarter { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 4px 0 10px; }
+.ts-tax-quarter strong { min-width: 12em; text-align: center; }
+.ts-tax-quarter .btn { min-width: var(--tap); padding: 0 12px; font-size: 1.2rem; }
+.fold-body > h3 { margin: 12px 0 2px; font-size: 1rem; }
+.ts-tax-scroll { overflow-x: auto; margin: 6px 0; }
+.ts-tax-table { min-width: 640px; }
+.ts-tax-table td:nth-child(n+4), .ts-tax-table th:nth-child(n+4) { text-align: right; white-space: nowrap; }
+.ts-tax-table tr.is-editing td { background: var(--soft); }
+.ts-tax-table .ts-tax-lines td { font-size: 0.75rem; font-style: italic; color: var(--muted); border: none; padding-top: 0; }
+.ts-tax-actions { display: flex; gap: 2px; justify-content: flex-end; }
+.ts-tax-form .row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ts-tax-next { margin-top: 12px; }
+.ts-tax-table td:nth-child(2), .ts-tax-table td:nth-child(3), .ts-tax-table th:nth-child(2), .ts-tax-table th:nth-child(3) { text-align: left; }
+@media (max-width: 480px) { .ts-tax-form .row.three { grid-template-columns: 1fr 1fr; } }
+.ts-tax-table td:nth-child(-n+2), .ts-tax-table th:nth-child(-n+2) { white-space: nowrap; }
