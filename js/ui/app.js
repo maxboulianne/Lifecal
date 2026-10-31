@@ -59,7 +59,7 @@ import {
   EXPENSE_ICONS, addAttachment, attachmentIds, moveAttachment, removeAttachment, updateAttachment,
 } from "../timesheet/expenses.js";
 import { RECEIPT_SLOTS, receiptView, slotStatus } from "./components/receipt-view.js";
-import { readText } from "../scan/ocr.js";
+import { languageForCurrency, readText } from "../scan/ocr.js";
 import { parseReceipt, receiptExpense } from "../scan/receipt.js";
 import {
   addExpense, addRecurring, expenseTotal as expenseTotalOf, monthLabel, removeExpense, removeRecurring, setRate, syncRecurring, updateExpense, updateRecurring,
@@ -1490,6 +1490,18 @@ export class App {
         await this.#updateTimesheet(moveAttachment(ts, el.dataset.expense, el.value, el.dataset.id));
         toast(t("attach.moved"));
         return this.#openAttachments(el.dataset.expense);
+      // Autre langue de reçu : relire les photos déjà là
+      case "ts-receipt-lang": {
+        const r = this.receipt;
+        if (!r) return undefined;
+        this.#captureReceiptForm();
+        r.lang = el.value;
+        const images = RECEIPT_SLOTS.filter((k) => r.slots[k] && r.slots[k].type !== "application/pdf");
+        for (const k of images) Object.assign(r.slots[k], { status: "reading", progress: 0, parsed: null, total: null, tip: null });
+        this.#showReceipt();
+        for (const k of images) this.#readReceipt(k, r.slots[k]);
+        return undefined;
+      }
       case "ts-receipt-file": {
         const file = el.files?.[0];
         el.value = "";
@@ -1824,10 +1836,14 @@ export class App {
 
   #openReceipt(date, values = {}) {
     this.#discardReceipt();
-    const projects = activeProjects(this.repo.timesheet());
+    const ts = this.repo.timesheet();
+    const projects = activeProjects(ts);
     const chosen = projects.some((p) => p.id === this.timesheetProject) ? this.timesheetProject : projects[0]?.id;
+    // La langue du reçu suit la devise des dernières dépenses (en voyage : celle du pays)
+    const lastCurrency = [...ts.expenses].sort((x, y) => x.date.localeCompare(y.date)).filter((x) => x.type !== "mileage").at(-1)?.currency ?? "CAD";
     this.receipt = {
       date,
+      lang: languageForCurrency(values.currency ?? lastCurrency),
       slots: { invoice: null, proof: null },
       values: { type: "food", meal: null, date, target: chosen ? `p:${chosen}` : undefined, description: "", amount: null, currency: null, ...values },
       auto: { date, meal: null, amount: null },
@@ -1902,26 +1918,33 @@ export class App {
   // Lecture du texte (sur l'appareil), puis la dépense est préremplie.
   async #readReceipt(kind, slot) {
     const r = this.receipt;
+    const read = (slot.reads = (slot.reads ?? 0) + 1); // une lecture plus récente (autre langue) l'emporte
+    const mine = () => this.receipt === r && r.slots[kind] === slot && slot.reads === read;
     const refresh = () => {
-      const status = this.receipt === r && r.slots[kind] === slot && $(`#modal [data-slot=${kind}] [data-role=slot-status]`);
+      const status = mine() && $(`#modal [data-slot=${kind}] [data-role=slot-status]`);
       if (status) status.innerHTML = slotStatus(slot);
     };
     try {
       const text = await readText(slot.blob, (m) => {
-        if (m.status === "recognizing text") {
+        if (m.status === "recognizing text" && mine()) {
           slot.progress = m.progress;
           refresh();
         }
-      });
-      slot.parsed = parseReceipt(text);
+      }, r.lang);
+      if (!mine()) return;
+      // La devise du formulaire dit si les montants ont des décimales (dong, won : non)
+      const currency = $("#modal form[data-receipt]")?.elements.currency.value ?? r.values.currency;
+      slot.parsed = parseReceipt(text, { currency });
+      slot.currency = slot.parsed.currency ?? currency;
       slot.total = slot.parsed.total;
       slot.status = "done";
     } catch (err) {
+      if (!mine()) return;
       console.error(err);
       slot.status = "failed";
     }
     refresh();
-    if (this.receipt === r && r.slots[kind] === slot) this.#applyReceipt();
+    if (mine()) this.#applyReceipt();
   }
 
   // Remplir la dépense avec ce que les reçus disent, sans écraser ce que la personne a changé.

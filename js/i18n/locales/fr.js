@@ -799,4 +799,6 @@ export default {
   "ts.expenseNotePlaceholder": "ex. With J. Tremblay and M. Roy (supplier), quote review",
   "ts.showNote": "Afficher la note sur la facture au client, à la suite de la description",
   "ts.noteShown": "sur la facture",
+  "receipt.language": "Langue du reçu",
+  "receipt.languageHint": "Choisie selon la devise de tes dernières dépenses. La première lecture dans une langue télécharge son modèle (1 à 3 Mo, Internet requis) ; ensuite il reste sur l'appareil.",
 };

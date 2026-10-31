@@ -780,4 +780,6 @@ export default {
   "ts.expenseNotePlaceholder": "ex. With J. Smith and M. Roy (supplier), quote review",
   "ts.showNote": "Mostrar a nota na fatura ao cliente, após a descrição",
   "ts.noteShown": "na fatura",
+  "receipt.language": "Idioma do recibo",
+  "receipt.languageHint": "Escolhido pela moeda das suas últimas despesas. A primeira leitura em um idioma baixa o modelo (1 a 3 MB, requer internet); depois ele fica no aparelho.",
 };
