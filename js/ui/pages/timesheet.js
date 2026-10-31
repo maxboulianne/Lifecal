@@ -506,6 +506,9 @@ function invoiceBlock(ts, today, clientId, from, to, hasHours, invoiceNumber = "
     </div>
     <label>${t("ts.po")} <input name="po" value="${esc(client.po)}" autocomplete="off"></label>
     ${ts.business.name ? "" : `<p class="hint">⚠️ ${t("ts.businessMissing")}</p>`}
+    ${ts.business.logo ? "" : `<div class="ts-logo-missing"><p class="hint">⚠️ ${t("ts.logoMissing")}</p>
+      <label class="btn soft">🖼️ ${t("ts.addLogo")}
+        <input type="file" accept="image/png,image/jpeg,image/*" data-action="ts-logo" hidden></label></div>`}
     ${hasHours ? `<div class="actions start">
         <button type="button" class="btn primary" data-action="ts-invoice-preview">👁️ ${t("ts.invoicePreview")}</button>
         <button type="button" class="btn soft" data-action="ts-invoice">📊 ${t("ts.createInvoice")}</button>

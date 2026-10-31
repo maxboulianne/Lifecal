@@ -783,4 +783,6 @@ export default {
   "receipt.language": "Receipt language",
   "receipt.languageHint": "Chosen from the currency of your latest expenses. The first reading in a language downloads its model (1 to 3 MB, internet needed); it then stays on the device.",
   "ts.errors.logoPdf": "The logo could not be added to the PDF: add it again under “My business” (PNG or JPEG).",
+  "ts.logoMissing": "No logo saved on this device: the invoice (Excel and PDF) will have no logo.",
+  "ts.confirmRemoveLogo": "Remove the logo? Future invoices will no longer have it.",
 };

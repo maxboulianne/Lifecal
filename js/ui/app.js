@@ -983,7 +983,10 @@ export class App {
       return this.#updateTimesheet(removeRecurring(this.repo.timesheet(), el.dataset.id)).then(() => toast(t("ts.monthlyStopped")));
     },
     "ts-expense-remove": (el) => this.#updateTimesheet(removeExpense(this.repo.timesheet(), el.dataset.id)),
-    "ts-logo-remove": () => this.#updateTimesheet(updateBusiness(this.repo.timesheet(), { logo: "", logoSize: null })),
+    "ts-logo-remove": () => {
+      if (!confirm(t("ts.confirmRemoveLogo"))) return;
+      return this.#updateTimesheet(updateBusiness(this.repo.timesheet(), { logo: "", logoSize: null }));
+    },
     "ts-invoice-preview": (el) => {
       const options = this.#invoiceOptions(el.closest("[data-role=ts-invoice]"));
       if (!options) return;
