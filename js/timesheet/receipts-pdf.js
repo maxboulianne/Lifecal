@@ -24,7 +24,7 @@ export const KIND_LABELS = { invoice: "Facture / Invoice", proof: "Preuve de tra
 const KIND_ORDER = { invoice: 0, proof: 1, other: 2 };
 
 export function receiptsPdf(d, files = {}, { measure, hashes = {} } = {}) {
-  const pdf = new PdfWriter({ measure, title: `Justificatifs — Facture ${d.number}` });
+  const pdf = new PdfWriter({ measure, title: `Reçus / Receipts — Facture ${d.number}` });
   const lines = d.expenseLines;
   // Les images ne sont mises dans le PDF que si elles y sont dessinées (une seule fois)
   const embedded = new Map();
@@ -49,7 +49,7 @@ export function receiptsPdf(d, files = {}, { measure, hashes = {} } = {}) {
   // ---- Sommaire ----
   let page = pdf.addPage(PAGE_W, PAGE_H);
   let y = M + 24;
-  page.text("JUSTIFICATIFS", M, y, { size: 22, bold: true, color: C.navy });
+  page.text("REÇUS", M, y, { size: 22, bold: true, color: C.navy });
   page.text("RECEIPTS", M, y + 14, { size: 9, bold: true, color: C.orange });
   page.text(`Facture / Invoice ${d.number}`, RIGHT, y, { size: 12, bold: true, color: C.orange, align: "right" });
   page.text(d.date, RIGHT, y + 14, { size: 9, color: C.ink, align: "right" });
