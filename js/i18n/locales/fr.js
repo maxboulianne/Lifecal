@@ -803,4 +803,5 @@ export default {
   "ts.logoMissing": "Aucun logo enregistré sur cet appareil : la facture (Excel et PDF) partira sans logo.",
   "ts.confirmRemoveLogo": "Retirer le logo ? Les prochaines factures n'en auront plus.",
   "receipt.twins": { one: "Cette photo est aussi jointe à : {expense}. La retirer de cette dépense pour qu'elle ne soit pas en double dans les justificatifs ?", other: "Ces {count} photos sont aussi jointes à : {expense}. Les retirer de cette dépense pour qu'elles ne soient pas en double dans les justificatifs ?" },
+  "ts.archived": "archivé",
 };

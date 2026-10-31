@@ -781,4 +781,5 @@ export default {
   "ts.logoMissing": "이 기기에 저장된 로고가 없어요. 청구서(Excel, PDF)에 로고가 없어요.",
   "ts.confirmRemoveLogo": "로고를 삭제할까요? 앞으로의 청구서에는 로고가 없어요.",
   "receipt.twins": { one: "이 사진은 다음에도 첨부되어 있어요: {expense}. 증빙에서 중복되지 않도록 그 경비에서 삭제할까요?", other: "이 사진 {count}장은 다음에도 첨부되어 있어요: {expense}. 증빙에서 중복되지 않도록 그 경비에서 삭제할까요?" },
+  "ts.archived": "보관됨",
 };

@@ -333,10 +333,23 @@ function clientOptions(ts, selected, { none = true } = {}) {
 const addBlock = (open, summary, form) => `<details class="ts-new-wrap" ${open ? "open" : ""}>
   <summary class="btn soft">＋ ${summary}</summary>${form}</details>`;
 
+// Fiche d'un projet, repliée par défaut (même juste après sa création) : on ne voit que
+// son numéro et son nom ; la flèche l'ouvre pour modifier. L'état est retenu sur l'appareil.
 function projectCard(ts, p) {
   const field = (name, label, input) => `<label>${label} ${input}</label>`;
   const attrs = (f) => `data-action="ts-project-field" data-id="${esc(p.id)}" data-field="${f}" autocomplete="off"`;
-  return `<li class="ts-card ${p.archived ? "is-archived" : ""}" data-project-card="${esc(p.id)}">
+  const foldId = `ts-project-${p.id}`;
+  const open = isFoldOpen(foldId, false);
+  const extra = [p.rate != null ? `${fmt.hours(p.rate)} $/h` : "", p.archived ? t("ts.archived") : ""].filter(Boolean).join(" · ");
+  return `<li class="ts-card ts-project-card fold ${open ? "is-open" : ""} ${p.archived ? "is-archived" : ""}" data-project-card="${esc(p.id)}" data-fold-id="${esc(foldId)}">
+    <h3 class="fold-head">
+      <button type="button" class="fold-btn" data-action="fold" aria-expanded="${open}" aria-controls="fold-${esc(foldId)}">
+        <span class="fold-arrow" aria-hidden="true">▸</span>
+        <span class="fold-title">${p.pinned ? "📌 " : ""}<strong>${esc(p.number)}</strong>${p.number && p.name ? " · " : ""}${esc(p.name)}</span>
+        ${extra ? `<span class="hint fold-extra">${esc(extra)}</span>` : ""}
+      </button>
+    </h3>
+    <div class="fold-body" id="fold-${esc(foldId)}" ${open ? "" : "hidden"}>
     <div class="row">
       ${field("number", t("ts.number"), `<input ${attrs("number")} value="${esc(p.number)}">`)}
       ${field("name", t("ts.projectName"), `<input ${attrs("name")} value="${esc(p.name)}">`)}
@@ -352,6 +365,7 @@ function projectCard(ts, p) {
       ${p.archived ? "" : `<button type="button" class="btn soft" data-action="ts-pick" data-id="${esc(p.id)}">⏱️ ${t("ts.logHours")}</button>`}
       <button type="button" class="btn link" data-action="ts-archive" data-id="${esc(p.id)}">${t(p.archived ? "ts.unarchive" : "ts.archive")}</button>
       <button type="button" class="btn link danger" data-action="ts-delete-project" data-id="${esc(p.id)}">🗑 ${t("ts.delete")}</button>
+    </div>
     </div>
   </li>`;
 }

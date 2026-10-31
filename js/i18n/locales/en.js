@@ -784,4 +784,5 @@ export default {
   "ts.logoMissing": "No logo saved on this device: the invoice (Excel and PDF) will have no logo.",
   "ts.confirmRemoveLogo": "Remove the logo? Future invoices will no longer have it.",
   "receipt.twins": { one: "This photo is also attached to: {expense}. Remove it from that expense so it isn't duplicated in the receipts?", other: "These {count} photos are also attached to: {expense}. Remove them from that expense so they aren't duplicated in the receipts?" },
+  "ts.archived": "archived",
 };

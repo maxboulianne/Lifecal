@@ -1303,3 +1303,11 @@ body.player-open { overflow: hidden; }
 .ts-logo-missing { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0; }
 .ts-logo-missing .hint { margin: 0; flex: 1 1 220px; }
 .ts-logo-missing label.btn { display: inline-flex; cursor: pointer; }
+
+/* Fiches de projet repliables : une ligne (numéro · nom) quand elles sont fermées */
+.ts-project-card { padding: 4px 12px; }
+.ts-project-card.is-open { padding-bottom: 12px; }
+.ts-card.ts-project-card > .fold-head { margin: 0; font-size: 1rem; font-weight: 400; }
+.ts-project-card .fold-btn { font-weight: 400; }
+.ts-project-card .fold-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-project-card > .fold-body { margin-top: 8px; }
