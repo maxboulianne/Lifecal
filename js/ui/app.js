@@ -100,6 +100,9 @@ const isPickerField = (el) => (el?.type === "time" || el?.type === "date") && Bo
 // et pour une date sur écran tactile (roulette) ; avec la souris, une date choisie compte tout de suite.
 const savesOnClose = (el) => isPickerField(el) && (el.type === "time" || TOUCH.matches);
 
+// Nom des fichiers envoyés au client : le numéro de la facture seul (« 2026-118 »)
+const invoiceFileName = (number) => String(number).trim().replace(/[^\w.-]+/g, "_");
+
 // Nombre écrit à la main : « 2 924 738 », « 0,000053931 », « 25,50 $ » ; null si invalide ou 0.
 const readNumber = (value) => parseAmount(String(value ?? "").replace(/[\s$\u00a0\u202f]/g, ""));
 
@@ -144,6 +147,7 @@ export class App {
   timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
   #invoicePending = null; // facture affichée dans l'aperçu
   #pruned = false; // justificatifs inutilisés déjà effacés pendant ce lancement
+  #renderPending = false; // page à redessiner dès qu'aucune roulette n'est ouverte
   editingExpense = null; // dépense en cours de modification
   #map = null;
 
@@ -167,12 +171,19 @@ export class App {
     document.addEventListener("click", (e) => this.#onClick(e));
     document.addEventListener("change", (e) => this.#onChange(e));
     // Roulettes d'heure et de date (iPhone, iPad) : enregistrer quand on les referme.
+    // On enregistre juste après : si l'on vient de toucher un autre champ à roulette (ex. la
+    // date « Au » après « Du »), redessiner la page tout de suite le remplacerait et sa
+    // roulette ne s'ouvrirait pas (il fallait le toucher deux fois). La page est alors
+    // redessinée quand cette roulette se referme.
     document.addEventListener("focusout", (e) => {
       // Aussi une valeur proposée (en gris) qu'on confirme en la touchant puis en la quittant
-      const confirmable = savesOnClose(e.target) || (e.target.dataset?.suggest && e.target.dataset.action?.startsWith("ts-"));
-      if (confirmable && e.target.isConnected && e.target.value !== e.target.defaultValue) {
-        this.#onTimesheetChange(e.target);
-      }
+      const el = e.target;
+      const confirmable = savesOnClose(el) || (el.dataset?.suggest && el.dataset.action?.startsWith("ts-"));
+      const changed = confirmable && el.isConnected && el.value !== el.defaultValue;
+      setTimeout(() => {
+        if (changed) this.#onTimesheetChange(el);
+        else if (this.#renderPending && !this.#pickerOpen()) this.#renderKeepingScroll();
+      }, 0);
     });
     document.addEventListener("submit", (e) => this.#onSubmit(e));
     this.#listenSwipe();
@@ -276,7 +287,18 @@ export class App {
 
   // ---- Rendu -------------------------------------------------------------
 
+  // Un champ d'heure ou de date (roulette) est ouvert : ne pas le remplacer en redessinant
+  #pickerOpen() {
+    const el = document.activeElement;
+    return Boolean(el && el !== document.body && savesOnClose(el) && el.isConnected);
+  }
+
   render() {
+    if (this.#pickerOpen()) {
+      this.#renderPending = true;
+      return;
+    }
+    this.#renderPending = false;
     const today = todayISO();
     this.#renderTopbar();
     $("#legend").hidden = Boolean(this.page);
@@ -1775,7 +1797,7 @@ export class App {
     let ts = this.repo.timesheet();
     const { sheets, styles, totals } = invoiceSheets(ts, { from, to, clientId, number, date, po });
     await this.#rememberInvoice(options);
-    const name = `${t("ts.invoiceFile")}-${number.replace(/[^\w.-]+/g, "_")}.xlsx`;
+    const name = `${invoiceFileName(number)}.xlsx`; // « 2026-118.xlsx »
     await this.#shareFile(new File([buildXlsx({ sheets, styles })], name, { type: XLSX_TYPE }));
     toast(t("ts.invoiceReady", { total: fmt.money(totals.total) }));
   }
@@ -2105,14 +2127,14 @@ export class App {
     if (!options) return;
     const ts = this.repo.timesheet();
     const d = invoiceData(ts, options);
-    const safe = options.number.replace(/[^\w.-]+/g, "_");
+    const safe = invoiceFileName(options.number); // « 2026-118.pdf », « 2026-118-Receipts.pdf »
     const measure = this.#measure();
     const files = [];
     toast(t("ts.pdfWorking"));
     if (invoice) {
       const logo = ts.business.logo ? await this.#jpegForPdf(ts.business.logo).catch((err) => console.error(err)) : null;
       if (ts.business.logo && !logo) toast(t("ts.errors.logoPdf"));
-      files.push(new File([invoicePdf(d, { logo, measure })], `${t("ts.invoiceFile")}-${safe}.pdf`, { type: PDF_TYPE }));
+      files.push(new File([invoicePdf(d, { logo, measure })], `${safe}.pdf`, { type: PDF_TYPE }));
     }
     if (receipts) {
       if (!d.expenseLines.length && !invoice) return toast(t("ts.noReceipts"));
@@ -2136,7 +2158,7 @@ export class App {
             }
           }
         }
-        files.push(new File([receiptsPdf(d, images, { measure, hashes })], `${t("ts.receiptsFile")}-${safe}.pdf`, { type: PDF_TYPE }), ...extra);
+        files.push(new File([receiptsPdf(d, images, { measure, hashes })], `${safe}-Receipts.pdf`, { type: PDF_TYPE }), ...extra);
         const missing = d.expenseLines.filter((l) => !l.attachments.length).length;
         if (missing) toast(t("ts.receiptsMissing", { count: missing }));
       }
