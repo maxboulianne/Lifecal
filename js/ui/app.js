@@ -1666,7 +1666,7 @@ export class App {
     const text = (name) => String(f.get(name) ?? "").trim();
     const type = text("type");
     const [kind, id] = text("target").split(":");
-    const fields = { date: form.dataset.date, type, meal: text("meal") || null, description: text("description"), projectId: kind === "p" ? id : null, clientId: kind === "c" ? id : null };
+    const fields = { date: form.dataset.date, type, meal: text("meal") || null, description: text("description"), note: text("note"), showNote: f.get("showNote") === "on", projectId: kind === "p" ? id : null, clientId: kind === "c" ? id : null };
     if (!id) return (errors.textContent = t("ts.errors.expenseTarget"));
     const ts = this.repo.timesheet();
     if (type === "mileage") {
@@ -1859,6 +1859,8 @@ export class App {
       meal: form.querySelector("[name=meal]:checked")?.value || null,
       date: f.date.value || this.receipt.date,
       description: f.description.value,
+      note: f.note.value,
+      showNote: f.showNote.checked,
       target: f.target.value,
       amount: readNumber(f.amount.value),
       currency: f.currency.value,

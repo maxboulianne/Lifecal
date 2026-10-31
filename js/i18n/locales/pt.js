@@ -776,4 +776,8 @@ export default {
   "ts.mealLabel": "Refeição",
   "ts.mealHint": "Na fatura ao cliente, em inglês: «Food», ou «Breakfast», «Lunch», «Dinner». Um recibo digitalizado escolhe pela hora do pagamento; você pode mudar.",
   "receipt.foundTip": "Total lido: {amount} (gorjeta {tip})",
+  "ts.expenseNote": "Nota (justificativa)",
+  "ts.expenseNotePlaceholder": "ex. With J. Smith and M. Roy (supplier), quote review",
+  "ts.showNote": "Mostrar a nota na fatura ao cliente, após a descrição",
+  "ts.noteShown": "na fatura",
 };

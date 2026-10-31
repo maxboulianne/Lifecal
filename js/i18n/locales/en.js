@@ -776,4 +776,8 @@ export default {
   "ts.mealLabel": "Meal",
   "ts.mealHint": "On the client invoice: “Food”, or “Breakfast”, “Lunch”, “Dinner”. A scanned receipt picks one from the payment time; you can change it.",
   "receipt.foundTip": "Total read: {amount} (tip {tip})",
+  "ts.expenseNote": "Note (justification)",
+  "ts.expenseNotePlaceholder": "e.g. With J. Smith and M. Roy (supplier), quote review",
+  "ts.showNote": "Show the note on the client invoice, after the description",
+  "ts.noteShown": "on the invoice",
 };

@@ -795,4 +795,8 @@ export default {
   "ts.mealLabel": "Repas",
   "ts.mealHint": "Sur la facture au client, en anglais : « Food », ou « Breakfast », « Lunch », « Dinner ». Un reçu scanné choisit selon l'heure du paiement ; tu peux changer.",
   "receipt.foundTip": "Total lu : {amount} (pourboire {tip})",
+  "ts.expenseNote": "Note (justification)",
+  "ts.expenseNotePlaceholder": "ex. With J. Tremblay and M. Roy (supplier), quote review",
+  "ts.showNote": "Afficher la note sur la facture au client, à la suite de la description",
+  "ts.noteShown": "sur la facture",
 };

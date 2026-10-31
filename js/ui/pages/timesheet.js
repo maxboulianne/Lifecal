@@ -84,7 +84,8 @@ function expenseRow(ts, e) {
   return `<li class="ts-expense-row">
     <span class="ts-expense-icon" aria-hidden="true">${EXPENSE_ICONS[e.type]}</span>
     <div class="ts-expense-text"><strong>${esc(t(`ts.expenseType.${e.type}`))}</strong>${e.meal ? ` · ${esc(t(`ts.meal.${e.meal}`))}` : ""}${e.description ? ` · ${esc(e.description)}` : ""}
-      <span class="hint">${esc(target)}${origin ? ` · ${esc(origin)}` : ""}</span></div>
+      <span class="hint">${esc(target)}${origin ? ` · ${esc(origin)}` : ""}</span>
+      ${e.note ? `<span class="hint ts-expense-note">📝 ${esc(e.note)}${e.showNote ? ` <em>· ${esc(t("ts.noteShown"))}</em>` : ""}</span>` : ""}</div>
     <span class="ts-expense-amount">${esc(fmt.money(expenseTotal(e)))}</span>
     <button type="button" class="ts-attach-btn ${e.attachments.length ? "has-files" : ""}" data-action="ts-attach" data-id="${esc(e.id)}"
       aria-label="${esc(t("attach.title"))} (${e.attachments.length})" title="${esc(t("attach.title"))}">📎${e.attachments.length ? `<span>${e.attachments.length}</span>` : ""}</button>
@@ -136,6 +137,9 @@ export function expenseForm(ts, date, projects, chosen, editing, receipt = null)
     </fieldset>
     ${e ? `<label>${t("ts.expenseDate")} <input type="date" name="date" value="${esc(e.date ?? date)}"></label>` : ""}
     <label>${t("ts.expenseDesc")} <input name="description" value="${esc(e?.description ?? "")}" placeholder="${esc(t("ts.expenseDescPlaceholder"))}" autocomplete="off"></label>
+    <label>📝 ${t("ts.expenseNote")} <textarea name="note" rows="2" placeholder="${esc(t("ts.expenseNotePlaceholder"))}">${esc(e?.note ?? "")}</textarea></label>
+    <label class="switch"><input type="checkbox" name="showNote" ${e?.showNote ? "checked" : ""}>
+      <span>${esc(t("ts.showNote"))}</span></label>
     <label>${t("ts.expenseFor")} <select name="target">${targetOptions(ts, projects, chosen, target, e)}</select></label>
     <div class="row" data-role="money-row" ${mileage ? "hidden" : ""}>
       <label>${t("ts.amount")} <input name="amount" inputmode="decimal" value="${e?.amount && !mileage ? esc(fmt.hours(e.amount)) : ""}"

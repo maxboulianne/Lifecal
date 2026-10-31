@@ -9,6 +9,8 @@
 //     amount    : montant d'origine, dans la devise (currency) ; rate : $ CA pour 1 unité de la devise
 //     unitPrice : kilométrage seulement : $ CA par km (ex. 0,65)
 //     meal      : repas seulement : breakfast | lunch | dinner, ou null (« Food », générique)
+//     note      : justification (qui était présent au repas, à quoi sert l'achat…)
+//     showNote  : la note paraît sur la facture au client, à la suite de la description
 //     attachments : justificatifs [{ id, kind, type, name }] ; le fichier lui-même est dans
 //                   IndexedDB (data/files.js) ; kind : invoice (facture) | proof (preuve de
 //                   transaction) | other ; type : image/jpeg ou application/pdf
@@ -54,8 +56,12 @@ export function mealAt(hour, minute = 0) {
   if (m < 10 * 60 + 30) return "breakfast";
   return m < 16 * 60 ? "lunch" : "dinner";
 }
-// Texte de la dépense sur la facture : « Lunch », « Lunch · Shanghai », ou la description seule
-export const expenseText = (e) => [MEAL_LABELS[e.meal], e.description].filter(Boolean).join(" · ");
+// Texte de la dépense sur la facture : « Lunch », « Lunch · Shanghai », la description seule,
+// puis la note si elle est à afficher : « Lunch — With J. Smith (supplier) »
+export function expenseText(e) {
+  const text = [MEAL_LABELS[e.meal], e.description].filter(Boolean).join(" · ");
+  return e.showNote && e.note ? [text, e.note].filter(Boolean).join(" — ") : text;
+}
 
 export function normalizeAttachments(list) {
   return (Array.isArray(list) ? list : []).flatMap((a) => (a && typeof a.id === "string" && /^(image\/(jpeg|png)|application\/pdf)$/.test(a.type)
@@ -69,6 +75,7 @@ export function normalizeExpense(e) {
   const base = {
     id: e.id ?? newId(), date: e.date, type: e.type, description: str(e.description), projectId: e.projectId ?? null, clientId: e.projectId ? null : e.clientId,
     meal: e.type === "food" && MEALS.includes(e.meal) ? e.meal : null,
+    note: str(e.note).replace(/\s+/g, " "), showNote: Boolean(e.showNote) && str(e.note) !== "",
     attachments: normalizeAttachments(e.attachments),
   };
   if (e.type === "mileage") {

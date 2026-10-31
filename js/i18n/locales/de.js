@@ -776,4 +776,8 @@ export default {
   "ts.mealLabel": "Mahlzeit",
   "ts.mealHint": "Auf der Kundenrechnung auf Englisch: „Food“ oder „Breakfast“, „Lunch“, „Dinner“. Ein gescannter Beleg wählt nach der Zahlungszeit; du kannst es ändern.",
   "receipt.foundTip": "Gelesene Summe: {amount} (Trinkgeld {tip})",
+  "ts.expenseNote": "Notiz (Begründung)",
+  "ts.expenseNotePlaceholder": "z. B. With J. Smith and M. Roy (supplier), quote review",
+  "ts.showNote": "Notiz auf der Kundenrechnung nach der Beschreibung anzeigen",
+  "ts.noteShown": "auf der Rechnung",
 };
