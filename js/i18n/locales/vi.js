@@ -750,7 +750,7 @@ export default {
   "ts.emailBody": "Xin chào,\n\nĐính kèm là hóa đơn {number} ({total}, hạn thanh toán {due}) cùng chứng từ chi phí.\n\nCảm ơn,\n{name}",
   "receipt.scan": "Quét hóa đơn",
   "receipt.title": "Quét hóa đơn",
-  "receipt.hint": "Quét hóa đơn và bằng chứng thanh toán: ứng dụng đọc tên cửa hàng, ngày và số tiền, rồi chuẩn bị chi phí. Số tiền yêu cầu là tổng của bằng chứng thanh toán (gồm tiền boa).",
+  "receipt.hint": "Quét hóa đơn và bằng chứng thanh toán: ứng dụng đọc ngày, giờ và số tiền, rồi chuẩn bị chi phí. Số tiền yêu cầu là tổng của bằng chứng thanh toán (gồm tiền boa).",
   "receipt.check": "Kiểm tra chi phí trước khi lưu: việc đọc có thể sai.",
   "receipt.invoiceHint": "Hóa đơn của cửa hàng (chi tiết những gì đã mua).",
   "receipt.proofHint": "Phiếu từ máy thanh toán: tổng đã gồm tiền boa.",
@@ -772,4 +772,5 @@ export default {
   "ts.meal.dinner": "Bữa tối",
   "ts.mealLabel": "Bữa ăn",
   "ts.mealHint": "Trên hóa đơn gửi khách, bằng tiếng Anh: «Food», hoặc «Breakfast», «Lunch», «Dinner». Hóa đơn quét sẽ chọn theo giờ thanh toán; bạn có thể đổi.",
+  "receipt.foundTip": "Tổng đọc được: {amount} (tiền boa {tip})",
 };

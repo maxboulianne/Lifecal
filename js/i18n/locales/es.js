@@ -753,7 +753,7 @@ export default {
   "ts.emailBody": "Hola:\n\nAdjunto la factura {number} ({total}, pagadera a más tardar el {due}) junto con los comprobantes de gastos.\n\nGracias,\n{name}",
   "receipt.scan": "Escanear un recibo",
   "receipt.title": "Escanear un recibo",
-  "receipt.hint": "Escanea la factura y el comprobante de pago: la app lee el comercio, la fecha y el importe, y prepara el gasto. El importe reclamado es el total del comprobante de pago (propina incluida).",
+  "receipt.hint": "Escanea la factura y el comprobante de pago: la app lee la fecha, la hora y el importe, y prepara el gasto. El importe reclamado es el total del comprobante de pago (propina incluida).",
   "receipt.check": "Revisa el gasto antes de guardarlo: la lectura puede equivocarse.",
   "receipt.invoiceHint": "La factura del comercio (el detalle de lo comprado).",
   "receipt.proofHint": "El recibo del terminal de pago: su total incluye la propina.",
@@ -775,4 +775,5 @@ export default {
   "ts.meal.dinner": "Cena",
   "ts.mealLabel": "Comida",
   "ts.mealHint": "En la factura al cliente, en inglés: «Food», o «Breakfast», «Lunch», «Dinner». Un recibo escaneado elige según la hora del pago; puedes cambiarlo.",
+  "receipt.foundTip": "Total leído: {amount} (propina {tip})",
 };

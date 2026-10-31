@@ -772,7 +772,7 @@ export default {
   "ts.emailBody": "Bonjour,\n\nVous trouverez ci-joint la facture {number} ({total}, payable au plus tard le {due}) ainsi que les justificatifs des dépenses.\n\nMerci,\n{name}",
   "receipt.scan": "Scanner un reçu",
   "receipt.title": "Scanner un reçu",
-  "receipt.hint": "Scanne la facture et la preuve de transaction : l'application lit le commerce, la date et le montant, et prépare la dépense. Le montant réclamé est le total de la preuve de transaction (pourboire compris).",
+  "receipt.hint": "Scanne la facture et la preuve de transaction : l'application lit la date, l'heure et le montant, et prépare la dépense. Le montant réclamé est le total de la preuve de transaction (pourboire compris).",
   "receipt.check": "Vérifie la dépense avant de l'enregistrer : la lecture peut se tromper.",
   "receipt.invoiceHint": "La facture du commerce (le détail de ce qui a été acheté).",
   "receipt.proofHint": "Le reçu du terminal de paiement : son total comprend le pourboire.",
@@ -794,4 +794,5 @@ export default {
   "ts.meal.dinner": "Souper",
   "ts.mealLabel": "Repas",
   "ts.mealHint": "Sur la facture au client, en anglais : « Food », ou « Breakfast », « Lunch », « Dinner ». Un reçu scanné choisit selon l'heure du paiement ; tu peux changer.",
+  "receipt.foundTip": "Total lu : {amount} (pourboire {tip})",
 };

@@ -753,7 +753,7 @@ export default {
   "ts.emailBody": "Guten Tag,\n\nanbei die Rechnung {number} ({total}, fällig bis {due}) sowie die Belege der Ausgaben.\n\nVielen Dank\n{name}",
   "receipt.scan": "Beleg scannen",
   "receipt.title": "Beleg scannen",
-  "receipt.hint": "Scanne die Rechnung und den Zahlungsnachweis: Die App liest Geschäft, Datum und Betrag und bereitet die Ausgabe vor. Abgerechnet wird die Summe des Zahlungsnachweises (inklusive Trinkgeld).",
+  "receipt.hint": "Scanne die Rechnung und den Zahlungsnachweis: Die App liest Datum, Uhrzeit und Betrag und bereitet die Ausgabe vor. Abgerechnet wird die Summe des Zahlungsnachweises (inklusive Trinkgeld).",
   "receipt.check": "Prüfe die Ausgabe vor dem Speichern: Das Lesen kann sich irren.",
   "receipt.invoiceHint": "Die Rechnung des Geschäfts (was gekauft wurde).",
   "receipt.proofHint": "Der Beleg des Kartenterminals: Seine Summe enthält das Trinkgeld.",
@@ -775,4 +775,5 @@ export default {
   "ts.meal.dinner": "Abendessen",
   "ts.mealLabel": "Mahlzeit",
   "ts.mealHint": "Auf der Kundenrechnung auf Englisch: „Food“ oder „Breakfast“, „Lunch“, „Dinner“. Ein gescannter Beleg wählt nach der Zahlungszeit; du kannst es ändern.",
+  "receipt.foundTip": "Gelesene Summe: {amount} (Trinkgeld {tip})",
 };

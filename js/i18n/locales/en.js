@@ -753,7 +753,7 @@ export default {
   "ts.emailBody": "Hello,\n\nPlease find attached invoice {number} ({total}, due by {due}) along with the expense receipts.\n\nThank you,\n{name}",
   "receipt.scan": "Scan a receipt",
   "receipt.title": "Scan a receipt",
-  "receipt.hint": "Scan the invoice and the proof of payment: the app reads the merchant, the date and the amount, and prepares the expense. The amount claimed is the proof of payment's total (tip included).",
+  "receipt.hint": "Scan the invoice and the proof of payment: the app reads the date, the time and the amount, and prepares the expense. The amount claimed is the proof of payment's total (tip included).",
   "receipt.check": "Check the expense before saving it: reading can make mistakes.",
   "receipt.invoiceHint": "The merchant's invoice (the details of what was bought).",
   "receipt.proofHint": "The payment terminal slip: its total includes the tip.",
@@ -775,4 +775,5 @@ export default {
   "ts.meal.dinner": "Dinner",
   "ts.mealLabel": "Meal",
   "ts.mealHint": "On the client invoice: “Food”, or “Breakfast”, “Lunch”, “Dinner”. A scanned receipt picks one from the payment time; you can change it.",
+  "receipt.foundTip": "Total read: {amount} (tip {tip})",
 };

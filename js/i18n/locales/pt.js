@@ -753,7 +753,7 @@ export default {
   "ts.emailBody": "Olá,\n\nSegue em anexo a fatura {number} ({total}, com vencimento em {due}) e os comprovantes das despesas.\n\nObrigado,\n{name}",
   "receipt.scan": "Digitalizar um recibo",
   "receipt.title": "Digitalizar um recibo",
-  "receipt.hint": "Digitalize a fatura e o comprovante de pagamento: o app lê o estabelecimento, a data e o valor, e prepara a despesa. O valor reclamado é o total do comprovante (gorjeta incluída).",
+  "receipt.hint": "Digitalize a fatura e o comprovante de pagamento: o app lê a data, a hora e o valor, e prepara a despesa. O valor reclamado é o total do comprovante (gorjeta incluída).",
   "receipt.check": "Confira a despesa antes de salvar: a leitura pode errar.",
   "receipt.invoiceHint": "A fatura do estabelecimento (o detalhe do que foi comprado).",
   "receipt.proofHint": "O recibo da maquininha: o total inclui a gorjeta.",
@@ -775,4 +775,5 @@ export default {
   "ts.meal.dinner": "Jantar",
   "ts.mealLabel": "Refeição",
   "ts.mealHint": "Na fatura ao cliente, em inglês: «Food», ou «Breakfast», «Lunch», «Dinner». Um recibo digitalizado escolhe pela hora do pagamento; você pode mudar.",
+  "receipt.foundTip": "Total lido: {amount} (gorjeta {tip})",
 };

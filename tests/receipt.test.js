@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { amountsIn, findDate, findMerchant, findTime, parseReceipt, receiptExpense } from "../js/scan/receipt.js";
+import { amountsIn, findDate, findMerchant, findTime, invoiceTotal, parseReceipt, receiptExpense } from "../js/scan/receipt.js";
 import { emptyTimesheet } from "../js/timesheet/timesheet.js";
 import { addExpense, expenseText, mealAt, moveAttachment, addAttachment } from "../js/timesheet/expenses.js";
 
@@ -75,11 +75,11 @@ test("Reçu : la dépense proposée prend le montant de la preuve de transaction
   const invoice = parseReceipt(INVOICE);
   const proof = parseReceipt(PROOF);
   // Le commerce n'est pas nommé : seulement le repas, selon l'heure du paiement
-  assert.deepEqual(receiptExpense({ invoice, proof }), { meal: "lunch", date: "2026-09-22", amount: 64.57, currency: null });
+  assert.deepEqual(receiptExpense({ invoice, proof }), { invoiceTotal: 54.57, tip: 10, meal: "lunch", date: "2026-09-22", amount: 64.57, currency: null });
   assert.equal(receiptExpense({ invoice }).amount, 54.57); // sans preuve : le total de la facture
   assert.equal(receiptExpense({ proof: parseReceipt("Total 20,00\n7:45 AM") }).meal, "breakfast");
   assert.equal(receiptExpense({ proof: parseReceipt("Total 80,00\n2026-10-01 19:12") }).meal, "dinner");
-  assert.deepEqual(receiptExpense(), { meal: null, date: null, amount: null, currency: null }); // sans heure : « Food »
+  assert.deepEqual(receiptExpense(), { invoiceTotal: null, tip: null, meal: null, date: null, amount: null, currency: null }); // sans heure : « Food »
 });
 
 test("Justificatif déplacé d'une dépense à une autre", () => {
@@ -106,4 +106,20 @@ test("Repas : selon l'heure, et sur la facture en anglais", () => {
   assert.equal(expenseText({ ...expense, meal: null }), ""); // « Repas / Food » seul sur la facture
   // Un repas seulement pour la nourriture
   assert.equal(addExpense(ts, { date: "2026-10-15", type: "hotel", meal: "lunch", clientId: "c1", amount: 100 }).expense.meal, null);
+});
+
+test("Reçu : un article mal lu ne devient pas le total de la facture", () => {
+  // « $26.00 » lu « 826.00 », « TOTAL » lu « TOTAI » : le total vient après les taxes
+  const misread = parseReceipt("BISTRO TEST\n1 PATES 826.00 FP\n1 SALADE $31.00 FP\nSOUS-TOTAL : $148.00\nTVQ $14.76\nTOTAI $170.16");
+  assert.equal(misread.total, 170.16);
+  assert.equal(parseReceipt("1 PATES 826.00\nTVQ $14.76\n$170.16").total, 170.16);
+  // Avec la preuve : jamais plus que ce qui a été payé, ni moins de la moitié
+  const bad = { total: 826, amounts: [826, 31, 14.76, 170.16, 0.16] };
+  assert.equal(invoiceTotal(bad, 195.68), 170.16);
+  assert.equal(invoiceTotal({ total: 0.16, amounts: [0.16, 170.16] }, 195.68), 170.16);
+  assert.equal(invoiceTotal(bad), 826); // sans preuve, on ne peut pas vérifier
+  const r = receiptExpense({ invoice: bad, proof: parseReceipt("Total 195,68 $") });
+  assert.equal(r.invoiceTotal, 170.16);
+  assert.equal(r.tip, 25.52);
+  assert.equal(r.amount, 195.68);
 });

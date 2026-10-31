@@ -15,7 +15,8 @@ export function slotStatus(slot) {
   if (slot.status === "reading") return `⏳ ${esc(t("receipt.reading"))}${slot.progress ? ` ${Math.round(slot.progress * 100)} %` : ""}`;
   if (slot.status === "failed") return `⚠️ ${esc(t("receipt.failed"))}`;
   if (slot.status === "pdf") return `📄 ${esc(t("receipt.pdfNotRead"))}`;
-  return slot.total ? `✓ ${esc(t("receipt.found", { amount: fmt.money(slot.total) }))}` : `✓ ${esc(t("receipt.noAmount"))}`;
+  if (!slot.total) return `✓ ${esc(t("receipt.noAmount"))}`;
+  return `✓ ${esc(t(slot.tip ? "receipt.foundTip" : "receipt.found", { amount: fmt.money(slot.total), tip: fmt.money(slot.tip ?? 0) }))}`;
 }
 
 function slotView(kind, slot) {
