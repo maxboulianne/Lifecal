@@ -137,3 +137,92 @@ test("Note de justification : sur la facture seulement si on la coche", () => {
   assert.equal(expenseText(tool), "Paint thickness gauge");
   assert.equal(addExpense(ts, { ...base, note: "", showNote: true }).expense.showNote, false); // rien à afficher
 });
+
+// Reçus inventés dans d'autres langues, tels que l'OCR les rend
+const VIE = `NHÀ HÀNG PHỞ MẪU
+Hóa đơn thanh toán
+Ngày: 15/10/2026 19:05
+Phở bò 2 x 65.000 130.000
+Trà đá 2 x 5.000 10.000
+Tạm tính 140.000
+Thuế VAT 8% 11.200
+Tổng cộng: 151.200 đ
+Tiền khách đưa 200.000
+Tiền thừa 48.800`;
+const CHI = `餐厅测试
+2026年10月16日 12:30
+宫保鸡丁 1 38.00
+米饭 2 4.00
+小计 46.00
+合计：¥46.00
+实收 100.00 现金
+找零 54.00`;
+const KOR = `테스트 식당
+2026.10.17 오후 7:15
+비빔밥 2 24,000
+소계 24,000
+부가세 2,400
+합계 26,400원
+결제금액 26,400`;
+const POR = `RESTAURANTE EXEMPLO
+18/10/2026 13:10
+Prato do dia 45,90
+Subtotal R$ 45,90
+Gorjeta 10% 4,59
+Total R$ 50,49
+Cartão de crédito`;
+const ARA = `مطعم تجريبي
+2026-10-19 20:40
+المجموع الفرعي ٨٠٫٠٠
+ضريبة ٤٫٠٠
+الإجمالي ٨٤٫٠٠ د.إ`;
+const USA = `TEST DINER
+10/05/2026 8:12 AM
+Subtotal 18.50
+Tax 1.64
+Total $20.14
+Tip 4.00
+Amount paid $24.14`;
+
+test("Reçus étrangers : devise, montants sans décimales, total, date et heure", () => {
+  const v = parseReceipt(VIE);
+  assert.equal(v.currency, "VND");
+  assert.equal(v.total, 151200); // pas l'argent remis (200 000)
+  assert.equal(v.date, "2026-10-15");
+  assert.deepEqual(v.time, { hour: 19, minute: 5 });
+  const c = parseReceipt(CHI);
+  assert.equal(c.currency, "CNY");
+  assert.equal(c.total, 46); // pas le « 实收 100.00 » payé en espèces
+  assert.equal(c.date, "2026-10-16");
+  const k = parseReceipt(KOR);
+  assert.equal(k.currency, "KRW");
+  assert.equal(k.total, 26400);
+  assert.equal(k.date, "2026-10-17");
+  assert.equal(receiptExpense({ proof: k }).meal, "dinner"); // 오후 7:15 = 19 h 15
+  const p = parseReceipt(POR);
+  assert.equal(p.currency, "BRL");
+  assert.equal(p.total, 50.49);
+  assert.equal(p.date, "2026-10-18");
+  const a = parseReceipt(ARA);
+  assert.equal(a.currency, "AED");
+  assert.equal(a.total, 84);
+  const u = parseReceipt(USA, { currency: "USD" }); // « $ » seul : la devise du formulaire
+  assert.equal(u.currency, null);
+  assert.equal(u.total, 24.14);
+  assert.equal(u.date, "2026-10-05"); // mm/jj aux États-Unis
+  assert.equal(receiptExpense({ proof: u }).meal, "breakfast");
+  // La devise du formulaire sert quand le reçu ne la dit pas
+  assert.equal(parseReceipt("Tổng cộng 85.000", { currency: "VND" }).total, 85000);
+  assert.equal(parseReceipt("Tổng cộng 85.000").total, null); // sans devise : 85.000 n'est pas un montant à 2 décimales
+});
+
+test("Reçus étrangers : textes et chiffres normalisés", () => {
+  assert.deepEqual(amountsIn("合计：58元"), [58]);
+  assert.deepEqual(amountsIn("Tổng 1.250.000", { whole: true }), [1250000]);
+  assert.deepEqual(amountsIn("VISA ****1041 2026", { whole: true }), []); // carte masquée, année
+  assert.equal(findDate("ngày 15 tháng 10 năm 2026"), "2026-10-15");
+  assert.equal(findDate("18 de outubro de 2026"), "2026-10-18");
+  assert.equal(findDate("3. Okt. 2026"), "2026-10-03");
+  assert.equal(findDate("15 dic 2026"), "2026-12-15");
+  assert.deepEqual(findTime("下午 1:20"), { hour: 13, minute: 20 });
+});

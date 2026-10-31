@@ -780,4 +780,6 @@ export default {
   "ts.expenseNotePlaceholder": "z. B. With J. Smith and M. Roy (supplier), quote review",
   "ts.showNote": "Notiz auf der Kundenrechnung nach der Beschreibung anzeigen",
   "ts.noteShown": "auf der Rechnung",
+  "receipt.language": "Sprache des Belegs",
+  "receipt.languageHint": "Nach der Währung deiner letzten Ausgaben gewählt. Das erste Lesen in einer Sprache lädt ihr Modell herunter (1 bis 3 MB, Internet nötig); danach bleibt es auf dem Gerät.",
 };

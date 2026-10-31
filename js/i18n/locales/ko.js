@@ -777,4 +777,6 @@ export default {
   "ts.expenseNotePlaceholder": "예: With J. Smith and M. Roy (supplier), quote review",
   "ts.showNote": "고객 청구서에 설명 다음으로 메모 표시",
   "ts.noteShown": "청구서에 표시",
+  "receipt.language": "영수증 언어",
+  "receipt.languageHint": "최근 경비의 통화로 정해져요. 한 언어로 처음 읽을 때 모델을 내려받아요 (1~3MB, 인터넷 필요). 이후에는 기기에 남아요.",
 };

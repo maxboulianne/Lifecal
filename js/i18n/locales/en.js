@@ -780,4 +780,6 @@ export default {
   "ts.expenseNotePlaceholder": "e.g. With J. Smith and M. Roy (supplier), quote review",
   "ts.showNote": "Show the note on the client invoice, after the description",
   "ts.noteShown": "on the invoice",
+  "receipt.language": "Receipt language",
+  "receipt.languageHint": "Chosen from the currency of your latest expenses. The first reading in a language downloads its model (1 to 3 MB, internet needed); it then stays on the device.",
 };

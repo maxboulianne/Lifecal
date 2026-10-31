@@ -777,4 +777,6 @@ export default {
   "ts.expenseNotePlaceholder": "vd. With J. Smith and M. Roy (supplier), quote review",
   "ts.showNote": "Hiện ghi chú trên hóa đơn gửi khách, sau phần mô tả",
   "ts.noteShown": "trên hóa đơn",
+  "receipt.language": "Ngôn ngữ hóa đơn",
+  "receipt.languageHint": "Chọn theo tiền tệ của các chi phí gần nhất. Lần đọc đầu tiên trong một ngôn ngữ sẽ tải mô hình (1 đến 3 MB, cần internet); sau đó nó ở lại trên thiết bị.",
 };
