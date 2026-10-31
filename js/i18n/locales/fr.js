@@ -802,4 +802,6 @@ export default {
   "receipt.language": "Langue du reçu",
   "receipt.languageHint": "Choisie selon la devise de tes dernières dépenses. La première lecture dans une langue télécharge son modèle (1 à 3 Mo, Internet requis) ; ensuite il reste sur l'appareil.",
   "ts.errors.logoPdf": "Le logo n'a pas pu être mis dans le PDF : remets-le dans « Mon entreprise » (format PNG ou JPEG).",
+  "ts.logoMissing": "Aucun logo enregistré sur cet appareil : la facture (Excel et PDF) partira sans logo.",
+  "ts.confirmRemoveLogo": "Retirer le logo ? Les prochaines factures n'en auront plus.",
 };

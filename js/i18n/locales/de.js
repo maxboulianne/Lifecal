@@ -783,4 +783,6 @@ export default {
   "receipt.language": "Sprache des Belegs",
   "receipt.languageHint": "Nach der Währung deiner letzten Ausgaben gewählt. Das erste Lesen in einer Sprache lädt ihr Modell herunter (1 bis 3 MB, Internet nötig); danach bleibt es auf dem Gerät.",
   "ts.errors.logoPdf": "Das Logo konnte nicht ins PDF eingefügt werden: Füge es unter „Mein Unternehmen“ erneut hinzu (PNG oder JPEG).",
+  "ts.logoMissing": "Kein Logo auf diesem Gerät gespeichert: Die Rechnung (Excel und PDF) wird ohne Logo erstellt.",
+  "ts.confirmRemoveLogo": "Logo entfernen? Künftige Rechnungen haben dann keins mehr.",
 };

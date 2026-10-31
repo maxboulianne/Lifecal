@@ -1298,3 +1298,8 @@ body.player-open { overflow: hidden; }
 .ts-meal-row { border: none; margin: 0 0 6px; padding: 0; min-width: 0; }
 .ts-meal-row legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
 .ts-meal-row .hint { margin: 4px 0 0; }
+
+/* Facture sans logo : le dire, et l'ajouter tout de suite */
+.ts-logo-missing { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0; }
+.ts-logo-missing .hint { margin: 0; flex: 1 1 220px; }
+.ts-logo-missing label.btn { display: inline-flex; cursor: pointer; }

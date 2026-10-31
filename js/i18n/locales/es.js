@@ -783,4 +783,6 @@ export default {
   "receipt.language": "Idioma del recibo",
   "receipt.languageHint": "Elegido según la moneda de tus últimos gastos. La primera lectura en un idioma descarga su modelo (1 a 3 MB, requiere internet); luego queda en el dispositivo.",
   "ts.errors.logoPdf": "No se pudo poner el logo en el PDF: vuelve a añadirlo en «Mi empresa» (PNG o JPEG).",
+  "ts.logoMissing": "No hay logo guardado en este dispositivo: la factura (Excel y PDF) saldrá sin logo.",
+  "ts.confirmRemoveLogo": "¿Quitar el logo? Las próximas facturas ya no lo tendrán.",
 };
