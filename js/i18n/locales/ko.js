@@ -782,4 +782,5 @@ export default {
   "ts.errors.logoPdf": "로고를 PDF에 넣을 수 없어요. «내 회사»에서 다시 추가하세요 (PNG 또는 JPEG).",
   "ts.logoMissing": "이 기기에 저장된 로고가 없어요. 청구서(Excel, PDF)에 로고가 없어요.",
   "ts.confirmRemoveLogo": "로고를 삭제할까요? 앞으로의 청구서에는 로고가 없어요.",
+  "receipt.twins": { one: "이 사진은 다음에도 첨부되어 있어요: {expense}. 증빙에서 중복되지 않도록 그 경비에서 삭제할까요?", other: "이 사진 {count}장은 다음에도 첨부되어 있어요: {expense}. 증빙에서 중복되지 않도록 그 경비에서 삭제할까요?" },
 };

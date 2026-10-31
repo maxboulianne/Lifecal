@@ -102,6 +102,36 @@ test("facture PDF et justificatifs PDF", async () => {
   assert.match(rec, /scan\.pdf/, "le PDF joint à part est nommé");
 });
 
+test("PDF des justificatifs : une même photo jointe à deux dépenses n'est montrée qu'une fois", async () => {
+  const { emptyTimesheet, addClient, addProject } = await import("../js/timesheet/timesheet.js");
+  const { addExpense, addAttachment } = await import("../js/timesheet/expenses.js");
+  const { invoiceData } = await import("../js/timesheet/invoice.js");
+  const { receiptsPdf } = await import("../js/timesheet/receipts-pdf.js");
+  let ts = emptyTimesheet();
+  let r = addClient(ts, { name: "Entreprise ABC" });
+  ts = r.ts;
+  const client = r.client;
+  r = addProject(ts, { number: "P-1", name: "Projet", clientId: client.id, rate: 68 });
+  ts = r.ts;
+  // le kilométrage d'abord (même jour), puis le repas : les mêmes photos enregistrées deux fois
+  const km = addExpense(ts, { date: "2026-09-22", type: "mileage", projectId: r.project.id, qty: 46, unitPrice: 0.65 });
+  ts = addAttachment(km.ts, km.expense.id, { id: "k1", kind: "invoice", type: "image/jpeg" });
+  ts = addAttachment(ts, km.expense.id, { id: "k2", kind: "proof", type: "image/jpeg" });
+  const meal = addExpense(ts, { date: "2026-09-22", type: "food", meal: "lunch", projectId: r.project.id, amount: 195.68 });
+  ts = addAttachment(meal.ts, meal.expense.id, { id: "m1", kind: "invoice", type: "image/jpeg" });
+  ts = addAttachment(ts, meal.expense.id, { id: "m2", kind: "proof", type: "image/jpeg" });
+  const d = invoiceData(ts, { from: "2026-09-01", to: "2026-09-30", clientId: client.id, number: "T-1", date: "2026-09-30" });
+  const tiny = { bytes: TINY_JPEG, width: 1, height: 1, components: 1 };
+  const files = { k1: tiny, k2: tiny, m1: tiny, m2: tiny };
+  const latin = (bytes) => new TextDecoder("latin1").decode(bytes);
+  const both = latin(receiptsPdf(d, files, { hashes: { k1: "A", k2: "B", m1: "A", m2: "B" } }));
+  assert.match(both, /\/Count 2/, "sommaire + une seule page de photos");
+  assert.match(both, /voir \/ see Repas \/ Food/, "le kilométrage renvoie au repas");
+  assert.equal(both.match(/\/Subtype \/Image/g).length, 2, "chaque photo une seule fois dans le fichier");
+  const distinct = latin(receiptsPdf(d, files, { hashes: { k1: "A", k2: "B", m1: "C", m2: "D" } }));
+  assert.match(distinct, /\/Count 3/, "des photos différentes ont chacune leur page");
+});
+
 test("JPEG : octets de remplissage, marqueurs sans longueur, trames progressives", () => {
   // SOI, remplissage FF FF, APP0 (longueur 4), RST0, SOF2 (progressif) 30 × 20, 3 composantes
   const bytes = Uint8Array.from([0xff, 0xd8, 0xff, 0xff, 0xe0, 0x00, 0x04, 0x00, 0x00, 0xff, 0xd0,

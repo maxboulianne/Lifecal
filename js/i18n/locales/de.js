@@ -785,4 +785,5 @@ export default {
   "ts.errors.logoPdf": "Das Logo konnte nicht ins PDF eingefügt werden: Füge es unter „Mein Unternehmen“ erneut hinzu (PNG oder JPEG).",
   "ts.logoMissing": "Kein Logo auf diesem Gerät gespeichert: Die Rechnung (Excel und PDF) wird ohne Logo erstellt.",
   "ts.confirmRemoveLogo": "Logo entfernen? Künftige Rechnungen haben dann keins mehr.",
+  "receipt.twins": { one: "Dieses Foto hängt auch an: {expense}. Dort entfernen, damit es in den Belegen nicht doppelt erscheint?", other: "Diese {count} Fotos hängen auch an: {expense}. Dort entfernen, damit sie in den Belegen nicht doppelt erscheinen?" },
 };
