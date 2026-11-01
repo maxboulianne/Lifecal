@@ -76,8 +76,43 @@ export function taxesSection(ts, quarter, editingId) {
       <h3>${t("tax.collected")}</h3>
       <p class="hint">${t("tax.collectedHint")}</p>
       ${table}
-      ${editing ? invoiceForm(ts, quarter, editing) : `<details class="ts-new-wrap" ${list.length ? "" : "open"}>
+      <div class="actions start ts-tax-import">
+        <label class="btn primary">📥 ${t("tax.importInvoices")}
+          <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple data-action="ts-tax-import" hidden></label>
+      </div>
+      <p class="hint">${t("tax.importHint")}</p>
+      ${editing ? invoiceForm(ts, quarter, editing) : `<details class="ts-new-wrap">
         <summary class="btn soft">＋ ${t("tax.addInvoice")}</summary>${invoiceForm(ts, quarter, null)}</details>`}
       <p class="hint ts-tax-next">${t("tax.nextSteps")}</p>`,
   });
+}
+
+// Fenêtre d'aperçu de l'import : ce qui a été lu dans chaque fichier, à cocher avant d'inscrire.
+//   items : [{ file, invoice, problems, existing }]
+export function importPreview(items) {
+  const problemText = (p) => (p.code === "number" ? t("tax.problem.number", { file: p.file })
+    : p.code === "uncalculated" ? t("tax.problem.uncalculated") : t("tax.problem.unreadable"));
+  return `<div class="tax-import">
+    <h2 id="tax-import-title">📥 ${t("tax.importTitle")}</h2>
+    <p class="hint">${t("tax.importCheck")}</p>
+    <div class="ts-tax-scroll"><table class="ts-summary ts-tax-table">
+      <thead><tr><th></th><th>${t("tax.invoice")}</th><th>${t("tax.date")}</th><th>${t("ts.client")}</th><th>${t("tax.subtotal")}</th><th>TPS</th><th>TVQ</th></tr></thead>
+      <tbody>${items.map((item, k) => {
+        const i = item.invoice;
+        const amount = (n) => (Number.isFinite(n) ? money(n) : "?");
+        const notes = [...item.problems.map(problemText), item.existing ? t("tax.problem.existing") : ""].filter(Boolean);
+        return `<tr class="${item.problems.length ? "has-problem" : ""}">
+          <td><input type="checkbox" data-import="${k}" ${i && !item.problems.length ? "checked" : ""} ${i && !item.problems.some((p) => p.code !== "number") ? "" : "disabled"}
+            aria-label="${esc(item.file)}"></td>
+          <td><strong>${esc(i?.number ?? "—")}</strong><span class="hint tax-import-file">${esc(item.file)}</span></td>
+          <td>${esc(i?.date ?? "")}</td><td>${esc(i?.client ?? "")}</td>
+          <td>${i ? amount(i.subtotal) : ""}</td><td>${i ? amount(i.tps) : ""}</td><td>${i ? amount(i.tvq) : ""}</td>
+        </tr>${notes.length ? `<tr class="tax-import-note"><td></td><td colspan="6">⚠️ ${esc(notes.join(" "))}</td></tr>` : ""}`;
+      }).join("")}</tbody>
+    </table></div>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-action="close">${t("form.cancel")}</button>
+      <button type="button" class="btn primary" data-action="ts-tax-import-confirm">${t("tax.importConfirm")}</button>
+    </div>
+  </div>`;
 }

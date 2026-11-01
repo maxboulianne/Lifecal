@@ -49,6 +49,9 @@ import {
 } from "../timesheet/timesheet.js";
 import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
+import { readXlsxCells } from "../export/xlsx-read.js";
+import { invoiceFromCells } from "../timesheet/invoice-import.js";
+import { importPreview } from "./components/taxes-view.js";
 import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
 import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
 import { invoicePdf } from "../timesheet/invoice-pdf.js";
@@ -146,6 +149,7 @@ export class App {
   timesheetProject = null; // dernier projet choisi pour ajouter des heures
   taxQuarter = null; // trimestre affiché dans « Taxes » (par défaut : celui qui vient de finir)
   taxEditing = null; // facture du registre en cours de modification
+  taxImport = null; // factures lues dans des fichiers Excel, en attente de confirmation
   receipt = null; // « Scanner un reçu » en cours : { date, slots, values, auto }
   timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
   #invoicePending = null; // facture affichée dans l'aperçu
@@ -998,6 +1002,7 @@ export class App {
       this.#renderKeepingScroll();
       $("[data-role=ts-tax-invoice][data-edit]")?.scrollIntoView({ block: "center" });
     },
+    "ts-tax-import-confirm": () => this.#confirmInvoiceImport(),
     "ts-tax-cancel": () => {
       this.taxEditing = null;
       this.#renderKeepingScroll();
@@ -1560,6 +1565,12 @@ export class App {
         for (const k of images) this.#readReceipt(k, r.slots[k]);
         return undefined;
       }
+      case "ts-tax-import": {
+        const files = [...(el.files ?? [])];
+        el.value = "";
+        if (files.length) await this.#importInvoiceFiles(files);
+        return undefined;
+      }
       case "ts-receipt-file": {
         const file = el.files?.[0];
         el.value = "";
@@ -1776,6 +1787,46 @@ export class App {
     if (wrap) wrap.open = true;
     $("[data-role=ts-expense] [name=description]")?.focus({ preventScroll: true });
     toast(t("ts.expenseAdded", { amount: fmt.money(expenseTotalOf(expense)) }));
+  }
+
+  // Factures Excel (faites à la main, ou par l'application) : lues, puis montrées pour vérifier.
+  async #importInvoiceFiles(files) {
+    const ts = this.repo.timesheet();
+    const items = [];
+    for (const file of files) {
+      try {
+        const invoice = invoiceFromCells(await readXlsxCells(new Uint8Array(await file.arrayBuffer())), file.name);
+        items.push({
+          file: file.name, invoice, problems: invoice ? invoice.problems : [{ code: "unreadable" }],
+          existing: Boolean(invoice && (ts.invoices ?? []).some((i) => i.number === invoice.number)),
+        });
+      } catch (err) {
+        console.error(err);
+        items.push({ file: file.name, invoice: null, problems: [{ code: "unreadable" }], existing: false });
+      }
+    }
+    items.sort((a, b) => (a.invoice?.date ?? "9").localeCompare(b.invoice?.date ?? "9"));
+    this.taxImport = items;
+    openModal(importPreview(items), { labelledBy: "tax-import-title" });
+  }
+
+  async #confirmInvoiceImport() {
+    const items = this.taxImport ?? [];
+    const chosen = [...document.querySelectorAll("#modal [data-import]:checked")].map((el) => items[Number(el.dataset.import)]).filter((i) => i?.invoice);
+    if (!chosen.length) return toast(t("tax.importNone"));
+    let ts = this.repo.timesheet();
+    for (const { invoice: i } of chosen) {
+      const client = ts.clients.find((c) => c.name.trim().toLowerCase() === i.client.trim().toLowerCase());
+      ts = recordInvoice(ts, { ...i, clientId: client?.id ?? null, client: client?.name ?? i.client, source: "manual" }).ts;
+    }
+    this.taxImport = null;
+    this.taxEditing = null;
+    this.taxQuarter = quarterOf(chosen[0].invoice.date); // montrer le trimestre des factures
+    closeModal();
+    setFoldOpen("ts-taxes", true);
+    await this.#updateTimesheet(ts);
+    toast(t("tax.imported", { count: chosen.length }));
+    return undefined;
   }
 
   // Facture ajoutée (ou modifiée) à la main dans le registre des taxes. TPS et TVQ laissées
