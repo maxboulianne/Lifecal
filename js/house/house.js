@@ -15,7 +15,7 @@
 
 import { addDays, addMonths, parseISODate, toISODate } from "../core/dates.js";
 import { newId } from "../data/item.js";
-import { DEFAULT_FIGURES, FIGURES } from "./figures.js";
+import { FIGURES } from "./figures.js";
 
 export const HOUSE_MODULE = "maison";
 export const ZONES = ["inside", "outside"];
@@ -95,29 +95,41 @@ const DEFAULT_LISTS = [
     "Petite pierre dans un bac ou une chaudière, au garage",
     "Grattoir et balai à neige dans l'auto",
   ]],
-  ["pool-close", "outside", "Piscine : fermeture (procédure générale)", [
-    "Quelques jours avant : équilibrer l'eau (pH 7,2 à 7,6 et alcalinité)",
-    "Brosser les parois, passer l'aspirateur, vider les paniers de l'écumoire et de la pompe",
-    "Faire un traitement choc et ajouter le produit d'hivernage (selon le fabricant)",
-    "Baisser le niveau d'eau sous l'écumoire et les retours (selon le type de piscine)",
-    "Laver le filtre à contre-courant (sable) ou nettoyer la cartouche",
-    "Couper le courant de la pompe, du chauffe-eau et de l'électrolyseur au panneau",
-    "Vidanger la pompe, le filtre et le chauffe-eau (bouchons de vidange)",
-    "Souffler l'eau des conduites et poser les bouchons d'hivernage",
-    "Ranger l'échelle, les accessoires et la cellule de l'électrolyseur au sec",
-    "Installer la toile d'hivernage (avec un coussin d'air pour une piscine hors terre)",
-  ]],
-  ["pool-open", "outside", "Piscine : ouverture (procédure générale)", [
-    "Enlever l'eau et les débris sur la toile, puis retirer la toile",
-    "Nettoyer et sécher la toile avant de la ranger",
-    "Remonter le niveau d'eau jusqu'au milieu de l'écumoire",
-    "Retirer les bouchons d'hivernage, réinstaller les raccords, la pompe et le filtre",
-    "Remettre le courant, démarrer la pompe et vérifier qu'il n'y a pas de fuite",
-    "Brosser les parois et passer l'aspirateur",
-    "Analyser l'eau, équilibrer le pH et l'alcalinité, faire un traitement choc",
-    "Réinstaller l'échelle et les accessoires",
-    "Après quelques jours : faire analyser l'eau en magasin",
-  ]],
+  // Piscine de Max : filtre à sable, thermopompe à environ 30 pi près du garage, reliée par des tuyaux
+  // souterrains (eau chaude et eau froide) et un assemblage de tuyauterie de dérivation qui se démonte.
+  // [texte, illustration] ; `version` : listes de départ revues (remplacent les anciennes non personnalisées)
+  ["pool-close", "outside", "Piscine : fermeture", [
+    ["Quelques jours avant : analyser et équilibrer l'eau (pH 7,2 à 7,6 et alcalinité)", "balance"],
+    ["Brosser les parois, passer l'aspirateur, vider les paniers de l'écumoire et de la pompe", "brush"],
+    ["Faire un traitement choc et ajouter le produit d'hivernage (selon le fabricant)", "shock"],
+    ["Laver le filtre à sable à contre-courant, puis rincer", "backwash"],
+    ["Baisser le niveau d'eau sous l'écumoire et les retours", "lower"],
+    ["Couper le courant de la pompe et de la thermopompe au panneau électrique", "power"],
+    ["Thermopompe (près du garage) : la détacher de l'assemblage de tuyauterie de dérivation", "heatpump"],
+    ["Vidanger la thermopompe (bouchons de vidange) et la laisser ouverte pour qu'elle sèche", "heatpumpDrain"],
+    ["Démonter l'assemblage de tuyauterie de dérivation entre le filtre à sable et la thermopompe, le vidanger et le ranger au sec", "bypass"],
+    ["Vidanger (souffler) les tuyaux souterrains d'eau chaude et d'eau froide jusqu'à la thermopompe (environ 30 pi), puis boucher les deux bouts", "underground"],
+    ["Souffler l'eau des conduites de la piscine (écumoire, retours) et poser les bouchons d'hivernage", "blow"],
+    ["Vidanger la pompe et le filtre à sable (bouchons de vidange, valve du filtre en position « hiver »)", "drain"],
+    ["Ranger l'échelle, les accessoires, les bouchons et les raccords au sec", "store"],
+    ["Installer la toile d'hivernage", "cover"],
+  ], 2],
+  ["pool-open", "outside", "Piscine : ouverture", [
+    ["Enlever l'eau et les débris sur la toile, puis retirer la toile", "uncover"],
+    ["Nettoyer et sécher la toile avant de la ranger", "uncover"],
+    ["Remonter le niveau d'eau jusqu'au milieu de l'écumoire", "fill"],
+    ["Retirer les bouchons d'hivernage des retours et de l'écumoire, réinstaller les raccords", "plugs"],
+    ["Remettre les bouchons de vidange de la pompe et du filtre à sable (valve du filtre en position « filtration »)", "drain"],
+    ["Déboucher les tuyaux souterrains d'eau chaude et d'eau froide de la thermopompe", "underground"],
+    ["Réinstaller l'assemblage de tuyauterie de dérivation entre le filtre à sable et la thermopompe", "bypass"],
+    ["Remettre les bouchons de vidange de la thermopompe et la rattacher à l'assemblage de dérivation", "heatpump"],
+    ["Remettre le courant, démarrer la pompe, purger l'air et vérifier les fuites (filtre, dérivation, tuyaux, thermopompe)", "start"],
+    ["Quand l'eau circule bien : démarrer la thermopompe", "heatpump"],
+    ["Brosser les parois et passer l'aspirateur", "brush"],
+    ["Analyser l'eau, équilibrer le pH et l'alcalinité, faire un traitement choc", "balance"],
+    ["Réinstaller l'échelle et les accessoires", "store"],
+    ["Après quelques jours : faire analyser l'eau en magasin", "analyze"],
+  ], 2],
 ];
 
 // Fournitures de départ : marques et numéros à compléter (photo du vieux filtre, du sac…)
@@ -144,11 +156,21 @@ const DEFAULT_SUPPLIES = [
   ["stain", "Teinture ou scellant (terrasse, fenêtres en cèdre)", "Noter la couleur et la marque.", null, "gallons", ["deck-stain", "cedar-windows"]],
 ];
 
+// Une liste de départ : étapes « texte » ou [texte, illustration]
+function defaultList([key, zone, title, entries, version = 1]) {
+  return {
+    id: key, key, zone, title, version,
+    entries: entries.map((x, i) => {
+      const [text, figure = null] = Array.isArray(x) ? x : [x];
+      return { id: `${key}-${i + 1}`, text, note: "", figure, media: [] };
+    }),
+  };
+}
+const DEFAULT_LIST_BY_KEY = Object.fromEntries(DEFAULT_LISTS.map((l) => [l[0], l]));
+const DEFAULT_FIGURES = Object.fromEntries(DEFAULT_LISTS.map(defaultList).flatMap((l) => l.entries.map((e) => [e.id, e.figure])));
+
 export function emptyHouse() {
-  const lists = DEFAULT_LISTS.map(([key, zone, title, entries]) => ({ id: key, key, zone, title, entries: entries.map((text, i) => {
-    const id = `${key}-${i + 1}`;
-    return { id, text, note: "", figure: DEFAULT_FIGURES[id] ?? null, media: [] };
-  }) }));
+  const lists = DEFAULT_LISTS.map(defaultList);
   const tasks = DEFAULT_TASKS.map(([key, zone, title, schedule, note = "", list = null]) => ({
     id: key, key, zone, title, note, schedule, lastDone: null, history: [], list, active: true, consumedOn: null,
   }));
@@ -192,7 +214,21 @@ function normalizeList(l) {
     const media = (Array.isArray(e.media) ? e.media : []).filter((m) => m && typeof m.id === "string" && ["image", "video"].includes(m.type)).map((m) => ({ id: m.id, type: m.type }));
     return { id, text: str(e.text), note: String(e.note ?? "").trim(), figure, media };
   });
-  return { id: str(l.id) || newId(), key: str(l.key), zone: ZONES.includes(l.zone) ? l.zone : "inside", title: str(l.title), entries };
+  const version = Number.isInteger(l.version) ? l.version : 1;
+  return { id: str(l.id) || newId(), key: str(l.key), zone: ZONES.includes(l.zone) ? l.zone : "inside", title: str(l.title), version, entries };
+}
+
+// Liste de départ revue (ex. piscine adaptée à la thermopompe) : remplace l'ancienne si ses étapes
+// n'ont ni photo, ni vidéo, ni note ; les lignes ajoutées par l'utilisateur sont gardées à la fin.
+function upgradeList(list, checks) {
+  const def = DEFAULT_LIST_BY_KEY[list.key];
+  if (!def || (def[4] ?? 1) <= list.version) return list;
+  const own = new RegExp(`^${list.key}-\\d+$`);
+  const defaults = list.entries.filter((e) => own.test(e.id));
+  if (defaults.some((e) => e.media.length || e.note)) return { ...list, version: def[4] };
+  delete checks[list.id]; // les étapes ont changé : on repart à zéro
+  const fresh = defaultList(def);
+  return { ...fresh, id: list.id, entries: [...fresh.entries, ...list.entries.filter((e) => !own.test(e.id))] };
 }
 
 const posNum = (v) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) || Number(v) < 0 ? null : Math.round(Number(v) * 100) / 100);
@@ -222,10 +258,11 @@ export function normalizeHouse(raw) {
   for (const [id, c] of Object.entries(raw.checks && typeof raw.checks === "object" ? raw.checks : {})) {
     if (listIds.has(id) && Number.isInteger(c?.year)) checks[id] = { year: c.year, done: Object.fromEntries(Object.entries(c.done ?? {}).filter(([, v]) => v === true)) };
   }
+  const upgraded = lists.map((l) => upgradeList(l, checks));
   const taskIds = new Set(tasks.map((t) => t.id));
   // Données d'avant les fournitures : celles de départ
   const supplies = Array.isArray(raw.supplies) ? raw.supplies.map((s) => normalizeSupply(s, taskIds)).filter(Boolean) : emptyHouse().supplies.map((s) => normalizeSupply(s, taskIds));
-  return { tasks, lists, checks, supplies };
+  return { tasks, lists: upgraded, checks, supplies };
 }
 
 // ---- Calcul des dates ----

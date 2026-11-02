@@ -100,18 +100,46 @@ export const FIGURES = {
     <path d="M14 44 q106 28 212 0" fill="none" stroke="#3a6b4a" stroke-width="7"/>
     <path d="M100 56 q20 8 40 0" fill="${W}"/>
     ${arrow(120, 40, 120, 14, N)}`, "Retirer la toile"),
+  // Thermopompe : la détacher (ou la rattacher) de l'assemblage de tuyauterie de dérivation
+  heatpump: svg(`
+    <rect x="120" y="30" width="96" height="96" rx="8" fill="#fff" stroke="${N}" stroke-width="3"/>
+    <circle cx="168" cy="72" r="28" fill="none" stroke="${N}" stroke-width="3"/>
+    ${[0, 1, 2, 3].map((k) => `<line x1="168" y1="72" x2="${168 + 24 * Math.cos(k * 1.57 + 0.4)}" y2="${72 + 24 * Math.sin(k * 1.57 + 0.4)}" stroke="${N}" stroke-width="5" stroke-linecap="round"/>`).join("")}
+    <path d="M20 100 h60" stroke="#d9534f" stroke-width="8"/><path d="M20 118 h60" stroke="#4a90d9" stroke-width="8"/>
+    <rect x="80" y="94" width="12" height="12" rx="2" fill="${O}"/><rect x="80" y="112" width="12" height="12" rx="2" fill="${O}"/>
+    <path d="M104 100 h16 M104 118 h16" stroke="${G}" stroke-width="8" stroke-dasharray="4 4"/>
+    <text x="16" y="84" font-family="sans-serif" font-size="12" fill="${N}">raccords</text>`, "Thermopompe"),
+  // Vidanger la thermopompe
+  heatpumpDrain: svg(`
+    <rect x="70" y="20" width="100" height="96" rx="8" fill="#fff" stroke="${N}" stroke-width="3"/>
+    <circle cx="120" cy="62" r="28" fill="none" stroke="${N}" stroke-width="3"/>
+    <rect x="86" y="116" width="14" height="10" fill="${O}"/><rect x="140" y="116" width="14" height="10" fill="${O}"/>
+    <path d="M93 130 q-4 8 0 12 q4 -4 0 -12z M147 130 q-4 8 0 12 q4 -4 0 -12z" fill="${W}"/>
+    <text x="180" y="130" font-family="sans-serif" font-size="12" fill="${N}">bouchons</text>`, "Vidanger la thermopompe"),
+  // Assemblage de tuyauterie de dérivation (by-pass) entre le filtre et la thermopompe
+  bypass: svg(`
+    <rect x="12" y="40" width="44" height="80" rx="20" fill="#fff" stroke="${N}" stroke-width="3"/>
+    <path d="M56 70 h40 v-30 h80 v30 h40 M96 70 h80 M56 100 h40 v20 h80 v-20 h40" fill="none" stroke="${G}" stroke-width="8"/>
+    ${[[96, 55], [176, 55], [136, 70], [136, 120]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="8" fill="${O}"/><line x1="${x - 8}" y1="${y}" x2="${x + 8}" y2="${y}" stroke="#fff" stroke-width="3"/>`).join("")}
+    <text x="14" y="138" font-family="sans-serif" font-size="11" fill="${N}">filtre</text>
+    <text x="232" y="138" text-anchor="end" font-family="sans-serif" font-size="11" fill="${N}">thermopompe</text>
+    <text x="96" y="24" font-family="sans-serif" font-size="12" font-weight="700" fill="${N}">dérivation</text>`, "Assemblage de dérivation"),
+  // Tuyaux souterrains d'eau chaude et d'eau froide jusqu'à la thermopompe
+  underground: svg(`
+    <rect x="0" y="54" width="240" height="96" fill="#cdb48f"/>
+    <rect x="0" y="48" width="240" height="8" fill="#6aa84f"/>
+    <rect x="6" y="20" width="40" height="30" rx="4" fill="#fff" stroke="${N}" stroke-width="2"/>
+    <rect x="190" y="14" width="44" height="36" rx="4" fill="#fff" stroke="${N}" stroke-width="2"/>
+    <path d="M30 50 v40 h180 v-40" fill="none" stroke="#d9534f" stroke-width="7"/>
+    <path d="M18 50 v58 h204 v-58" fill="none" stroke="#4a90d9" stroke-width="7"/>
+    ${arrow(60, 128, 160, 128, "#fff")}
+    <text x="80" y="146" font-family="sans-serif" font-size="12" font-weight="700" fill="${N}">≈ 30 pi</text>
+    <text x="8" y="14" font-family="sans-serif" font-size="11" fill="${N}">filtre</text>
+    <text x="172" y="10" font-family="sans-serif" font-size="11" fill="${N}">thermopompe</text>`, "Tuyaux souterrains"),
   // Faire analyser l'eau en magasin
   analyze: svg(`
     <path d="M70 20 h40 v20 l26 70 q4 14 -10 14 h-72 q-14 0 -10 -14 l26 -70 z" fill="#fff" stroke="${N}" stroke-width="3"/>
     <path d="M58 90 h86 l8 20 q4 14 -10 14 h-82 q-14 0 -10 -14 z" fill="${W}"/>
     <rect x="150" y="40" width="78" height="44" rx="6" fill="${O}"/>
     <text x="189" y="67" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="700" fill="#fff">ANALYSE</text>`, "Faire analyser l'eau"),
-};
-
-// Illustration de chaque étape des procédures de départ (identifiant de l'étape -> dessin)
-export const DEFAULT_FIGURES = {
-  "pool-close-1": "balance", "pool-close-2": "brush", "pool-close-3": "shock", "pool-close-4": "lower", "pool-close-5": "backwash",
-  "pool-close-6": "power", "pool-close-7": "drain", "pool-close-8": "blow", "pool-close-9": "store", "pool-close-10": "cover",
-  "pool-open-1": "uncover", "pool-open-2": "uncover", "pool-open-3": "fill", "pool-open-4": "plugs", "pool-open-5": "start",
-  "pool-open-6": "brush", "pool-open-7": "balance", "pool-open-8": "store", "pool-open-9": "analyze",
 };
