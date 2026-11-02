@@ -1,0 +1,84 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  addPurchases, classifyPurchase, csvRows, merchantKey, parseDesjardinsCsv, purchaseTaxes, purchaseTotals, quarterPurchases, suggest,
+} from "../js/timesheet/purchases.js";
+import { emptyTimesheet, normalizeTimesheet } from "../js/timesheet/timesheet.js";
+
+// Relevés inventés, au format des CSV d'AccèsD (Visa, puis compte de la Caisse)
+const VISA = `
+"VISA**** **** **** 1000","","","2026/04/27","1","PAIEMENT AUTORISÉ - PRÉLÈVEMENT EFFECTUÉ","","","","","","",-500.00,""
+"VISA**** **** **** 1000","","","2026/04/30","1","FRAIS DE CRÉDIT","","","","","",12.00,"",""
+"VISA**** **** **** 1234","","","2026/04/01","1","QUINCAILLERIE TEST #12 SAINT-JEROME QC","","","","","",114.98,"",""
+"VISA**** **** **** 1234","","","2026/04/02","1","HOTEL SOLEIL 866-5551234 AZ","","","","","",169.31,"",""
+"VISA**** **** **** 1234","","","2026/04/02","2","USD","","","","","",118.25,"",""
+"VISA**** **** **** 1234","","","2026/04/05","1","RESTAURANT LE TEST LAVAL QC","","","","","",57.49,"",""
+"VISA**** **** **** 1234","","","2026/05/05","1","QUINCAILLERIE TEST #12 SAINT-JEROME QC","","","","","",229.95,"",""
+"VISA**** **** **** 1234","","","2026/07/02","1","QUINCAILLERIE TEST #13 LAVAL QC","","","","","",11.50,"",""
+`;
+const CAISSE = `
+
+"Succursale test","0000001","EOP","2026/04/02",00001,"Paiement facture - AccèsD Internet /S.A.A.Q. PERCEPTIONS","",363.30,"","","","","",1000.00
+"Succursale test","0000001","EOP","2026/04/15",00002,"Remise gouvernementale TPS-TVQ /TPS-TVQ","",900.00,"","","","","",100.00
+"Succursale test","0000001","EOP","2026/04/16",00003,"Assurance /ASSUREUR EXEMPLE","",159.69,"","","","","",50.00
+"Succursale test","0000001","EOP","2026/04/27",00004,"Transfert de fonds reçu /ENTREPRISE ABC /","","",6000.00,"","","","",6050.00
+"Succursale test","0000001","EOP","2026/04/30",00005,"Frais fixes d'utilisation","",3.00,"","","","","",6047.00
+`;
+
+test("Relevés : lecture des CSV de la Visa et de la Caisse", () => {
+  assert.deepEqual(csvRows('"a","b ""c""",3\n"x",,y'), [["a", 'b "c"', "3"], ["x", "", "y"]]);
+  const visa = parseDesjardinsCsv(VISA);
+  assert.equal(visa.length, 7); // la ligne « USD » n'est pas un achat
+  assert.equal(visa.find((p) => p.description.startsWith("HOTEL")).orig, "118,25 USD");
+  assert.equal(visa[0].amount, -500); // paiement : un crédit
+  assert.deepEqual(visa[2], { source: "visa", account: "1234", date: "2026-04-01", seq: "1", description: "QUINCAILLERIE TEST #12 SAINT-JEROME QC", amount: 114.98, orig: "" });
+  const caisse = parseDesjardinsCsv(CAISSE);
+  assert.equal(caisse.length, 5);
+  assert.equal(caisse[3].amount, -6000); // dépôt
+  assert.equal(caisse[0].source, "caisse");
+});
+
+test("Relevés : classement proposé", () => {
+  const cls = (description, amount = 10, extra = {}) => suggest({ source: "visa", description, amount, orig: "", ...extra });
+  assert.equal(cls("PAIEMENT AUTORISÉ", -500).category, "excluded");
+  assert.deepEqual(cls("FRAIS DE CRÉDIT"), { category: "exempt", pct: 1, status: "ok", note: "bankFees" });
+  assert.equal(cls("Paiement facture - AccèsD Internet /S.A.A.Q. PERCEPTIONS").category, "exempt");
+  assert.equal(cls("Remise gouvernementale TPS-TVQ /TPS-TVQ").category, "excluded");
+  assert.equal(cls("Assurance /ASSUREUR EXEMPLE").note, "insurance");
+  assert.deepEqual(cls("RESTAURANT LE TEST LAVAL QC"), { category: "meal", pct: 0.5, status: "check", note: "meal" });
+  assert.equal(cls("HOTEL SOLEIL 866-5551234 AZ").note, "foreign"); // commerçant hors du Canada
+  assert.equal(cls("LOGICIEL X 800-5551234 CA", 10, { orig: "23,00 USD" }).note, "foreign"); // payé en devise
+  assert.deepEqual(cls("QUINCAILLERIE TEST #12 SAINT-JEROME QC"), { category: "taxable", pct: 1, status: "check", note: "new" });
+  assert.equal(merchantKey("QUINCAILLERIE TEST #13 LAVAL QC"), "QUINCAILLERIE TEST");
+});
+
+test("Relevés : doublons, choix retenu par commerce, crédits et totaux du trimestre", () => {
+  let ts = emptyTimesheet();
+  ts = addPurchases(ts, parseDesjardinsCsv(VISA)).ts;
+  let r = addPurchases(ts, [...parseDesjardinsCsv(VISA), ...parseDesjardinsCsv(CAISSE)]);
+  assert.deepEqual([r.added, r.skipped], [5, 7]); // le relevé Visa réimporté n'ajoute rien
+  ts = r.ts;
+  // La quincaillerie : usage mixte 50 %, retenu ; ses autres achats suivent
+  const first = ts.purchases.find((p) => p.description.includes("#12"));
+  ts = classifyPurchase(ts, first.id, { category: "taxable", pct: 0.5 });
+  const hw = ts.purchases.filter((p) => merchantKey(p.description) === "QUINCAILLERIE TEST");
+  assert.deepEqual(hw.map((p) => [p.pct, p.status]), [[0.5, "ok"], [0.5, "ok"], [0.5, "ok"]]);
+  assert.deepEqual(ts.merchantRules["QUINCAILLERIE TEST"], { category: "taxable", pct: 0.5 });
+  // Un relevé plus tard : la quincaillerie est classée toute seule
+  r = addPurchases(ts, [{ source: "visa", account: "1234", date: "2026-08-01", seq: "1", description: "QUINCAILLERIE TEST #12 SAINT-JEROME QC", amount: 50, orig: "" }]);
+  assert.deepEqual(["category", "pct", "status"].map((k) => r.ts.purchases.at(-1)[k]), ["taxable", 0.5, "ok"]);
+  // Crédits : 114,98 $ taxes comprises = 100 $ avant taxes ; à 50 % : 2,50 $ de TPS et 4,99 $ de TVQ
+  const x = purchaseTaxes(ts.purchases.find((p) => p.id === first.id));
+  assert.deepEqual([x.base, x.tps, x.tvq].map((n) => Math.round(n * 100) / 100), [50, 2.5, 4.99]);
+  const q2 = quarterPurchases(ts, "2026-T2");
+  assert.equal(q2.length, 11); // la quincaillerie de juillet est au trimestre suivant
+  const totals = purchaseTotals(q2);
+  assert.equal(totals.groups.mixed.count, 2);
+  assert.deepEqual([totals.groups.meal.tps, totals.groups.meal.tvq], [1.25, 2.49]); // resto 57,49 $ : 50 %
+  assert.equal(totals.groups.excluded.count, 3); // paiement de la carte, remise, dépôt
+  assert.equal(totals.tps, 8.75); // 2,50 + 5,00 (mixte) + 1,25 (resto)
+  // gardé dans les données
+  const back = normalizeTimesheet(JSON.parse(JSON.stringify(ts)));
+  assert.equal(back.purchases.length, ts.purchases.length);
+  assert.deepEqual(back.merchantRules, ts.merchantRules);
+});
