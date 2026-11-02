@@ -1,7 +1,7 @@
 // Versions du schéma de données et migrations.
 //
 // Le document enregistré a la forme :
-//   { schemaVersion, items: [...], settings: {...}, grocery: {...}, timesheet: {...} }
+//   { schemaVersion, items: [...], settings: {...}, grocery: {...}, timesheet: {...}, house: {...} }
 //
 // Pour faire évoluer le format : incrémenter SCHEMA_VERSION et ajouter une
 // fonction dans MIGRATIONS qui transforme la version N-1 en version N.
@@ -9,6 +9,7 @@
 import { normalizeItem } from "./item.js";
 import { emptyGrocery, normalizeGrocery } from "../grocery/grocery.js";
 import { emptyTimesheet, normalizeTimesheet } from "../timesheet/timesheet.js";
+import { emptyHouse, normalizeHouse } from "../house/house.js";
 
 export const SCHEMA_VERSION = 4;
 
@@ -27,7 +28,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
 });
 
 export function emptyDocument() {
-  return { schemaVersion: SCHEMA_VERSION, items: [], settings: structuredClone(DEFAULT_SETTINGS), grocery: emptyGrocery(), timesheet: emptyTimesheet() };
+  return { schemaVersion: SCHEMA_VERSION, items: [], settings: structuredClone(DEFAULT_SETTINGS), grocery: emptyGrocery(), timesheet: emptyTimesheet(), house: emptyHouse() };
 }
 
 const MIGRATIONS = {
@@ -69,6 +70,8 @@ export function migrate(input) {
   doc.settings = { ...structuredClone(DEFAULT_SETTINGS), ...doc.settings };
   doc.grocery = normalizeGrocery(doc.grocery);
   doc.timesheet = normalizeTimesheet(doc.timesheet);
+  // Entretien de la maison : absent des anciennes données -> listes de départ
+  doc.house = normalizeHouse(doc.house);
   return doc;
 }
 

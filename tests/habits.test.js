@@ -14,8 +14,10 @@ test("occurrences : tous les jours, certains jours, arrêt", async () => {
   await repo.init();
   const daily = await repo.add({ title: "Méditer", module: "habitude", date: "2026-10-19", recurrence: { freq: "daily" } });
   await repo.add({ title: "Course", module: "habitude", date: "2026-10-19", recurrence: { freq: "weekly", days: [1, 3, 5] } });
-  assert.equal(repo.between("2026-10-19", "2026-10-25").length, 7 + 3);
-  assert.equal(repo.onDate("2026-10-18").length, 0); // avant le début
+  // (les rappels d'entretien de la maison s'ajoutent au calendrier : on ne compte que les habitudes)
+  const habitsOnly = (list) => list.filter((i) => i.module === "habitude");
+  assert.equal(habitsOnly(repo.between("2026-10-19", "2026-10-25")).length, 7 + 3);
+  assert.equal(habitsOnly(repo.onDate("2026-10-18")).length, 0); // avant le début
 
   await repo.toggleDone(daily.id, "2026-10-20");
   assert.equal(repo.getOn(daily.id, "2026-10-20").done, true);

@@ -33,7 +33,7 @@ export function itemForm(item, { date, module = "rdv", repeat } = {}) {
 
     <fieldset class="module-picker">
       <legend>${t("form.module")}</legend>
-      ${MODULE_IDS.map((id) => {
+      ${MODULE_IDS.filter((id) => !hasFeature(id, "maintenance")).map((id) => { // la maison a sa propre page
         const m = MODULES[id];
         return `<label class="module-option" style="--c:${m.color}">
           <input type="radio" name="module" value="${id}" ${v.module === id ? "checked" : ""}>

@@ -9,6 +9,7 @@ import { Emitter } from "../core/events.js";
 import { addDays, parseISODate, toISODate } from "../core/dates.js";
 import { STATUS, compareItems, createItem, normalizeItem, validateItem } from "./item.js";
 import { occurrencesBetween } from "./recurrence.js";
+import { houseOccurrences } from "../house/house.js";
 import { SCHEMA_VERSION, emptyDocument, migrate, readLegacy } from "./migrations.js";
 
 export class ValidationError extends Error {
@@ -65,8 +66,10 @@ export class Repository extends Emitter {
   }
 
   // Bornes incluses, dates ISO.
+  // Les entretiens de la maison s'y ajoutent (rappels calculés, module « maison »).
   between(fromISO, toISO) {
-    return occurrencesBetween(this.#doc.items, fromISO, toISO).sort(compareItems);
+    const house = houseOccurrences(this.#doc.house, fromISO, toISO, toISODate(this.clock()));
+    return [...occurrencesBetween(this.#doc.items, fromISO, toISO), ...house].sort(compareItems);
   }
 
   // L'élément tel qu'il apparaît à une date (occurrence s'il est répété).
@@ -172,6 +175,17 @@ export class Repository extends Emitter {
   async updateTimesheet(ts) {
     this.#doc.timesheet = ts;
     await this.#commit("timesheet", null);
+  }
+
+  // ---- Entretien de la maison ---------------------------------------------------
+
+  house() {
+    return this.#doc.house;
+  }
+
+  async updateHouse(house) {
+    this.#doc.house = house;
+    await this.#commit("house", null);
   }
 
   async updateSettings(patch) {
