@@ -922,4 +922,9 @@ export default {
   "tax.reportHint": "O relatório reúne os impostos cobrados, os pagos e o saldo a pagar, com as linhas da sua declaração. O Excel e o PDF também trazem o detalhe das compras.",
   "tax.reportExcel": "Relatório Excel",
   "tax.reportPdf": "Relatório PDF",
+  "ts.sampleInvoice": "Ver uma fatura de exemplo",
+  "tax.sampleReport": "Ver um relatório de exemplo",
+  "ts.sampleHint": "Exemplo feito com dados totalmente fictícios (empresa, cliente, valores) para mostrar o aplicativo. Seus dados reais não são usados nem alterados.",
+  "ts.sampleInvoiceTitle": "Fatura de exemplo",
+  "tax.sampleReportTitle": "Relatório de exemplo",
 };

@@ -11,7 +11,7 @@
 
 import { PdfWriter } from "../export/pdf.js";
 import { FORMATS } from "../export/xlsx.js";
-import { COLORS, INVOICE_STYLES, logoImage } from "./invoice.js";
+import { COLORS, INVOICE_STYLES, logoImage, subtitleOf } from "./invoice.js";
 import { purchaseTaxes, purchaseTotals, quarterHomeCharging, quarterPurchases } from "./purchases.js";
 import { quarterInvoices, quarterRange, salesTotals } from "./taxes.js";
 
@@ -109,7 +109,7 @@ export function periodLabel(quarter) {
   return `${cap(month(from, "fr-CA"))} – ${month(to, "fr-CA")} ${y} / ${month(from, "en-CA")} – ${month(to, "en-CA")} ${y}`;
 }
 
-export function taxReportData(ts, quarter, { today = new Date().toISOString().slice(0, 10) } = {}) {
+export function taxReportData(ts, quarter, { today = new Date().toISOString().slice(0, 10), sample = false } = {}) {
   const { from, to } = quarterRange(quarter);
   const b = ts.business ?? {};
   const invoices = quarterInvoices(ts, quarter);
@@ -128,7 +128,7 @@ export function taxReportData(ts, quarter, { today = new Date().toISOString().sl
   const balance = { tps: round2(sales.tps - paidTps), tvq: round2(sales.tvq - paidTvq) };
   balance.total = round2(balance.tps + balance.tvq);
   return {
-    quarter, from, to, period: periodLabel(quarter), generated: today,
+    sample: Boolean(sample), quarter, from, to, period: periodLabel(quarter), generated: today,
     business: { name: b.name ?? "", addressLine: lines(b.address).join(", "), contactLine: [b.phone, b.email].filter(Boolean).join("  ·  "),
       tpsNumber: b.tpsNumber ?? "", tvqNumber: b.tvqNumber ?? "", logo: b.logo ?? "", logoSize: b.logoSize ?? null },
     invoices, sales, paid, paidTotals: { tps: paidTps, tvq: paidTvq }, balance,
@@ -174,7 +174,7 @@ export function taxReportSheets(d) {
   row(19.5);
   merges.push("D1:G2");
   r = row(15.75);
-  r[3] = { v: L.subtitle, s: "subtitle" };
+  r[3] = { v: subtitleOf(L, d), s: "subtitle" };
   merge("D", "G");
   row(15.75);
   fill(row(6), 0, 6, "rule");
@@ -416,7 +416,7 @@ export function taxReportPdf(d, { logo = null, measure } = {}) {
     page.image(logoImg, M, M, logoImg.width * scale, logoImg.height * scale);
   }
   page.text(L.title, RIGHT, M + 40, { size: 22, bold: true, color: P.navy, align: "right" });
-  page.text(L.subtitle, RIGHT, M + 54, { size: 9, bold: true, color: P.orange, align: "right" });
+  page.text(subtitleOf(L, d), RIGHT, M + 54, { size: 9, bold: true, color: P.orange, align: "right" });
   y = M + 74;
   page.line(M, y, RIGHT, y, { color: P.orange, width: 2.5 });
   y += 18;

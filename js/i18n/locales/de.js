@@ -922,4 +922,9 @@ export default {
   "tax.reportHint": "Der Bericht fasst eingenommene und bezahlte Steuern sowie den zu zahlenden Saldo mit den Zeilen deiner Erklärung zusammen. Excel und PDF enthalten auch die Einkäufe im Detail.",
   "tax.reportExcel": "Bericht als Excel",
   "tax.reportPdf": "Bericht als PDF",
+  "ts.sampleInvoice": "Beispielrechnung ansehen",
+  "tax.sampleReport": "Beispielbericht ansehen",
+  "ts.sampleHint": "Beispiel mit vollständig erfundenen Daten (Firma, Kunde, Beträge), um die App zu zeigen. Deine echten Daten werden weder verwendet noch geändert.",
+  "ts.sampleInvoiceTitle": "Beispielrechnung",
+  "tax.sampleReportTitle": "Beispielbericht",
 };
