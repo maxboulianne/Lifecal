@@ -26,7 +26,7 @@ import { DEFAULT_MILEAGE_RATE, normalizeExpenses, normalizeRates, normalizeRecur
 import { normalizeTasks, standardTasks } from "./tasks.js";
 import { copyPresence, normalizeDays } from "./presence.js";
 import { normalizeInvoices } from "./taxes.js";
-import { normalizeMerchantRules, normalizePurchases } from "./purchases.js";
+import { normalizeHomeCharging, normalizeMerchantRules, normalizePurchases } from "./purchases.js";
 
 export const TPS_RATE = 0.05;
 export const TVQ_RATE = 0.09975;
@@ -40,7 +40,7 @@ export function emptyBusiness() {
 }
 
 export function emptyTimesheet() {
-  return { clients: [], projects: [], entries: [], expenses: [], recurring: [], rates: {}, tasks: standardTasks(), days: {}, invoices: [], purchases: [], merchantRules: {}, business: emptyBusiness() };
+  return { clients: [], projects: [], entries: [], expenses: [], recurring: [], rates: {}, tasks: standardTasks(), days: {}, invoices: [], purchases: [], merchantRules: {}, personalRules: {}, homeCharging: [], business: emptyBusiness() };
 }
 
 const str = (v) => String(v ?? "").trim();
@@ -95,7 +95,8 @@ export function normalizeTimesheet(raw) {
   const recurring = normalizeRecurring(ts.recurring).filter((r) => (r.projectId ? known.has(r.projectId) : clientIds.has(r.clientId)));
   return {
     clients, projects, entries, expenses, recurring, rates: normalizeRates(ts.rates), tasks: normalizeTasks(ts.tasks), days: normalizeDays(ts.days),
-    invoices: normalizeInvoices(ts.invoices), purchases: normalizePurchases(ts.purchases), merchantRules: normalizeMerchantRules(ts.merchantRules), business,
+    invoices: normalizeInvoices(ts.invoices), purchases: normalizePurchases(ts.purchases), merchantRules: normalizeMerchantRules(ts.merchantRules),
+    personalRules: normalizeMerchantRules(ts.personalRules), homeCharging: normalizeHomeCharging(ts.homeCharging), business,
   };
 }
 

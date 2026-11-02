@@ -6,7 +6,7 @@
 import { esc } from "../../core/dom.js";
 import { fmt, getLanguage, t } from "../../i18n/index.js";
 import { quarterInvoices, quarterRange, salesTotals } from "../../timesheet/taxes.js";
-import { PURCHASE_CHOICES, choiceKey, purchaseTotals, quarterPurchases } from "../../timesheet/purchases.js";
+import { PURCHASE_CHOICES, choiceKey, purchaseTotals, quarterHomeCharging, quarterPurchases } from "../../timesheet/purchases.js";
 import { foldSection, isFoldOpen } from "./fold.js";
 
 // « avril – juin 2026 »
@@ -50,9 +50,11 @@ function invoiceForm(ts, quarter, editing) {
 
 // ---- Taxes payées : achats tirés des relevés ----
 
-const GROUPS = ["taxable", "mixed", "meal", "exempt", "excluded"];
+const GROUPS = ["taxable", "mixed", "meal", "exempt", "excluded", "persoTaxable", "persoMixed", "persoMeal", "persoExempt"];
 
+// Une transaction : catégorie à choisir ; dans un relevé personnel, « Exclu » se dit « Personnel »
 function purchaseRow(p) {
+  const label = (c) => t(p.source === "perso" && c.category === "excluded" ? "tax.choice.personal" : `tax.choice.${c.category}.${c.pct}`);
   return `<li class="ts-purchase ${p.status === "check" ? "is-check" : ""}">
     <div class="ts-purchase-text">
       <span class="ts-purchase-desc">${esc(p.description)}</span>
@@ -60,49 +62,105 @@ function purchaseRow(p) {
     </div>
     <span class="ts-purchase-amount">${money(p.amount)}</span>
     <select data-action="ts-purchase-cat" data-id="${esc(p.id)}" aria-label="${esc(t("tax.category"))}">
-      ${PURCHASE_CHOICES.map((c) => `<option value="${choiceKey(c)}" ${choiceKey(c) === choiceKey(p) ? "selected" : ""}>${esc(t(`tax.choice.${c.category}.${c.pct}`))}</option>`).join("")}
+      ${PURCHASE_CHOICES.map((c) => `<option value="${choiceKey(c)}" ${choiceKey(c) === choiceKey(p) ? "selected" : ""}>${esc(label(c))}</option>`).join("")}
     </select>
     ${p.status === "check" ? `<button type="button" class="btn soft ts-purchase-ok" data-action="ts-purchase-ok" data-id="${esc(p.id)}" aria-label="${esc(t("tax.confirm"))}" title="${esc(t("tax.confirm"))}">✓</button>` : ""}
     <button type="button" class="check-remove" data-action="ts-purchase-remove" data-id="${esc(p.id)}" aria-label="${esc(t("ts.remove"))}">×</button>
   </li>`;
 }
 
-function purchasesBlock(ts, quarter, sales) {
-  const list = quarterPurchases(ts, quarter);
-  const x = purchaseTotals(list);
-  const toCheck = list.filter((p) => p.status === "check");
-  const summary = list.length ? `<div class="ts-tax-scroll"><table class="ts-summary ts-purchase-summary">
+const importButton = (source) => `<div class="actions start ts-tax-import">
+    <label class="btn primary">📥 ${t(source === "perso" ? "tax.importPersonal" : "tax.importStatements")}
+      <input type="file" accept=".csv,text/csv,.pdf,application/pdf" multiple data-action="ts-tax-statement" data-source="${source}" hidden></label>
+  </div>`;
+
+// Relevés personnels : tout est personnel par défaut ; une case par transaction pour l'entreprise
+function personalBlock(list, ui = {}) {
+  const debits = list.filter((p) => p.amount > 0);
+  const business = debits.filter((p) => p.category !== "excluded" || p.status === "check");
+  const q = String(ui.persoQuery ?? "").trim().toLowerCase();
+  const row = (p) => `<li ${q && !`${p.description} ${p.date} ${p.amount}`.toLowerCase().includes(q) ? "hidden" : ""} class="ts-perso ${p.category !== "excluded" ? "is-business" : ""}" data-search="${esc(`${p.description} ${p.date} ${p.amount}`.toLowerCase())}">
+      <label class="ts-perso-check"><input type="checkbox" data-action="ts-perso-toggle" data-id="${esc(p.id)}" ${p.category !== "excluded" ? "checked" : ""}
+        aria-label="${esc(t("tax.forBusiness"))}"></label>
+      <div class="ts-purchase-text"><span class="ts-purchase-desc">${esc(p.description)}</span><span class="hint">${esc(p.date)}</span></div>
+      <span class="ts-purchase-amount">${money(p.amount)}</span>
+    </li>`;
+  return `<h3>${t("tax.personal")}</h3>
+    <p class="hint">${t("tax.personalHint")}</p>
+    ${importButton("perso")}
+    ${business.length ? `<p class="ts-perso-title">${t("tax.personalBusiness", { count: business.length })}</p>
+      <ul class="ts-purchase-list">${business.map(purchaseRow).join("")}</ul>` : ""}
+    ${debits.length ? `<details class="ts-purchase-all ts-perso-all" data-role="perso-all" ${ui.persoOpen ? "open" : ""}><summary>${t("tax.personalAll", { count: debits.length })}</summary>
+        <input type="search" class="ts-perso-search" data-action="ts-perso-filter" value="${esc(ui.persoQuery ?? "")}" placeholder="${esc(t("tax.personalSearch"))}" aria-label="${esc(t("tax.personalSearch"))}" autocomplete="off">
+        <ul class="ts-perso-list">${debits.map(row).join("")}</ul></details>` : ""}`;
+}
+
+// Recharge à la maison : part « Véhicule électrique » de chaque période d'Hydro-Québec
+function homeChargingBlock(hc) {
+  return `<h3>${t("tax.homeCharging")}</h3>
+    <p class="hint">${t("tax.homeChargingHint")}</p>
+    ${hc.rows.length ? `<div class="ts-tax-scroll"><table class="ts-summary ts-home-table">
+      <thead><tr><th>${t("tax.period")}</th><th>${t("tax.evAmount")}</th><th>${t("tax.daysInQuarter")}</th><th>${t("tax.share")}</th><th></th></tr></thead>
+      <tbody>${hc.rows.map((r) => `<tr><td>${esc(r.from)} → ${esc(r.to)}</td><td>${money(r.amount)}</td><td>${r.inQuarter} / ${r.days}</td><td>${money(r.share)}</td>
+        <td><button type="button" class="check-remove" data-action="ts-home-remove" data-id="${esc(r.id)}" aria-label="${esc(t("ts.remove"))}">×</button></td></tr>`).join("")}</tbody>
+      <tfoot><tr><th colspan="3">${t("tax.homeChargingTotal")}</th><th>${money(hc.base)}</th><th></th></tr></tfoot>
+    </table></div>` : ""}
+    <details class="ts-new-wrap"><summary class="btn soft">＋ ${t("tax.addPeriod")}</summary>
+      <form class="form ts-new" data-role="ts-home-charging">
+        <div class="row three">
+          <label>${t("ts.from")} <input type="date" name="from" required></label>
+          <label>${t("ts.to")} <input type="date" name="to" required></label>
+          <label>${t("tax.evAmount")} <input name="amount" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "34,00" }))}" autocomplete="off" required></label>
+        </div>
+        <p class="form-errors" data-role="errors" role="alert"></p>
+        <div class="actions"><button type="submit" class="btn primary">${t("tax.addPeriod")}</button></div>
+      </form></details>`;
+}
+
+function purchasesBlock(ts, quarter, sales, ui = {}) {
+  const all = quarterPurchases(ts, quarter);
+  const list = all.filter((p) => p.source !== "perso");
+  const perso = all.filter((p) => p.source === "perso");
+  const x = purchaseTotals(all);
+  const hc = quarterHomeCharging(ts, quarter);
+  const paid = { tps: x.tps + hc.tps, tvq: x.tvq + hc.tvq };
+  const toCheck = all.filter((p) => p.status === "check");
+  const summaryRows = [
+    ...GROUPS.filter((g) => x.groups[g]).map((g) => [t(`tax.group.${g}`), x.groups[g].count, x.groups[g].amount, x.groups[g].tps, x.groups[g].tvq]),
+    ...(hc.rows.length ? [[t("tax.group.homeCharging"), hc.rows.length, hc.base, hc.tps, hc.tvq]] : []),
+  ];
+  const summary = summaryRows.length ? `<div class="ts-tax-scroll"><table class="ts-summary ts-purchase-summary">
       <thead><tr><th>${t("tax.category")}</th><th>${t("tax.count")}</th><th>${t("tax.amount")}</th><th>TPS</th><th>TVQ</th></tr></thead>
-      <tbody>${GROUPS.filter((g) => x.groups[g]).map((g) => `<tr><td>${esc(t(`tax.group.${g}`))}</td><td>${x.groups[g].count}</td>
-        <td>${money(x.groups[g].amount)}</td><td>${money(x.groups[g].tps)}</td><td>${money(x.groups[g].tvq)}</td></tr>`).join("")}</tbody>
-      <tfoot><tr><th colspan="3">${t("tax.paidTotal")}</th><th>${money(x.tps)}</th><th>${money(x.tvq)}</th></tr>
+      <tbody>${summaryRows.map(([label, count, amount, tps, tvq]) => `<tr><td>${esc(label)}</td><td>${count}</td>
+        <td>${money(amount)}</td><td>${money(tps)}</td><td>${money(tvq)}</td></tr>`).join("")}</tbody>
+      <tfoot><tr><th colspan="3">${t("tax.paidTotal")}</th><th>${money(paid.tps)}</th><th>${money(paid.tvq)}</th></tr>
         <tr class="ts-tax-lines"><td colspan="3"></td><td>${t("tax.line", { line: 106 })}</td><td>${t("tax.line", { line: 206 })}</td></tr></tfoot>
     </table></div>` : `<p class="ts-empty-export">${t("tax.noPurchases")}</p>`;
-  const balance = list.length || sales.subtotal ? `<div class="ts-tax-balance">
+  const businessCheck = list.filter((p) => p.status === "check");
+  const balance = all.length || hc.rows.length || sales.subtotal ? `<div class="ts-tax-balance">
       <p class="ts-tax-balance-title">${t("tax.balance")}</p>
-      <dl><div><dt>TPS</dt><dd>${money(sales.tps - x.tps)}</dd></div><div><dt>TVQ</dt><dd>${money(sales.tvq - x.tvq)}</dd></div>
-        <div class="total"><dt>${t("tax.total")}</dt><dd>${money(sales.tps - x.tps + sales.tvq - x.tvq)}</dd></div></dl>
+      <dl><div><dt>TPS</dt><dd>${money(sales.tps - paid.tps)}</dd></div><div><dt>TVQ</dt><dd>${money(sales.tvq - paid.tvq)}</dd></div>
+        <div class="total"><dt>${t("tax.total")}</dt><dd>${money(sales.tps - paid.tps + sales.tvq - paid.tvq)}</dd></div></dl>
       <p class="hint">${t(toCheck.length ? "tax.balanceDraftCheck" : "tax.balanceDraft", { count: toCheck.length })}</p>
     </div>` : "";
   return `<h3>${t("tax.paid")}</h3>
     <p class="hint">${t("tax.paidHint")}</p>
-    <div class="actions start ts-tax-import">
-      <label class="btn primary">📥 ${t("tax.importStatements")}
-        <input type="file" accept=".csv,text/csv,.pdf,application/pdf" multiple data-action="ts-tax-statement" hidden></label>
-    </div>
+    ${importButton("business")}
     ${summary}
-    ${toCheck.length ? `<div class="ts-purchase-check">
-        <p class="ts-purchase-check-title">⚠️ ${t("tax.toCheck", { count: toCheck.length })}</p>
+    ${businessCheck.length ? `<div class="ts-purchase-check">
+        <p class="ts-purchase-check-title">⚠️ ${t("tax.toCheck", { count: businessCheck.length })}</p>
         <p class="hint">${t("tax.toCheckHint")}</p>
-        <ul class="ts-purchase-list">${toCheck.map(purchaseRow).join("")}</ul>
-        <div class="actions start"><button type="button" class="btn soft" data-action="ts-purchase-ok-all">✓ ${t("tax.confirmAll", { count: toCheck.length })}</button></div>
+        <ul class="ts-purchase-list">${businessCheck.map(purchaseRow).join("")}</ul>
+        <div class="actions start"><button type="button" class="btn soft" data-action="ts-purchase-ok-all">✓ ${t("tax.confirmAll", { count: businessCheck.length })}</button></div>
       </div>` : ""}
     ${list.length ? `<details class="ts-purchase-all"><summary>${t("tax.allPurchases", { count: list.length })}</summary>
         <ul class="ts-purchase-list">${list.map(purchaseRow).join("")}</ul></details>` : ""}
+    ${personalBlock(perso, ui)}
+    ${homeChargingBlock(hc)}
     ${balance}`;
 }
 
-export function taxesSection(ts, quarter, editingId) {
+export function taxesSection(ts, quarter, editingId, ui = {}) {
   const list = quarterInvoices(ts, quarter);
   const editing = (ts.invoices ?? []).find((i) => i.id === editingId) ?? null;
   const x = salesTotals(list);
@@ -139,7 +197,7 @@ export function taxesSection(ts, quarter, editingId) {
       <p class="hint">${t("tax.importHint")}</p>
       ${editing ? invoiceForm(ts, quarter, editing) : `<details class="ts-new-wrap">
         <summary class="btn soft">＋ ${t("tax.addInvoice")}</summary>${invoiceForm(ts, quarter, null)}</details>`}
-      ${purchasesBlock(ts, quarter, x)}
+      ${purchasesBlock(ts, quarter, x, ui)}
       <p class="hint ts-tax-next">${t("tax.nextSteps")}</p>`,
   });
 }

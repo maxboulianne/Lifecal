@@ -1368,3 +1368,13 @@ body.player-open { overflow: hidden; }
   .ts-purchase { grid-template-columns: minmax(0, 1fr) auto auto; }
   .ts-purchase-text { grid-column: 1 / -1; }
 }
+
+/* Payé par toi : relevés personnels ; recharge à la maison */
+.ts-perso-title { margin: 10px 0 0; font-weight: 700; }
+.ts-perso-search { width: 100%; min-height: var(--tap); margin: 8px 0; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-size: 16px; box-sizing: border-box; }
+.ts-perso-list { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
+.ts-perso { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.ts-perso.is-business { background: #eef6f1; }
+.ts-perso-check input { width: 24px; height: 24px; }
+.ts-home-table td:nth-child(n+2), .ts-home-table th:nth-child(n+2) { text-align: right; white-space: nowrap; }
+.ts-home-table td:first-child { white-space: nowrap; }
