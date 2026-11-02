@@ -45,6 +45,13 @@ export const MODULES = {
     icon: "🧘",
     features: ["meditation"],
   },
+  // Entretien de la maison : rappels calculés depuis la page Maison (couleurs des documents Maxxam)
+  maison: {
+    id: "maison",
+    color: "#2c4a6e", // bleu marine
+    icon: "🏠",
+    features: ["maintenance"],
+  },
   journal: {
     id: "journal",
     color: "#64748b", // gris

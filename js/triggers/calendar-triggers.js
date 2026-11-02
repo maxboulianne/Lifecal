@@ -8,6 +8,7 @@ import { FREQ, doneInWeek, occurrencesBetween } from "../data/recurrence.js";
 import { getChecklist, progress } from "../data/checklist.js";
 import { fmt } from "../i18n/index.js";
 import { kindIcon, reminderPhase, upcomingEvents } from "../events/events.js";
+import { dueSoon } from "../house/house.js";
 
 const upcoming = (items, today, moduleId, maxDays) =>
   items
@@ -190,6 +191,30 @@ export const timesheetReminder = {
   },
 };
 
+// Entretiens de la maison en retard ou à faire dans la semaine : un seul rappel, qui ouvre la page.
+export const houseReminder = {
+  id: "maison",
+  kind: "calendar",
+  withinDays: 7,
+  evaluate({ house, today }) {
+    if (!house) return [];
+    const due = dueSoon(house, today, this.withinDays);
+    if (!due.length) return [];
+    return [
+      {
+        id: `maison:${today}`,
+        tone: due.some((x) => x.days < 0) ? "info" : "soft",
+        icon: "🏠",
+        messageKey: due.length === 1 ? "nudge.houseOne" : "nudge.house",
+        params: { count: due.length, title: due[0].task.title },
+        itemIds: [],
+        actionKey: "nudge.houseAction",
+        action: "open-house",
+      },
+    ];
+  },
+};
+
 // Le dimanche, si la dernière copie des données date de plus d'un mois
 // (ou n'existe pas) : un rappel doux d'en faire une. Les données ne vivent
 // que sur l'appareil ; une copie les met à l'abri.
@@ -218,5 +243,5 @@ export const backupReminder = {
 };
 
 export const calendarTriggers = [
-  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, timesheetReminder, backupReminder,
+  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, timesheetReminder, houseReminder, backupReminder,
 ];

@@ -40,6 +40,8 @@ import { MAX_CHAINS, fetchHotels, fetchSuggestions, getChain } from "../travel/d
 import { geocode } from "../travel/geocode.js";
 import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited, cachedHotels, cachedSuggestions, destQuery, getDest, hotelsKey, suggestionsKey } from "../travel/trip.js";
 import { settingsPage } from "./pages/settings.js";
+import { housePage } from "./pages/house.js";
+import * as House from "../house/house.js";
 import { CUSTOM_TASK, dayOfMonth, rangeDates, timesheetPage } from "./pages/timesheet.js";
 import { addTask, getTask, removeTask, taskUseCount, updateTask } from "../timesheet/tasks.js";
 import { normalizeTime, parsePause, setPresence } from "../timesheet/presence.js";
@@ -127,6 +129,7 @@ const PAGES = {
   shopping: shoppingPage,
   habits: habitsPage,
   timesheet: timesheetPage,
+  house: housePage,
   settings: settingsPage,
 };
 const JOURNAL_SAVE_DELAY = 700;
@@ -154,6 +157,7 @@ export class App {
   taxQuarter = null; // trimestre affiché dans « Taxes » (par défaut : celui qui vient de finir)
   taxEditing = null; // facture du registre en cours de modification
   taxImport = null; // factures lues dans des fichiers Excel, en attente de confirmation
+  houseUi = { tab: "inside", editing: null, focus: null, openList: null }; // page Maison : onglet, tâche modifiée ou mise en évidence
   taxUi = { persoOpen: false, persoQuery: "" }; // liste des transactions personnelles : ouverte, recherche
   receipt = null; // « Scanner un reçu » en cours : { date, slots, values, auto }
   timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
@@ -185,6 +189,7 @@ export class App {
     // La liste des transactions personnelles reste ouverte (ou fermée) d'un affichage à l'autre
     document.addEventListener("toggle", (e) => {
       if (e.target.dataset?.role === "perso-all") this.taxUi = { ...this.taxUi, persoOpen: e.target.open };
+      if (e.target.classList?.contains("house-list")) this.houseUi = { ...this.houseUi, openList: e.target.open ? e.target.id.replace("house-list-", "") : null };
     }, true);
     // Roulettes d'heure et de date (iPhone, iPad) : enregistrer quand on les referme.
     // On enregistre juste après : si l'on vient de toucher un autre champ à roulette (ex. la
@@ -333,7 +338,7 @@ export class App {
     $("#fab").setAttribute("aria-label", t({ habits: "habits.add", trips: "trips.add", events: "events.add" }[this.page] ?? "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
     $("#fab").dataset.module = fabModule;
-    $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip", "timesheet"].includes(this.page)
+    $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip", "timesheet", "house"].includes(this.page)
       || this.page === "shopping"; // l'épicerie a ses propres champs
     this.#map?.remove();
     this.#map = null;
@@ -364,6 +369,7 @@ export class App {
         taxQuarter: this.taxQuarter,
         taxEditing: this.taxEditing,
         taxUi: this.taxUi,
+        houseUi: this.houseUi,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -398,6 +404,8 @@ export class App {
         aria-label="${esc(t("nav.trips"))}" title="${esc(t("nav.trips"))}">✈️</button>
       <button type="button" class="icon-btn ${this.page === "timesheet" ? "active" : ""}" data-action="open-timesheet"
         aria-label="${esc(t("nav.timesheet"))}" title="${esc(t("nav.timesheet"))}">⏱️</button>
+      <button type="button" class="icon-btn ${this.page === "house" ? "active" : ""}" data-action="open-house"
+        aria-label="${esc(t("nav.house"))}" title="${esc(t("nav.house"))}">🏠</button>
       <button type="button" class="icon-btn ${this.page === "journal" ? "active" : ""}" data-action="open-journal"
         aria-label="${esc(t("nav.journal"))}" title="${esc(t("nav.journal"))}">📓</button>
       <button type="button" class="icon-btn ${this.page === "meditation" ? "active" : ""}" data-action="open-meditation"
@@ -445,6 +453,7 @@ export class App {
       position: this.position,
       settings: this.repo.settings,
       timesheet: this.repo.timesheet(),
+      house: this.repo.house(),
       hour: new Date().getHours(),
     });
     this.#lastNudgeKey = nudges.map((n) => n.id).join("|");
@@ -460,6 +469,16 @@ export class App {
   #detailDate = null; // date de l'occurrence affichée (fête qui revient chaque année)
 
   openItem(id, date) {
+    // Rappel d'entretien (calculé) : ouvrir la page Maison sur cette tâche
+    if (String(id).startsWith("house:")) {
+      const task = this.repo.house().tasks.find((x) => x.id === id.split(":")[1]);
+      if (!task) return;
+      this.houseUi = { ...this.houseUi, tab: task.zone, focus: task.id, editing: null };
+      if (this.page === "house") this.render();
+      else this.openPage("house");
+      requestAnimationFrame(() => document.getElementById(`house-task-${task.id}`)?.scrollIntoView({ block: "center" }));
+      return;
+    }
     this.#detailDate = date ?? null;
     const item = this.repo.getOn(id, date);
     if (!item) return;
@@ -930,6 +949,50 @@ export class App {
 
     "open-trips": () => this.openPage("trips"),
     "open-events": () => this.openPage("events"),
+    // ---- Maison : entretiens et listes à cocher ----
+    "open-house": () => {
+      this.houseUi = { ...this.houseUi, focus: null, editing: null };
+      if (this.page === "house") return this.render();
+      this.openPage("house");
+    },
+    "house-tab": (el) => {
+      this.houseUi = { ...this.houseUi, tab: el.dataset.tab, focus: null, editing: null };
+      this.render();
+    },
+    "house-done": async (el) => {
+      const task = this.repo.house().tasks.find((x) => x.id === el.dataset.id);
+      await this.#updateHouse(House.markDone(this.repo.house(), el.dataset.id, todayISO()));
+      if (task) toast(t("house.doneToast", { title: task.title }));
+    },
+    "house-edit": (el) => {
+      this.houseUi = { ...this.houseUi, editing: el.dataset.id, focus: null };
+      this.#renderKeepingScroll();
+      $(`#house-task-${el.dataset.id} [name=title]`)?.focus();
+    },
+    "house-new": () => {
+      this.houseUi = { ...this.houseUi, editing: this.houseUi.editing === "new" ? null : "new" };
+      this.#renderKeepingScroll();
+    },
+    "house-cancel": () => {
+      this.houseUi = { ...this.houseUi, editing: null };
+      this.#renderKeepingScroll();
+    },
+    "house-undo": async (el) => {
+      this.houseUi = { ...this.houseUi, editing: null };
+      await this.#updateHouse(House.undoDone(this.repo.house(), el.dataset.id));
+    },
+    "house-remove": async (el) => {
+      if (!confirm(t("house.confirmRemove"))) return;
+      this.houseUi = { ...this.houseUi, editing: null };
+      await this.#updateHouse(House.removeTask(this.repo.house(), el.dataset.id));
+    },
+    "house-open-list": (el) => {
+      this.houseUi = { ...this.houseUi, openList: el.dataset.list };
+      this.#renderKeepingScroll();
+      document.getElementById(`house-list-${el.dataset.list}`)?.scrollIntoView({ block: "start" });
+    },
+    "house-entry-remove": (el) => this.#updateHouse(House.removeListEntry(this.repo.house(), el.dataset.list, el.dataset.entry)),
+    "house-list-reset": (el) => this.#updateHouse(House.resetList(this.repo.house(), el.dataset.list)),
     "open-timesheet": () => {
       this.timesheetDate = null;
       if (this.page === "timesheet") return this.render();
@@ -1307,6 +1370,12 @@ export class App {
       await this.#updateData(trip.id, { places: toggleVisited(getPlaces(trip), el.dataset.entry) });
       return;
     }
+    if (el.dataset.action === "house-check") {
+      return this.#updateHouse(House.toggleCheck(this.repo.house(), el.dataset.list, el.dataset.entry, todayISO()));
+    }
+    if (el.dataset.action === "house-last" && el.value) {
+      return this.#updateHouse(House.markDone(this.repo.house(), el.dataset.id, el.value));
+    }
     if (el.dataset.action === "check-toggle") {
       await this.#updateChecklist(el.dataset.id, (list) => toggleEntry(list, el.dataset.entry), null, el.dataset.field);
       return;
@@ -1335,6 +1404,14 @@ export class App {
     if (e.target.dataset.role === "grocery-add") return this.#addGrocery(e);
     if (e.target.dataset.role?.startsWith("ts-")) return this.#onTimesheetSubmit(e);
     if (e.target.dataset.role === "price-add") return this.#addPrice(e);
+    if (e.target.dataset.role === "house-task") return this.#saveHouseTask(e);
+    if (e.target.dataset.role === "house-entry") {
+      e.preventDefault();
+      const { list } = e.target.dataset;
+      const text = String(new FormData(e.target).get("text") ?? "");
+      if (!text.trim()) return;
+      return this.#updateHouse(House.addListEntry(this.repo.house(), list, text), `[data-role=house-entry][data-list="${list}"] [name=text]`);
+    }
     if (e.target.dataset.role === "catalog-add") {
       e.preventDefault();
       const { category } = e.target.dataset;
@@ -1514,6 +1591,44 @@ export class App {
   }
 
   // ---- Mes heures --------------------------------------------------------
+
+  async #updateHouse(house, focusSelector) {
+    const top = window.scrollY;
+    await this.repo.updateHouse(house);
+    window.scrollTo(0, top);
+    if (focusSelector) $(focusSelector)?.focus();
+  }
+
+  // Formulaire d'un entretien (nouveau ou modifié) : « aux N mois » ou des dates chaque année
+  async #saveHouseTask(e) {
+    e.preventDefault();
+    const form = e.target;
+    const f = new FormData(form);
+    const get = (k) => String(f.get(k) ?? "").trim();
+    const schedule = get("kind") === "dates"
+      ? { kind: "dates", dates: [get("date1"), get("date2")].filter(Boolean).map((d) => d.slice(5)) }
+      : { kind: "every", months: Number(get("months")) };
+    if (schedule.kind === "dates" && !schedule.dates.length) {
+      toast(t("house.errors.schedule"));
+      return form.elements.date1.focus();
+    }
+    const fields = { title: get("title"), zone: get("zone"), note: get("note"), schedule };
+    let house = this.repo.house();
+    const id = form.dataset.id;
+    if (id) {
+      house = House.updateTask(house, id, fields);
+      const last = get("lastDone");
+      const task = house.tasks.find((x) => x.id === id);
+      if (last && task && last !== task.lastDone) house = House.markDone(house, id, last);
+    } else {
+      const added = House.addTask(house, { ...fields, lastDone: get("lastDone") || null });
+      if (!added.task) return toast(t("house.errors.schedule"));
+      house = added.house;
+    }
+    this.houseUi = { ...this.houseUi, editing: null, tab: fields.zone || this.houseUi.tab };
+    await this.#updateHouse(house);
+    toast(t("house.saved"));
+  }
 
   async #updateTimesheet(ts, focusSelector) {
     const top = window.scrollY;

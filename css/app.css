@@ -1403,3 +1403,48 @@ body.player-open { overflow: hidden; }
 .tax-report-lines td:first-child { color: #e0491a; font-weight: 700; width: 3em; }
 .tax-report-lines td:nth-child(2) { text-align: left; }
 .tax-report-lines tr.is-net td { font-weight: 700; }
+
+/* ---- Maison : entretiens (couleurs des documents Maxxam : marine #2c4a6e, orange #e0491a) ---- */
+.house { --navy: #2c4a6e; --orange: #e0491a; --pale: #eef2f7; }
+.house-tabs { margin-bottom: 12px; }
+.house-tabs button.active { background: var(--navy); color: #fff; }
+.house-badge { display: inline-block; min-width: 1.4em; padding: 0 6px; border-radius: 999px; background: var(--orange); color: #fff; font-size: 0.75rem; line-height: 1.4em; text-align: center; }
+.house-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 14px 18px; border-radius: var(--radius); background: var(--navy); color: #fff; }
+.house-summary > div { display: flex; align-items: baseline; gap: 6px; }
+.house-summary-value { font-size: 1.6rem; font-weight: 700; color: #ffb08f; }
+.house-summary p { flex: 1 1 220px; margin: 0; font-size: 0.85rem; opacity: 0.9; }
+.house-group h2, .house-lists h2 { margin: 20px 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--navy); color: var(--navy); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.house-group.is-overdue h2 { color: var(--orange); border-color: var(--orange); }
+.house-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.house-task { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid #9aa5b1; }
+.house-task.is-overdue { border-left-color: var(--orange); }
+.house-task.is-soon { border-left-color: var(--navy); }
+.house-task.is-focus { box-shadow: 0 0 0 3px rgb(224 73 26 / 0.35); }
+.house-task.is-editing { display: block; }
+.house-task-main { display: grid; gap: 2px; flex: 1 1 260px; min-width: 0; }
+.house-task-main .hint { font-size: 0.8rem; }
+.house-due { font-size: 0.85rem; font-weight: 600; color: var(--navy); }
+.house-task.is-overdue .house-due { color: var(--orange); }
+.house-note { font-size: 0.8rem; color: var(--muted); font-style: italic; }
+.house-last { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; margin-top: 4px; }
+.house-task-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.house-task-actions .btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+.house-form .btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+.house-new { margin-top: 16px; }
+.house-new > summary { cursor: pointer; color: var(--navy); font-weight: 600; padding: 8px 0; }
+.house-list { margin-bottom: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 12px; }
+.house-list > summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; cursor: pointer; font-weight: 600; color: var(--navy); }
+.house-count { font-size: 0.8rem; padding: 1px 8px; border-radius: 999px; background: var(--pale); color: var(--navy); }
+.house-count.is-complete { background: var(--navy); color: #fff; }
+.house-list .checklist { list-style: none; margin: 0; padding: 8px 0 0; }
+.house-list .checklist li { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 4px 0; }
+.house-list .checklist label { display: flex; align-items: flex-start; gap: 8px; }
+.house-list .checklist input:checked + span { text-decoration: line-through; color: var(--muted); }
+.house-entry-add { display: flex; gap: 8px; margin: 8px 0; }
+.house-entry-add input { flex: 1; }
+@media (prefers-color-scheme: dark) {
+  .house-group h2, .house-lists h2, .house-due, .house-list > summary, .house-new > summary { color: #9fb7d6; border-color: #9fb7d6; }
+  .house-count { background: #2f3b4a; color: #cfdced; }
+}
+.house-list .checklist input { width: 22px; height: 22px; flex: none; accent-color: #2c4a6e; }
+.house-task-actions .btn.link { color: var(--navy); }
