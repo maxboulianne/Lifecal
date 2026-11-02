@@ -50,11 +50,11 @@ function invoiceForm(ts, quarter, editing) {
 
 // ---- Taxes payées : achats tirés des relevés ----
 
-const GROUPS = ["taxable", "mixed", "meal", "exempt", "excluded", "persoTaxable", "persoMixed", "persoMeal", "persoExempt"];
+const GROUPS = ["taxable", "mixed", "meal", "taxableOn", "mixedOn", "mealOn", "exempt", "excluded", "persoTaxable", "persoMixed", "persoMeal", "persoTaxableOn", "persoMixedOn", "persoMealOn", "persoExempt"];
 
 // Une transaction : catégorie à choisir ; dans un relevé personnel, « Exclu » se dit « Personnel »
 function purchaseRow(p) {
-  const label = (c) => t(p.source === "perso" && c.category === "excluded" ? "tax.choice.personal" : `tax.choice.${c.category}.${c.pct}`);
+  const label = (c) => t(p.source === "perso" && c.category === "excluded" ? "tax.choice.personal" : `tax.choice.${c.category}.${c.pct}${c.tax === "on" ? ".on" : ""}`);
   return `<li class="ts-purchase ${p.status === "check" ? "is-check" : ""}">
     <div class="ts-purchase-text">
       <span class="ts-purchase-desc">${esc(p.description)}</span>
@@ -130,7 +130,7 @@ function purchasesBlock(ts, quarter, sales, ui = {}) {
     ...(hc.rows.length ? [[t("tax.group.homeCharging"), hc.rows.length, hc.base, hc.tps, hc.tvq]] : []),
   ];
   const summary = summaryRows.length ? `<div class="ts-tax-scroll"><table class="ts-summary ts-purchase-summary">
-      <thead><tr><th>${t("tax.category")}</th><th>${t("tax.count")}</th><th>${t("tax.amount")}</th><th>TPS</th><th>TVQ</th></tr></thead>
+      <thead><tr><th>${t("tax.category")}</th><th>${t("tax.count")}</th><th>${t("tax.amount")}</th><th>TPS/TVH</th><th>TVQ</th></tr></thead>
       <tbody>${summaryRows.map(([label, count, amount, tps, tvq]) => `<tr><td>${esc(label)}</td><td>${count}</td>
         <td>${money(amount)}</td><td>${money(tps)}</td><td>${money(tvq)}</td></tr>`).join("")}</tbody>
       <tfoot><tr><th colspan="3">${t("tax.paidTotal")}</th><th>${money(paid.tps)}</th><th>${money(paid.tvq)}</th></tr>

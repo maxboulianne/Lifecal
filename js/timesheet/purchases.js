@@ -7,6 +7,7 @@
 //     amount   : montant en $ CA, taxes comprises (négatif : un crédit, un dépôt)
 //     orig     : montant d'origine d'un achat en devise (« 118,25 USD »)
 //     category : taxable | meal | exempt | excluded ; pct : part pour l'entreprise (1 ou 0,5)
+//     tax      : qc (TPS + TVQ, par défaut) | on (TVH de l'Ontario, 13 %)
 //     status   : ok (confirmé) | check (à confirmer)
 //   merchantRules { [commerce]: { category, pct } }  les choix retenus, par commerce
 //   personalRules { [commerce]: { category, pct } }  commerces d'affaires repérés dans les
@@ -18,17 +19,27 @@
 // qui a été payé pour l'entreprise.
 //
 // Crédit d'un achat taxable : montant ÷ 1,14975, × part d'affaires, × 5 % (TPS) et × 9,975 % (TVQ).
+// Achat en Ontario (tax « on ») : TVH de 13 % ; montant ÷ 1,13, × part, × 13 %, réclamée en entier
+// avec la TPS (ligne 106) ; pas de TVQ.
 
 import { newId } from "../data/item.js";
 import { quarterRange, TPS_RATE, TVQ_RATE } from "./taxes.js";
 
 export const PURCHASE_CATEGORIES = ["taxable", "meal", "exempt", "excluded"];
-// Choix proposés dans la liste : catégorie et part d'affaires
+// Choix proposés dans la liste : catégorie, part d'affaires, taxe (Québec ou TVH de l'Ontario)
 export const PURCHASE_CHOICES = [
   { category: "taxable", pct: 1 }, { category: "taxable", pct: 0.5 }, { category: "meal", pct: 0.5 },
+  { category: "taxable", pct: 1, tax: "on" }, { category: "taxable", pct: 0.5, tax: "on" }, { category: "meal", pct: 0.5, tax: "on" },
   { category: "exempt", pct: 1 }, { category: "excluded", pct: 0 },
 ];
-export const choiceKey = (p) => `${p.category}:${p.pct}`;
+export const HST_ON = 0.13;
+export const TAX_REGIONS = ["qc", "on"];
+const isHst = (p) => p.tax === "on" && (p.category === "taxable" || p.category === "meal");
+export const choiceKey = (p) => `${p.category}:${p.pct}${isHst(p) ? ":on" : ""}`;
+export const parseChoice = (key) => {
+  const [category, pct, tax] = String(key).split(":");
+  return { category, pct: Number(pct), tax: tax === "on" ? "on" : "qc" };
+};
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const str = (v) => String(v ?? "").trim();
@@ -150,6 +161,8 @@ export function merchantKey(description) {
 }
 
 const PROVINCES = /\s(QC|ON|BC|AB|MB|SK|NS|NB|NL|PE|YT|NT|NU|CA|CAN)$/i;
+// Commerces en ligne (numéro de téléphone, site web) : la ville affichée n'est pas le lieu de l'achat
+const ONLINE = /\d{3}-\d{3}-\d{4}|\d{7,}|\.COM|\.CA\b|WWW|AMZN|AMAZON|APPLE|GOOGLE|PAYPAL|MICROSOFT|ADOBE|NETFLIX|SPOTIFY|UBER/i;
 
 // Règles de départ (communes à tous) ; les choix confirmés par commerce passent avant.
 const RULES = [
@@ -173,8 +186,15 @@ export function suggest(p, rules = {}, personalRules = {}) {
     return business ? { ...business, status: "check", note: "businessBefore" } : { category: "excluded", pct: 0, status: "ok", note: "personal" };
   }
   const known = rules[merchantKey(p.description)];
-  if (known) return { category: known.category, pct: known.pct, status: "ok", note: "remembered" };
-  for (const [re, category, pct, status, note] of RULES) if (re.test(p.description)) return { category, pct, status, note };
+  if (known) return { category: known.category, pct: known.pct, tax: known.tax ?? "qc", status: "ok", note: "remembered" };
+  // Commerce physique en Ontario (relevé Visa : « … BROCKVILLE ON ») : TVH de 13 %. Les achats en
+  // ligne facturés de l'Ontario (Apple, Amazon, Google…) restent au taux du Québec.
+  const ontario = p.source === "visa" && /\sON$/.test(p.description) && !ONLINE.test(p.description);
+  for (const [re, category, pct, status, note] of RULES) {
+    if (!re.test(p.description)) continue;
+    return ontario && (category === "taxable" || category === "meal") ? { category, pct, tax: "on", status: "check", note: "ontario" } : { category, pct, status, note };
+  }
+  if (ontario) return { category: "taxable", pct: 1, tax: "on", status: "check", note: "ontario" };
   // Achat en devise, ou commerçant hors du Canada : normalement sans TPS/TVQ
   if (p.orig || (p.source === "visa" && /\s[A-Z]{2}$/.test(p.description) && !PROVINCES.test(p.description))) {
     return { category: "exempt", pct: 1, status: "check", note: "foreign" };
@@ -189,6 +209,7 @@ export function normalizePurchase(p) {
   return {
     id: p.id ?? newId(), date: p.date, source: ["visa", "caisse", "perso"].includes(p.source) ? p.source : "visa", account: str(p.account), seq: str(p.seq),
     description: str(p.description), amount: round2(Number(p.amount)), orig: str(p.orig), category, pct,
+    tax: p.tax === "on" && (category === "taxable" || category === "meal") ? "on" : "qc",
     status: p.status === "ok" ? "ok" : "check", note: str(p.note),
   };
 }
@@ -197,7 +218,9 @@ export const normalizePurchases = (list) => (Array.isArray(list) ? list.map(norm
 export function normalizeMerchantRules(rules) {
   const out = {};
   for (const [k, v] of Object.entries(rules && typeof rules === "object" ? rules : {})) {
-    if (k && PURCHASE_CATEGORIES.includes(v?.category)) out[k] = { category: v.category, pct: v.category === "excluded" ? 0 : Number(v.pct) === 0.5 ? 0.5 : 1 };
+    if (k && PURCHASE_CATEGORIES.includes(v?.category)) {
+      out[k] = { category: v.category, pct: v.category === "excluded" ? 0 : Number(v.pct) === 0.5 ? 0.5 : 1, tax: v.tax === "on" ? "on" : "qc" };
+    }
   }
   return out;
 }
@@ -231,11 +254,11 @@ export function addPurchases(ts, rows, { source } = {}) {
 
 // Classer un achat (et retenir le choix pour son commerce : les autres achats de ce commerce
 // encore « à confirmer » suivent)
-export function classifyPurchase(ts, id, { category, pct }, { remember = true } = {}) {
+export function classifyPurchase(ts, id, { category, pct, tax = "qc" }, { remember = true } = {}) {
   const target = (ts.purchases ?? []).find((p) => p.id === id);
   if (!target) return ts;
   const key = merchantKey(target.description);
-  const choice = { category, pct: category === "excluded" ? 0 : pct };
+  const choice = { category, pct: category === "excluded" ? 0 : pct, tax: tax === "on" && (category === "taxable" || category === "meal") ? "on" : "qc" };
   // Relevé personnel : un achat coché « entreprise » fait proposer ce commerce la prochaine
   // fois ; les autres achats du même commerce restent personnels (on y achète aussi pour soi).
   if (target.source === "perso") {
@@ -262,8 +285,13 @@ export function quarterPurchases(ts, key) {
 }
 
 // Crédits d'un achat : { base, tps, tvq } (base : montant avant taxes, pour la part d'affaires)
+// En Ontario : { base, tps } où tps est la TVH de 13 % (réclamée avec la TPS), tvq 0.
 export function purchaseTaxes(p) {
   if (p.category !== "taxable" && p.category !== "meal") return { base: 0, tps: 0, tvq: 0 };
+  if (isHst(p)) {
+    const base = (p.amount / (1 + HST_ON)) * p.pct;
+    return { base, tps: base * HST_ON, tvq: 0 };
+  }
   const base = (p.amount / TAXES) * p.pct;
   return { base, tps: base * TPS_RATE, tvq: base * TVQ_RATE };
 }
@@ -272,7 +300,8 @@ export function purchaseTaxes(p) {
 export function purchaseTotals(list) {
   const groups = {};
   const kind = (p) => (p.category === "taxable" ? (p.pct === 1 ? "taxable" : "mixed") : p.category);
-  const group = (p) => (p.source === "perso" ? `perso${kind(p)[0].toUpperCase()}${kind(p).slice(1)}` : kind(p));
+  const region = (p) => (isHst(p) ? "On" : "");
+  const group = (p) => (p.source === "perso" ? `perso${kind(p)[0].toUpperCase()}${kind(p).slice(1)}` : kind(p)) + region(p);
   for (const p of list) {
     if (p.source === "perso" && p.category === "excluded") continue; // dépenses personnelles
     const g = (groups[group(p)] ??= { count: 0, amount: 0, tps: 0, tvq: 0 });

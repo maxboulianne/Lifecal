@@ -51,7 +51,7 @@ import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
 import { readXlsxCells } from "../export/xlsx-read.js";
 import { invoiceFromCells } from "../timesheet/invoice-import.js";
-import { addHomeCharging, addPurchases, classifyPurchase, parseDesjardinsCsv, parseDesjardinsVisaPdf, quarterPurchases, removeHomeCharging, removePurchase, suggest } from "../timesheet/purchases.js";
+import { addHomeCharging, addPurchases, classifyPurchase, parseChoice, parseDesjardinsCsv, parseDesjardinsVisaPdf, quarterPurchases, removeHomeCharging, removePurchase, suggest } from "../timesheet/purchases.js";
 import { importPreview } from "./components/taxes-view.js";
 import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
 import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
@@ -1616,10 +1616,8 @@ export class App {
         const choice = ["taxable", "meal"].includes(guess.category) ? guess : { category: "taxable", pct: 1 };
         return this.#updateTimesheet(classifyPurchase(ts, p.id, choice));
       }
-      case "ts-purchase-cat": {
-        const [category, pct] = el.value.split(":");
-        return this.#updateTimesheet(classifyPurchase(ts, el.dataset.id, { category, pct: Number(pct) }));
-      }
+      case "ts-purchase-cat":
+        return this.#updateTimesheet(classifyPurchase(ts, el.dataset.id, parseChoice(el.value)));
       case "ts-tax-import": {
         const files = [...(el.files ?? [])];
         el.value = "";

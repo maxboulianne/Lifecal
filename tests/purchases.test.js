@@ -63,7 +63,7 @@ test("Relevés : doublons, choix retenu par commerce, crédits et totaux du trim
   ts = classifyPurchase(ts, first.id, { category: "taxable", pct: 0.5 });
   const hw = ts.purchases.filter((p) => merchantKey(p.description) === "QUINCAILLERIE TEST");
   assert.deepEqual(hw.map((p) => [p.pct, p.status]), [[0.5, "ok"], [0.5, "ok"], [0.5, "ok"]]);
-  assert.deepEqual(ts.merchantRules["QUINCAILLERIE TEST"], { category: "taxable", pct: 0.5 });
+  assert.deepEqual(ts.merchantRules["QUINCAILLERIE TEST"], { category: "taxable", pct: 0.5, tax: "qc" });
   // Un relevé plus tard : la quincaillerie est classée toute seule
   r = addPurchases(ts, [{ source: "visa", account: "1234", date: "2026-08-01", seq: "1", description: "QUINCAILLERIE TEST #12 SAINT-JEROME QC", amount: 50, orig: "" }]);
   assert.deepEqual(["category", "pct", "status"].map((k) => r.ts.purchases.at(-1)[k]), ["taxable", 0.5, "ok"]);
@@ -148,7 +148,7 @@ test("Relevé personnel : personnel par défaut, sous-comptes ignorés, commerce
   const totals = purchaseTotals(ts.purchases);
   assert.deepEqual(Object.keys(totals.groups), ["persoMeal"]); // personnel et dépôt : hors du calcul
   assert.deepEqual([totals.tps, totals.tvq], [1.25, 2.49]);
-  assert.deepEqual(ts.personalRules, { "RESTAURANT LE TEST": { category: "meal", pct: 0.5 } });
+  assert.deepEqual(ts.personalRules, { "RESTAURANT LE TEST": { category: "meal", pct: 0.5, tax: "qc" } });
   assert.deepEqual(ts.merchantRules ?? {}, {}); // les règles de Maxxam ne changent pas
   // Relevé suivant : le resto est proposé (à confirmer), pas imposé
   const next = addPurchases(ts, [{ source: "caisse", account: "0999", date: "2026-05-02", seq: "1", description: "Achat /RESTAURANT LE TEST", amount: 30, orig: "" }], { source: "perso" }).ts;
@@ -165,4 +165,29 @@ test("Recharge à la maison : part de chaque période d'Hydro-Québec au prorata
   assert.equal(quarterHomeCharging(ts, "2026-T3").rows.length, 1); // juillet-sept. : la 3e période seulement
   assert.equal(quarterHomeCharging(removeHomeCharging(ts, q.rows[0].id), "2026-T2").rows.length, 2);
   assert.equal(addHomeCharging(ts, { from: "2026-05-01", to: "2026-04-01", amount: 5 }).homeCharging.length, 3); // période à l'envers : refusée
+});
+
+test("TVH de l'Ontario : proposée pour un commerce physique en Ontario, 13 % réclamés avec la TPS", async () => {
+  const { addPurchases, choiceKey, classifyPurchase, parseChoice, purchaseTaxes, purchaseTotals, suggest } = await import("../js/timesheet/purchases.js");
+  const cls = (description, amount = 22.88) => suggest({ source: "visa", description, amount, orig: "" });
+  assert.deepEqual(cls("BORNE RECHARGE TEST BROCKVILLE ON"), { category: "taxable", pct: 1, tax: "on", status: "check", note: "ontario" });
+  assert.deepEqual(cls("RESTAURANT LE TEST OTTAWA ON"), { category: "meal", pct: 0.5, tax: "on", status: "check", note: "ontario" });
+  assert.equal(cls("APPLE.COM/BILL 866-712-7753 ON").tax, undefined); // en ligne : taux du Québec
+  assert.equal(cls("QUINCAILLERIE TEST SAINT-JEROME QC").tax, undefined);
+  // 22,88 $ en Ontario : 20,25 $ avant taxes, 2,63 $ de TVH, pas de TVQ
+  const x = purchaseTaxes({ category: "taxable", pct: 1, tax: "on", amount: 22.88 });
+  assert.deepEqual([x.base, x.tps, x.tvq].map((n) => Math.round(n * 100) / 100), [20.25, 2.63, 0]);
+  assert.equal(choiceKey({ category: "meal", pct: 0.5, tax: "on" }), "meal:0.5:on");
+  assert.equal(choiceKey({ category: "exempt", pct: 1, tax: "on" }), "exempt:1"); // sans taxes : pas de région
+  assert.deepEqual(parseChoice("taxable:1:on"), { category: "taxable", pct: 1, tax: "on" });
+  // Choix retenu avec sa région ; totaux : groupe à part, TVH dans la colonne TPS
+  let ts = addPurchases(emptyTimesheet(), [{ source: "visa", account: "1234", date: "2026-09-15", seq: "1", description: "BORNE RECHARGE TEST BROCKVILLE ON", amount: 22.88, orig: "" }]).ts;
+  ts = classifyPurchase(ts, ts.purchases[0].id, { category: "taxable", pct: 1, tax: "on" });
+  assert.deepEqual(ts.merchantRules["BORNE RECHARGE TEST BROCKVILLE ON"], { category: "taxable", pct: 1, tax: "on" });
+  const totals = purchaseTotals(ts.purchases);
+  assert.deepEqual(Object.keys(totals.groups), ["taxableOn"]);
+  assert.deepEqual([totals.tps, totals.tvq], [2.63, 0]);
+  // Une dépense passée en « sans taxes » perd la région
+  ts = classifyPurchase(ts, ts.purchases[0].id, { category: "exempt", pct: 1, tax: "on" });
+  assert.equal(ts.purchases[0].tax, "qc");
 });
