@@ -5,7 +5,8 @@
 //   tâche  : { id, key, zone: "inside"|"outside", title, note, schedule, lastDone, history: [dates], list, active }
 //   horaire : { kind: "every", months: 6 }                 aux 6 mois (après la dernière fois)
 //             { kind: "dates", dates: ["05-15", "11-05"] } chaque année à ces dates (saisons)
-//   liste  : { id, key, zone, title, entries: [{ id, text }] }
+//   liste  : { id, key, zone, title, entries: [{ id, text, note, figure, media: [{ id, type: "image"|"video" }] }] }
+//            (étapes d'une procédure : illustration générale + note et photos ou vidéos de l'utilisateur)
 //   checks : { [listId]: { year: 2026, done: { [entryId]: true } } } — une nouvelle année repart à zéro
 //   fourniture (à racheter) : { id, key, name, description, model, qty, unit, store, url, photos: [fileIds],
 //     stock (en réserve, null = pas suivi), tasks: [taskIds], purchases: [{ id, date, qty, price, store, note }] }
@@ -14,6 +15,7 @@
 
 import { addDays, addMonths, parseISODate, toISODate } from "../core/dates.js";
 import { newId } from "../data/item.js";
+import { DEFAULT_FIGURES, FIGURES } from "./figures.js";
 
 export const HOUSE_MODULE = "maison";
 export const ZONES = ["inside", "outside"];
@@ -143,7 +145,10 @@ const DEFAULT_SUPPLIES = [
 ];
 
 export function emptyHouse() {
-  const lists = DEFAULT_LISTS.map(([key, zone, title, entries]) => ({ id: key, key, zone, title, entries: entries.map((text, i) => ({ id: `${key}-${i + 1}`, text })) }));
+  const lists = DEFAULT_LISTS.map(([key, zone, title, entries]) => ({ id: key, key, zone, title, entries: entries.map((text, i) => {
+    const id = `${key}-${i + 1}`;
+    return { id, text, note: "", figure: DEFAULT_FIGURES[id] ?? null, media: [] };
+  }) }));
   const tasks = DEFAULT_TASKS.map(([key, zone, title, schedule, note = "", list = null]) => ({
     id: key, key, zone, title, note, schedule, lastDone: null, history: [], list, active: true, consumedOn: null,
   }));
@@ -181,7 +186,12 @@ function normalizeTask(t, listIds) {
 
 function normalizeList(l) {
   if (!l || !str(l.title)) return null;
-  const entries = (Array.isArray(l.entries) ? l.entries : []).filter((e) => e && str(e.text)).map((e) => ({ id: str(e.id) || newId(), text: str(e.text) }));
+  const entries = (Array.isArray(l.entries) ? l.entries : []).filter((e) => e && str(e.text)).map((e) => {
+    const id = str(e.id) || newId();
+    const figure = e.figure === undefined ? DEFAULT_FIGURES[id] ?? null : FIGURES[e.figure] ? e.figure : null;
+    const media = (Array.isArray(e.media) ? e.media : []).filter((m) => m && typeof m.id === "string" && ["image", "video"].includes(m.type)).map((m) => ({ id: m.id, type: m.type }));
+    return { id, text: str(e.text), note: String(e.note ?? "").trim(), figure, media };
+  });
   return { id: str(l.id) || newId(), key: str(l.key), zone: ZONES.includes(l.zone) ? l.zone : "inside", title: str(l.title), entries };
 }
 
@@ -419,7 +429,10 @@ export function supplyOverview(house, today) {
 export const taskSupplies = (house, taskId) => house.supplies.filter((s) => s.tasks.includes(taskId));
 
 // Photos gardées (à ne pas effacer du stockage des fichiers)
-export const housePhotoIds = (house) => (house?.supplies ?? []).flatMap((s) => s.photos);
+export const housePhotoIds = (house) => [
+  ...(house?.supplies ?? []).flatMap((s) => s.photos),
+  ...(house?.lists ?? []).flatMap((l) => l.entries.flatMap((e) => e.media.map((m) => m.id))),
+];
 
 // ---- Listes à cocher ----
 
@@ -446,8 +459,23 @@ export const resetList = (house, listId) => {
 export function addListEntry(house, listId, text) {
   const clean = str(text);
   if (!clean) return house;
-  return { ...house, lists: house.lists.map((l) => (l.id === listId ? { ...l, entries: [...l.entries, { id: newId(), text: clean }] } : l)) };
+  return { ...house, lists: house.lists.map((l) => (l.id === listId ? { ...l, entries: [...l.entries, { id: newId(), text: clean, note: "", figure: null, media: [] }] } : l)) };
 }
+
+// Étape d'une procédure : note personnelle, photos et vidéos
+const mapEntry = (house, listId, entryId, fn) => ({
+  ...house,
+  lists: house.lists.map((l) => (l.id === listId ? { ...l, entries: l.entries.map((e) => (e.id === entryId ? fn(e) : e)) } : l)),
+});
+
+export const setStepNote = (house, listId, entryId, note) => mapEntry(house, listId, entryId, (e) => ({ ...e, note: String(note ?? "").trim() }));
+
+export function addStepMedia(house, listId, entryId, media) {
+  if (!media?.id || !["image", "video"].includes(media.type)) return house;
+  return mapEntry(house, listId, entryId, (e) => ({ ...e, media: [...e.media, { id: media.id, type: media.type }] }));
+}
+
+export const removeStepMedia = (house, listId, entryId, mediaId) => mapEntry(house, listId, entryId, (e) => ({ ...e, media: e.media.filter((m) => m.id !== mediaId) }));
 
 export function removeListEntry(house, listId, entryId) {
   return { ...house, lists: house.lists.map((l) => (l.id === listId ? { ...l, entries: l.entries.filter((e) => e.id !== entryId) } : l)) };

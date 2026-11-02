@@ -83,9 +83,14 @@ function listBlock(house, list, ui, today) {
   const count = list.entries.filter((e) => done[e.id]).length;
   return `<details class="house-list" id="house-list-${esc(list.id)}" ${ui.openList === list.id ? "open" : ""}>
     <summary><span>${esc(list.title)}</span><span class="house-count ${count === list.entries.length && count ? "is-complete" : ""}">${count}/${list.entries.length}</span></summary>
-    <ul class="checklist">${list.entries.map((e) => `<li>
+    <div class="actions start">
+      <button type="button" class="btn primary" data-action="house-steps" data-list="${esc(list.id)}" data-index="${Math.max(0, list.entries.findIndex((e) => !done[e.id]))}">▶ ${t("house.steps.start")}</button>
+    </div>
+    <ul class="checklist">${list.entries.map((e, i) => `<li>
       <label><input type="checkbox" data-action="house-check" data-list="${esc(list.id)}" data-entry="${esc(e.id)}" ${done[e.id] ? "checked" : ""}>
         <span>${esc(e.text)}</span></label>
+      <button type="button" class="house-step-open" data-action="house-steps" data-list="${esc(list.id)}" data-index="${i}" aria-label="${esc(t("house.steps.open"))}">
+        ${e.figure ? "🖼️" : ""}${e.media.length ? `📷${e.media.length}` : ""}${e.note ? "📝" : ""}<span>›</span></button>
       <button type="button" class="check-remove" data-action="house-entry-remove" data-list="${esc(list.id)}" data-entry="${esc(e.id)}" aria-label="${esc(t("house.remove"))}">×</button>
     </li>`).join("")}</ul>
     <form class="house-entry-add" data-role="house-entry" data-list="${esc(list.id)}">

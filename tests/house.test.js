@@ -116,3 +116,27 @@ test("Maison : fournitures, achats et réserve", async () => {
   delete old.supplies;
   assert.equal(normalizeHouse(old).supplies.length, emptyHouse().supplies.length);
 });
+
+test("Maison : procédure pas à pas (illustrations, note, photos et vidéos)", async () => {
+  const { addStepMedia, removeStepMedia, setStepNote, housePhotoIds } = await import("../js/house/house.js");
+  const { FIGURES } = await import("../js/house/figures.js");
+  let h = emptyHouse();
+  const close = () => h.lists.find((l) => l.id === "pool-close");
+  // Chaque étape de la piscine a son illustration générale
+  for (const l of h.lists.filter((x) => x.id.startsWith("pool-"))) for (const e of l.entries) assert.ok(FIGURES[e.figure], e.id);
+  h = setStepNote(h, "pool-close", "pool-close-7", "  Bouchon bleu à gauche de la pompe ");
+  h = addStepMedia(h, "pool-close", "pool-close-7", { id: "f1", type: "image" });
+  h = addStepMedia(h, "pool-close", "pool-close-7", { id: "f2", type: "video" });
+  h = addStepMedia(h, "pool-close", "pool-close-7", { id: "f3", type: "pdf" }); // refusé
+  const step = close().entries[6];
+  assert.equal(step.note, "Bouchon bleu à gauche de la pompe");
+  assert.deepEqual(step.media.map((m) => m.type), ["image", "video"]);
+  assert.ok(housePhotoIds(h).includes("f2")); // gardé lors du ménage des fichiers
+  h = removeStepMedia(h, "pool-close", "pool-close-7", "f1");
+  assert.deepEqual(close().entries[6].media.map((m) => m.id), ["f2"]);
+  // Relu tel quel ; anciennes listes (sans illustration) : l'illustration de départ est ajoutée
+  assert.deepEqual(normalizeHouse(JSON.parse(JSON.stringify(h))).lists, h.lists);
+  const old = JSON.parse(JSON.stringify(emptyHouse()));
+  for (const l of old.lists) for (const e of l.entries) { delete e.figure; delete e.media; delete e.note; }
+  assert.equal(normalizeHouse(old).lists.find((l) => l.id === "pool-open").entries[0].figure, "uncover");
+});
