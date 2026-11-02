@@ -954,7 +954,7 @@ export default {
   "house.edit": "Editar",
   "house.procedure": "Procedimento",
   "house.remove": "Excluir",
-  "house.confirmRemove": "Excluir esta manutenção?",
+  "house.confirmRemove": "Excluir esta manutenção e todo o seu histórico?",
   "house.add": "Adicionar uma manutenção",
   "house.save": "Salvar",
   "house.saved": "Manutenção salva.",
@@ -978,4 +978,5 @@ export default {
   "nudge.house": "{count} manutenções da casa para esta semana.",
   "nudge.houseOne": "Manutenção da casa pendente: {title}.",
   "nudge.houseAction": "Ver",
+  "house.history": { one: "Histórico ({count} vez)", other: "Histórico ({count} vezes)" },
 };

@@ -17,7 +17,6 @@ export const HOUSE_MODULE = "maison";
 export const ZONES = ["inside", "outside"];
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const MD = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-const HISTORY_MAX = 24;
 // Une tâche de saison faite un peu avant ou après sa date compte pour cette date-là.
 const SEASON_GRACE_DAYS = 45;
 export const SOON_DAYS = 30;
@@ -142,7 +141,7 @@ export function normalizeSchedule(s) {
 function normalizeTask(t, listIds) {
   const schedule = normalizeSchedule(t?.schedule);
   if (!t || !str(t.title) || !schedule) return null;
-  const history = [...new Set((Array.isArray(t.history) ? t.history : []).filter((d) => ISO.test(d)))].sort().slice(-HISTORY_MAX);
+  const history = [...new Set((Array.isArray(t.history) ? t.history : []).filter((d) => ISO.test(d)))].sort(); // tout l'historique est gardé
   const lastDone = ISO.test(t.lastDone) ? t.lastDone : history.at(-1) ?? null;
   return {
     id: str(t.id) || newId(), key: str(t.key), zone: ZONES.includes(t.zone) ? t.zone : "inside", title: str(t.title), note: str(t.note),
@@ -265,7 +264,7 @@ const mapTask = (house, id, fn) => ({ ...house, tasks: house.tasks.map((t) => (t
 export function markDone(house, id, date) {
   if (!ISO.test(date)) return house;
   return mapTask(house, id, (t) => {
-    const history = [...new Set([...t.history, date])].sort().slice(-HISTORY_MAX);
+    const history = [...new Set([...t.history, date])].sort(); // tout l'historique est gardé
     return { ...t, history, lastDone: history.at(-1) };
   });
 }

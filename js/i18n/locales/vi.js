@@ -951,7 +951,7 @@ export default {
   "house.edit": "Sửa",
   "house.procedure": "Quy trình",
   "house.remove": "Xóa",
-  "house.confirmRemove": "Xóa việc bảo trì này?",
+  "house.confirmRemove": "Xóa việc bảo trì này và toàn bộ lịch sử?",
   "house.add": "Thêm việc bảo trì",
   "house.save": "Lưu",
   "house.saved": "Đã lưu việc bảo trì.",
@@ -975,4 +975,5 @@ export default {
   "nudge.house": "{count} việc bảo trì nhà cần làm trong tuần này.",
   "nudge.houseOne": "Việc bảo trì nhà cần làm: {title}.",
   "nudge.houseAction": "Xem",
+  "house.history": { one: "Lịch sử ({count} lần)", other: "Lịch sử ({count} lần)" },
 };

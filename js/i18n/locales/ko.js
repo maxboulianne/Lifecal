@@ -951,7 +951,7 @@ export default {
   "house.edit": "수정",
   "house.procedure": "절차",
   "house.remove": "삭제",
-  "house.confirmRemove": "이 관리 항목을 삭제할까요?",
+  "house.confirmRemove": "이 관리 항목과 모든 기록을 삭제할까요?",
   "house.add": "관리 항목 추가",
   "house.save": "저장",
   "house.saved": "관리 항목을 저장했습니다.",
@@ -975,4 +975,5 @@ export default {
   "nudge.house": "이번 주에 할 집 관리가 {count}개 있습니다.",
   "nudge.houseOne": "집 관리 할 일: {title}.",
   "nudge.houseAction": "보기",
+  "house.history": { one: "기록 ({count}회)", other: "기록 ({count}회)" },
 };

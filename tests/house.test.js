@@ -72,3 +72,10 @@ test("Maison : les rappels s'ajoutent au calendrier du dépôt", async () => {
   await repo.updateHouse(markDone(repo.house(), "fridge-air", "2026-05-02"));
   assert.ok(repo.onDate("2026-11-02").some((i) => i.id === "house:fridge-air:2026-11-02"));
 });
+
+test("Maison : tout l'historique est gardé", () => {
+  let h = emptyHouse();
+  for (let m = 0; m < 40; m++) h = markDone(h, "softener-soap", `20${24 + Math.floor(m / 12)}-${String((m % 12) + 1).padStart(2, "0")}-05`);
+  assert.equal(task(h, "softener-soap").history.length, 40);
+  assert.equal(normalizeHouse(JSON.parse(JSON.stringify(h))).tasks.find((t) => t.key === "softener-soap").history.length, 40);
+});

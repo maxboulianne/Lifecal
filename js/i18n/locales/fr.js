@@ -973,7 +973,7 @@ export default {
   "house.edit": "Modifier",
   "house.procedure": "Procédure",
   "house.remove": "Supprimer",
-  "house.confirmRemove": "Supprimer cet entretien ?",
+  "house.confirmRemove": "Supprimer cet entretien et tout son historique ?",
   "house.add": "Ajouter un entretien",
   "house.save": "Enregistrer",
   "house.saved": "Entretien enregistré.",
@@ -997,4 +997,5 @@ export default {
   "nudge.house": "{count} entretiens de la maison sont à faire cette semaine.",
   "nudge.houseOne": "Entretien de la maison à faire : {title}.",
   "nudge.houseAction": "Voir",
+  "house.history": { one: "Historique ({count} fois)", other: "Historique ({count} fois)" },
 };

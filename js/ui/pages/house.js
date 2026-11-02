@@ -38,6 +38,8 @@ function taskForm(task, zone, today) {
     <p class="hint">${t("house.form.kindHint")}</p>
     <label>${t("house.form.last")} <input name="lastDone" type="date" value="${esc(task?.lastDone ?? "")}" max="${today}"></label>
     <label>${t("house.form.note")} <textarea name="note" rows="2">${esc(task?.note ?? "")}</textarea></label>
+    ${task?.history.length ? `<div class="house-history"><strong>${t("house.history", { count: task.history.length })}</strong>
+      <ul>${[...task.history].reverse().map((d) => `<li>✓ ${esc(fmt.date(parseISODate(d)))}</li>`).join("")}</ul></div>` : ""}
     <div class="actions start">
       <button type="submit" class="btn primary">${t("house.save")}</button>
       <button type="button" class="btn ghost" data-action="house-cancel">${t("form.cancel")}</button>

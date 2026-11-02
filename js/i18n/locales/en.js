@@ -954,7 +954,7 @@ export default {
   "house.edit": "Edit",
   "house.procedure": "Procedure",
   "house.remove": "Delete",
-  "house.confirmRemove": "Delete this task?",
+  "house.confirmRemove": "Delete this task and all its history?",
   "house.add": "Add a task",
   "house.save": "Save",
   "house.saved": "Task saved.",
@@ -978,4 +978,5 @@ export default {
   "nudge.house": "{count} home maintenance tasks are due this week.",
   "nudge.houseOne": "Home maintenance due: {title}.",
   "nudge.houseAction": "View",
+  "house.history": { one: "History ({count} time)", other: "History ({count} times)" },
 };

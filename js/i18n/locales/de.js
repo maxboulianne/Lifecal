@@ -954,7 +954,7 @@ export default {
   "house.edit": "Bearbeiten",
   "house.procedure": "Anleitung",
   "house.remove": "Löschen",
-  "house.confirmRemove": "Diese Wartung löschen?",
+  "house.confirmRemove": "Diese Wartung und ihren gesamten Verlauf löschen?",
   "house.add": "Wartung hinzufügen",
   "house.save": "Speichern",
   "house.saved": "Wartung gespeichert.",
@@ -978,4 +978,5 @@ export default {
   "nudge.house": "{count} Hauswartungen sind diese Woche fällig.",
   "nudge.houseOne": "Hauswartung fällig: {title}.",
   "nudge.houseAction": "Ansehen",
+  "house.history": { one: "Verlauf ({count}-mal)", other: "Verlauf ({count}-mal)" },
 };
