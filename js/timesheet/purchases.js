@@ -9,6 +9,13 @@
 //     category : taxable | meal | exempt | excluded ; pct : part pour l'entreprise (1 ou 0,5)
 //     status   : ok (confirmé) | check (à confirmer)
 //   merchantRules { [commerce]: { category, pct } }  les choix retenus, par commerce
+//   personalRules { [commerce]: { category, pct } }  commerces d'affaires repérés dans les
+//                 relevés personnels (proposés aux relevés suivants, jamais imposés)
+//   homeCharging  [{ id, from, to, amount }]  recharge à la maison : part « Véhicule électrique »
+//                 d'une période d'Hydro-Québec, en $ avant taxes ; répartie au prorata des jours
+//
+// Relevé personnel (source « perso ») : tout y est personnel (exclu) par défaut ; on coche ce
+// qui a été payé pour l'entreprise.
 //
 // Crédit d'un achat taxable : montant ÷ 1,14975, × part d'affaires, × 5 % (TPS) et × 9,975 % (TVQ).
 
@@ -75,6 +82,8 @@ export function parseDesjardinsCsv(text) {
       out.push({ source: "visa", account: str(r[0]).slice(-4), date: isoDate(r[3]), seq: str(r[4]), description,
         amount: round2(debit ?? -Math.abs(credit ?? 0)), orig: "" });
     } else {
+      // Sous-comptes (épargne ES, terme ET, marge de crédit MC, prêt PR) : pas des dépenses
+      if (/^(ES|ET|MC|PR)\d*$/i.test(str(r[2]))) continue;
       const withdrawal = amountOf(r[7]);
       const deposit = amountOf(r[8]);
       out.push({ source: "caisse", account: str(r[1]).slice(-4), date: isoDate(r[3]), seq: str(r[4]), description: str(r[5]).replace(/\s+/g, " "),
@@ -129,9 +138,10 @@ export function parseDesjardinsVisaPdf(lines) {
 
 // Le commerce, pour retenir les choix, sans ce qui change d'un achat à l'autre (no de
 // magasin, de commande, téléphone) : « THE HOME DEPOT #7147 SAINT-JEROME QC » -> « THE HOME DEPOT »,
-// « Paiement internet à Proprietaire/P20260402 » -> « PAIEMENT INTERNET À PROPRIETAIRE »
+// « Paiement internet à Proprietaire/P20260402 » -> « PAIEMENT INTERNET À PROPRIETAIRE »,
+// « Achat /THE HOME DEPOT #7147 » (carte de débit) -> « THE HOME DEPOT »
 export function merchantKey(description) {
-  return str(description).toUpperCase().split("#")[0].replace(/\*/g, " ").split(/\s+/)
+  return str(description).toUpperCase().replace(/^(ACHAT|RETOUR PAIEMENT DIRECT)\s*\//, "").split("#")[0].replace(/\*/g, " ").split(/\s+/)
     .map((w) => ((w.match(/\d/g) ?? []).length >= 2 ? (w.includes("/") ? w.split("/")[0] : "") : w))
     .map((w) => w.replace(/^[^\p{L}\d]+|[^\p{L}\d]+$/gu, ""))
     .filter((w) => w.length > 1 || /\p{L}/u.test(w))
@@ -151,12 +161,17 @@ const RULES = [
   [/^PAIEMENT (AUTORIS|CAISSE)|^PAIEMENT \/VISA|ACC[ÈE]SD INTERNET \/VISA|TRANSFERT MENSUALIT/i, "excluded", 0, "ok", "cardPayment"],
   [/FRAIS DE CR[ÉE]DIT|INT[ÉE]R[ÊE]TS|FRAIS FIXES|FRAIS DE SERVICE|FRAIS MENSUELS/i, "exempt", 1, "ok", "bankFees"],
   [/AMENDE|COUR MUNICIPALE|CONSTAT/i, "excluded", 0, "check", "fine"],
+  [/CIRCUIT [ÉE]LECTRIQUE|LE CIRCUIT|CHARGEPOINT|\bFLO\b|SWIFTCHARGE|ELECTRIFY|\bIVY\b|PETRO.?CANADA EV|TESLA SUPERCHARG/i, "taxable", 1, "check", "charging"],
   [/RESTO|RESTAURANT|PIZZ|CAF[EÉ]\b|BISTRO|BRASSERIE|GRILL|SUSHI|\bPHO\b|TIM HORTONS|MCDONALD|STARBUCKS|SUBWAY|\bA&W\b|\bBAR\b|\bPUB\b|BOULANGERIE|P[ÂA]TISSERIE|TRAITEUR/i, "meal", 0.5, "check", "meal"],
 ];
 
 // Ce que l'on propose pour une transaction : { category, pct, status, note }
-export function suggest(p, rules = {}) {
+export function suggest(p, rules = {}, personalRules = {}) {
   if (p.amount < 0) return { category: "excluded", pct: 0, status: "ok", note: "credit" };
+  if (p.source === "perso") {
+    const business = personalRules[merchantKey(p.description)];
+    return business ? { ...business, status: "check", note: "businessBefore" } : { category: "excluded", pct: 0, status: "ok", note: "personal" };
+  }
   const known = rules[merchantKey(p.description)];
   if (known) return { category: known.category, pct: known.pct, status: "ok", note: "remembered" };
   for (const [re, category, pct, status, note] of RULES) if (re.test(p.description)) return { category, pct, status, note };
@@ -187,20 +202,28 @@ export function normalizeMerchantRules(rules) {
   return out;
 }
 
-// Une même transaction importée deux fois (relevé téléchargé de nouveau) n'est gardée qu'une fois
-const sameKey = (p) => [p.source, p.account, p.date, p.seq, p.description, p.amount].join("|");
+// Une même transaction importée deux fois (relevé téléchargé de nouveau, ou deux relevés qui
+// se chevauchent) n'est gardée qu'une fois. Le no de transaction change d'un téléchargement à
+// l'autre : on compare date, description et montant, et l'on compte. Trois cafés identiques le
+// même jour restent trois : un relevé n'ajoute que les copies qui manquent.
+const sameKey = (p) => [p.source, p.account, p.date, p.description, round2(p.amount)].join("|");
 
 // Ajouter les transactions d'un relevé : classées, sans doublons. -> { ts, added, skipped }
-export function addPurchases(ts, rows) {
+// source : « perso » pour un relevé personnel (sinon celle du relevé : visa ou caisse)
+export function addPurchases(ts, rows, { source } = {}) {
   const list = ts.purchases ?? [];
-  const seen = new Set(list.map(sameKey));
+  const have = new Map();
+  for (const p of list) have.set(sameKey(p), (have.get(sameKey(p)) ?? 0) + 1);
+  const inFile = new Map();
   const added = [];
   let skipped = 0;
-  for (const row of rows) {
-    const key = sameKey({ ...row, amount: round2(row.amount) });
-    if (seen.has(key)) { skipped++; continue; }
-    seen.add(key);
-    const p = normalizePurchase({ ...row, ...suggest(row, ts.merchantRules ?? {}) });
+  for (const original of rows) {
+    const row = source ? { ...original, source } : original;
+    const key = sameKey(row);
+    const n = (inFile.get(key) ?? 0) + 1;
+    inFile.set(key, n);
+    if (n <= (have.get(key) ?? 0)) { skipped++; continue; }
+    const p = normalizePurchase({ ...row, ...suggest(row, ts.merchantRules ?? {}, ts.personalRules ?? {}) });
     if (p) added.push(p);
   }
   return { ts: { ...ts, purchases: [...list, ...added] }, added: added.length, skipped };
@@ -213,6 +236,14 @@ export function classifyPurchase(ts, id, { category, pct }, { remember = true } 
   if (!target) return ts;
   const key = merchantKey(target.description);
   const choice = { category, pct: category === "excluded" ? 0 : pct };
+  // Relevé personnel : un achat coché « entreprise » fait proposer ce commerce la prochaine
+  // fois ; les autres achats du même commerce restent personnels (on y achète aussi pour soi).
+  if (target.source === "perso") {
+    const purchases = ts.purchases.map((p) => (p.id === id ? { ...p, ...choice, status: "ok", note: category === "excluded" ? "personal" : p.note } : p));
+    const personalRules = { ...(ts.personalRules ?? {}) };
+    if (remember && category !== "excluded" && target.amount >= 0) personalRules[key] = choice;
+    return { ...ts, purchases, personalRules };
+  }
   const purchases = ts.purchases.map((p) => {
     if (p.id === id) return { ...p, ...choice, status: "ok" };
     if (remember && p.status === "check" && p.amount >= 0 && merchantKey(p.description) === key) return { ...p, ...choice, status: "ok", note: "remembered" };
@@ -240,8 +271,10 @@ export function purchaseTaxes(p) {
 // Totaux par groupe (taxables à 100 %, usage mixte, repas, sans taxes, exclus) et lignes 106/206
 export function purchaseTotals(list) {
   const groups = {};
-  const group = (p) => (p.category === "taxable" ? (p.pct === 1 ? "taxable" : "mixed") : p.category);
+  const kind = (p) => (p.category === "taxable" ? (p.pct === 1 ? "taxable" : "mixed") : p.category);
+  const group = (p) => (p.source === "perso" ? `perso${kind(p)[0].toUpperCase()}${kind(p).slice(1)}` : kind(p));
   for (const p of list) {
+    if (p.source === "perso" && p.category === "excluded") continue; // dépenses personnelles
     const g = (groups[group(p)] ??= { count: 0, amount: 0, tps: 0, tvq: 0 });
     const x = purchaseTaxes(p);
     g.count++;
@@ -252,4 +285,37 @@ export function purchaseTotals(list) {
   for (const g of Object.values(groups)) for (const k of ["amount", "tps", "tvq"]) g[k] = round2(g[k]);
   const sum = (k) => round2(Object.values(groups).reduce((s, g) => s + g[k], 0));
   return { groups, tps: sum("tps"), tvq: sum("tvq"), toCheck: list.filter((p) => p.status === "check").length };
+}
+
+// ---- Recharge à la maison (Hydro-Québec) ----
+
+const DAY = 86400000;
+const days = (from, to) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / DAY) + 1;
+
+export function normalizeHomeCharging(list) {
+  return (Array.isArray(list) ? list : []).flatMap((c) => {
+    const amount = Number(c?.amount);
+    const ok = c && /^\d{4}-\d{2}-\d{2}$/.test(c.from) && /^\d{4}-\d{2}-\d{2}$/.test(c.to) && c.from <= c.to && Number.isFinite(amount) && amount >= 0;
+    return ok ? [{ id: c.id ?? newId(), from: c.from, to: c.to, amount: round2(amount) }] : [];
+  }).sort((a, b) => a.from.localeCompare(b.from));
+}
+
+export const addHomeCharging = (ts, period) => ({ ...ts, homeCharging: normalizeHomeCharging([...(ts.homeCharging ?? []), period]) });
+export const removeHomeCharging = (ts, id) => ({ ...ts, homeCharging: (ts.homeCharging ?? []).filter((c) => c.id !== id) });
+
+// Part de chaque période d'Hydro-Québec dans le trimestre, au prorata des jours ; le montant
+// est avant taxes : les crédits sont 5 % et 9,975 % de cette part.
+//   -> { rows: [{ ...période, days, inQuarter, share }], base, tps, tvq }
+export function quarterHomeCharging(ts, key) {
+  const { from, to } = quarterRange(key);
+  const rows = (ts.homeCharging ?? []).flatMap((c) => {
+    const start = c.from > from ? c.from : from;
+    const end = c.to < to ? c.to : to;
+    if (start > end) return [];
+    const total = days(c.from, c.to);
+    const inQuarter = days(start, end);
+    return [{ ...c, days: total, inQuarter, share: round2((c.amount * inQuarter) / total) }];
+  });
+  const base = round2(rows.reduce((s, r) => s + r.share, 0));
+  return { rows, base, tps: round2(base * TPS_RATE), tvq: round2(base * TVQ_RATE) };
 }

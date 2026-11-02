@@ -51,7 +51,7 @@ import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
 import { readXlsxCells } from "../export/xlsx-read.js";
 import { invoiceFromCells } from "../timesheet/invoice-import.js";
-import { addPurchases, classifyPurchase, parseDesjardinsCsv, parseDesjardinsVisaPdf, quarterPurchases, removePurchase } from "../timesheet/purchases.js";
+import { addHomeCharging, addPurchases, classifyPurchase, parseDesjardinsCsv, parseDesjardinsVisaPdf, quarterPurchases, removeHomeCharging, removePurchase, suggest } from "../timesheet/purchases.js";
 import { importPreview } from "./components/taxes-view.js";
 import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
 import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
@@ -151,6 +151,7 @@ export class App {
   taxQuarter = null; // trimestre affiché dans « Taxes » (par défaut : celui qui vient de finir)
   taxEditing = null; // facture du registre en cours de modification
   taxImport = null; // factures lues dans des fichiers Excel, en attente de confirmation
+  taxUi = { persoOpen: false, persoQuery: "" }; // liste des transactions personnelles : ouverte, recherche
   receipt = null; // « Scanner un reçu » en cours : { date, slots, values, auto }
   timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
   #invoicePending = null; // facture affichée dans l'aperçu
@@ -178,6 +179,10 @@ export class App {
     this.#linkGroceryList().catch((err) => console.error(err));
     document.addEventListener("click", (e) => this.#onClick(e));
     document.addEventListener("change", (e) => this.#onChange(e));
+    // La liste des transactions personnelles reste ouverte (ou fermée) d'un affichage à l'autre
+    document.addEventListener("toggle", (e) => {
+      if (e.target.dataset?.role === "perso-all") this.taxUi = { ...this.taxUi, persoOpen: e.target.open };
+    }, true);
     // Roulettes d'heure et de date (iPhone, iPad) : enregistrer quand on les referme.
     // On enregistre juste après : si l'on vient de toucher un autre champ à roulette (ex. la
     // date « Au » après « Du »), redessiner la page tout de suite le remplacerait et sa
@@ -211,6 +216,12 @@ export class App {
     document.addEventListener("input", (e) => {
       if (e.target.dataset.journal) this.#scheduleJournalSave();
       if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
+      // Recherche dans les transactions personnelles : sans redessiner la page
+      if (e.target.dataset.action === "ts-perso-filter") {
+        const q = e.target.value.trim().toLowerCase();
+        this.taxUi = { ...this.taxUi, persoQuery: e.target.value, persoOpen: true };
+        for (const li of document.querySelectorAll(".ts-perso-list > li")) li.hidden = Boolean(q) && !li.dataset.search.includes(q);
+      }
       if (e.target.form?.dataset.role === "ts-expense") this.#syncExpenseForm(e.target.form);
       if (e.target.dataset.role === "catalog-search") {
         this.catalogQuery = e.target.value;
@@ -349,6 +360,7 @@ export class App {
         editingExpense: this.editingExpense,
         taxQuarter: this.taxQuarter,
         taxEditing: this.taxEditing,
+        taxUi: this.taxUi,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -1012,11 +1024,15 @@ export class App {
     },
     "ts-purchase-ok-all": () => {
       let ts = this.repo.timesheet();
-      for (const p of quarterPurchases(ts, this.taxQuarter ?? reportQuarter(todayISO()))) {
+      for (const p of quarterPurchases(ts, this.taxQuarter ?? reportQuarter(todayISO())).filter((x) => x.source !== "perso")) {
         const now = ts.purchases.find((x) => x.id === p.id);
         if (now?.status === "check") ts = classifyPurchase(ts, now.id, now);
       }
       return this.#updateTimesheet(ts);
+    },
+    "ts-home-remove": (el) => {
+      if (!confirm(t("tax.confirmRemovePeriod"))) return;
+      return this.#updateTimesheet(removeHomeCharging(this.repo.timesheet(), el.dataset.id));
     },
     "ts-purchase-remove": (el) => {
       if (!confirm(t("tax.confirmRemovePurchase"))) return;
@@ -1587,8 +1603,18 @@ export class App {
       case "ts-tax-statement": {
         const files = [...(el.files ?? [])];
         el.value = "";
-        if (files.length) await this.#importStatements(files);
+        if (files.length) await this.#importStatements(files, el.dataset.source);
         return undefined;
+      }
+      // Relevé personnel : cocher (ou décocher) une dépense faite pour l'entreprise
+      case "ts-perso-toggle": {
+        this.taxUi = { ...this.taxUi, persoOpen: true };
+        const p = (ts.purchases ?? []).find((x) => x.id === el.dataset.id);
+        if (!p) return undefined;
+        if (!el.checked) return this.#updateTimesheet(classifyPurchase(ts, p.id, { category: "excluded", pct: 0 }));
+        const guess = suggest({ ...p, source: "visa" }, ts.merchantRules ?? {});
+        const choice = ["taxable", "meal"].includes(guess.category) ? guess : { category: "taxable", pct: 1 };
+        return this.#updateTimesheet(classifyPurchase(ts, p.id, choice));
       }
       case "ts-purchase-cat": {
         const [category, pct] = el.value.split(":");
@@ -1671,6 +1697,12 @@ export class App {
     if (fold) setFoldOpen(fold, true);
     if (form.dataset.role === "ts-expense") return this.#addExpense(form, f, errors);
     if (form.dataset.role === "ts-tax-invoice") return this.#saveTaxInvoice(form, f, errors);
+    if (form.dataset.role === "ts-home-charging") {
+      const amount = /^0+([.,]0+)?$/.test(text("amount")) ? 0 : readNumber(text("amount"));
+      if (!isISODate(text("from")) || !isISODate(text("to")) || text("from") > text("to")) return (errors.textContent = t("tax.errors.period"));
+      if (amount === null) return (errors.textContent = t("tax.errors.evAmount"));
+      return this.#updateTimesheet(addHomeCharging(ts, { from: text("from"), to: text("to"), amount }));
+    }
     if (form.dataset.role === "ts-new-task") {
       if (!text("code") || !text("description")) return (errors.textContent = t("ts.errors.task"));
       const { ts: next, task } = addTask(ts, { code: text("code"), description: text("description"), scope: text("scope"), quick: f.get("quick") === "on" });
@@ -1842,7 +1874,7 @@ export class App {
   // Relevés de Desjardins (CSV de la Visa ou de la Caisse, PDF de la Visa) : transactions
   // ajoutées et classées, sans doublons. Un PDF est vérifié : ses achats lus doivent faire
   // le « Total » imprimé sur le relevé.
-  async #importStatements(files) {
+  async #importStatements(files, source) {
     let ts = this.repo.timesheet();
     let added = 0;
     let skipped = 0;
@@ -1878,7 +1910,7 @@ export class App {
         toast(t("tax.statementUnknown", { file: file.name }));
         continue;
       }
-      const r = addPurchases(ts, rows);
+      const r = addPurchases(ts, rows, { source: source === "perso" ? "perso" : undefined });
       ts = r.ts;
       added += r.added;
       skipped += r.skipped;

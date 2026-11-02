@@ -119,3 +119,50 @@ test("PDF : morceaux de texte regroupés en lignes", async () => {
     item("79,51", 500, 700), item("02", 40, 700.8), item("06", 60, 700), item("DISSAN", 120, 700), item("Total", 40, 650), item("1 260,22", 500, 650),
   ]), ["02  06  DISSAN  79,51", "Total  1 260,22"]);
 });
+
+// Relevé personnel inventé (compte avec sous-comptes : épargne, marge de crédit)
+const PERSO = `
+"Succursale test","000999","EOP","2026/04/03",00001,"Achat /RESTAURANT LE TEST","",57.49,"","","","","",100.00
+"Succursale test","000999","EOP","2026/04/03",00002,"Achat /EPICERIE EXEMPLE","",84.96,"","","","","",15.04
+"Succursale test","000999","EOP","2026/04/24",00003,"Achat /CAFE TEST","",14.30,"","","","","",0.74
+"Succursale test","000999","EOP","2026/04/24",00004,"Achat /CAFE TEST","",14.30,"","","","","",-13.56
+"Succursale test","000999","EOP","2026/04/29",00005,"Paiement internet de /ENTREPRISE ABC/P20260429","","",2500.00,"","","","",2486.44
+"Succursale test","000999","ES2","2026/04/30",00001,"Intérêt sur ES","","",0.02,"","","","",235.38
+"Succursale test","000999","MC3","2026/04/27",00001,"Avance au compte EOP","","","","","",262.88,"",262.88
+`;
+
+test("Relevé personnel : personnel par défaut, sous-comptes ignorés, commerces d'affaires proposés ensuite", async () => {
+  const { addPurchases, classifyPurchase, merchantKey, parseDesjardinsCsv, purchaseTotals } = await import("../js/timesheet/purchases.js");
+  const rows = parseDesjardinsCsv(PERSO);
+  assert.equal(rows.length, 5); // épargne et marge de crédit : ignorées
+  assert.equal(merchantKey("Achat /THE HOME DEPOT #7147"), "THE HOME DEPOT");
+  let ts = addPurchases(emptyTimesheet(), rows, { source: "perso" }).ts;
+  assert.deepEqual(ts.purchases.map((p) => [p.source, p.category, p.status]).slice(0, 2), [["perso", "excluded", "ok"], ["perso", "excluded", "ok"]]);
+  // Les deux cafés identiques du même jour restent deux ; un relevé qui chevauche n'ajoute rien
+  assert.equal(ts.purchases.filter((p) => p.description === "Achat /CAFE TEST").length, 2);
+  const again = addPurchases(ts, parseDesjardinsCsv(PERSO), { source: "perso" });
+  assert.deepEqual([again.added, again.skipped], [0, 5]);
+  // Le resto coché pour l'entreprise : compté (50 %) ; l'épicerie reste personnelle
+  const resto = ts.purchases.find((p) => p.description.includes("RESTAURANT"));
+  ts = classifyPurchase(ts, resto.id, { category: "meal", pct: 0.5 });
+  const totals = purchaseTotals(ts.purchases);
+  assert.deepEqual(Object.keys(totals.groups), ["persoMeal"]); // personnel et dépôt : hors du calcul
+  assert.deepEqual([totals.tps, totals.tvq], [1.25, 2.49]);
+  assert.deepEqual(ts.personalRules, { "RESTAURANT LE TEST": { category: "meal", pct: 0.5 } });
+  assert.deepEqual(ts.merchantRules ?? {}, {}); // les règles de Maxxam ne changent pas
+  // Relevé suivant : le resto est proposé (à confirmer), pas imposé
+  const next = addPurchases(ts, [{ source: "caisse", account: "0999", date: "2026-05-02", seq: "1", description: "Achat /RESTAURANT LE TEST", amount: 30, orig: "" }], { source: "perso" }).ts;
+  assert.deepEqual(["category", "status", "note"].map((k) => next.purchases.at(-1)[k]), ["meal", "check", "businessBefore"]);
+});
+
+test("Recharge à la maison : part de chaque période d'Hydro-Québec au prorata des jours", async () => {
+  const { addHomeCharging, quarterHomeCharging, removeHomeCharging } = await import("../js/timesheet/purchases.js");
+  let ts = emptyTimesheet();
+  for (const [from, to, amount] of [["2026-02-18", "2026-04-20", 58], ["2026-04-21", "2026-06-17", 34], ["2026-06-18", "2026-08-19", 39]]) ts = addHomeCharging(ts, { from, to, amount });
+  const q = quarterHomeCharging(ts, "2026-T2");
+  assert.deepEqual(q.rows.map((r) => [r.inQuarter, r.days, r.share]), [[20, 62, 18.71], [58, 58, 34], [13, 63, 8.05]]);
+  assert.deepEqual([q.base, q.tps, q.tvq], [60.76, 3.04, 6.06]); // montants avant taxes
+  assert.equal(quarterHomeCharging(ts, "2026-T3").rows.length, 1); // juillet-sept. : la 3e période seulement
+  assert.equal(quarterHomeCharging(removeHomeCharging(ts, q.rows[0].id), "2026-T2").rows.length, 2);
+  assert.equal(addHomeCharging(ts, { from: "2026-05-01", to: "2026-04-01", amount: 5 }).homeCharging.length, 3); // période à l'envers : refusée
+});

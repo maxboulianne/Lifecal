@@ -576,7 +576,7 @@ export const timesheetPage = {
 
   title: () => t("nav.timesheet"),
 
-  render({ repo, today, timesheetDate, timesheetExport, timesheetProject, editingExpense, taxQuarter, taxEditing }) {
+  render({ repo, today, timesheetDate, timesheetExport, timesheetProject, editingExpense, taxQuarter, taxEditing, taxUi }) {
     const ts = repo.timesheet();
     const date = timesheetDate ?? today;
     return `<section class="page timesheet">
@@ -585,7 +585,7 @@ export const timesheetPage = {
       ${tasksSection(ts)}
       ${clientsSection(ts)}
       ${exportSection(ts, today, timesheetExport)}
-      ${taxesSection(ts, taxQuarter ?? reportQuarter(today), taxEditing)}
+      ${taxesSection(ts, taxQuarter ?? reportQuarter(today), taxEditing, taxUi)}
       ${businessSection(ts)}
     </section>`;
   },
