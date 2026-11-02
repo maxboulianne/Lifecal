@@ -53,6 +53,8 @@ import { readXlsxCells } from "../export/xlsx-read.js";
 import { invoiceFromCells } from "../timesheet/invoice-import.js";
 import { addHomeCharging, addManualPurchase, addPurchases, classifyPurchase, parseChoice, parseDesjardinsCsv, parseDesjardinsVisaPdf, quarterPurchases, removeHomeCharging, removePurchase, suggest } from "../timesheet/purchases.js";
 import { importPreview } from "./components/taxes-view.js";
+import { taxReportPreview } from "./components/tax-report-view.js";
+import { taxReportData, taxReportPdf, taxReportSheets } from "../timesheet/tax-report.js";
 import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
 import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
 import { invoicePdf } from "../timesheet/invoice-pdf.js";
@@ -1016,6 +1018,17 @@ export class App {
       $("[data-role=ts-tax-invoice][data-edit]")?.scrollIntoView({ block: "center" });
     },
     "ts-tax-import-confirm": () => this.#confirmInvoiceImport(),
+    // Rapport du trimestre : aperçu, puis Excel ou PDF
+    "ts-tax-report": () => openModal(taxReportPreview(this.#taxReport()), { labelledBy: "tax-report-title" }),
+    "ts-tax-report-xlsx": async () => {
+      const d = this.#taxReport();
+      await this.#shareFile(new File([buildXlsx(taxReportSheets(d))], `TPS-TVQ-${d.quarter}.xlsx`, { type: XLSX_TYPE }));
+    },
+    "ts-tax-report-pdf": async () => {
+      const d = this.#taxReport();
+      const logo = d.business.logo ? await this.#jpegForPdf(d.business.logo).catch(() => null) : null;
+      await this.#shareFile(new File([taxReportPdf(d, { logo, measure: this.#measure() })], `TPS-TVQ-${d.quarter}.pdf`, { type: PDF_TYPE }));
+    },
     // Achats : garder le classement proposé (et le retenir pour ce commerce), tous ou un seul
     "ts-purchase-ok": (el) => {
       const ts = this.repo.timesheet();
@@ -1952,6 +1965,11 @@ export class App {
     await this.#updateTimesheet(ts);
     toast(t("tax.imported", { count: chosen.length }));
     return undefined;
+  }
+
+  // Données du rapport TPS/TVQ du trimestre affiché
+  #taxReport() {
+    return taxReportData(this.repo.timesheet(), this.taxQuarter ?? reportQuarter(todayISO()), { today: todayISO() });
   }
 
   // Facture ajoutée (ou modifiée) à la main dans le registre des taxes. TPS et TVQ laissées

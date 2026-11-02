@@ -803,7 +803,7 @@ export default {
   "tax.clientName": "고객 이름",
   "tax.auto": "자동 계산",
   "tax.formHint": "TPS와 TVQ를 비우면 소계로 계산돼요 (5 %, 9.975 %). 이미 기록된 번호는 바뀌어요.",
-  "tax.nextSteps": "다음 단계: 분기 보고서 (Excel, PDF).",
+  "tax.nextSteps": "모두 분류했으면 분기 보고서를 여세요: 화면, Excel 또는 PDF.",
   "tax.confirmRemove": "청구서 {number}을(를) 세금 기록에서 삭제할까요?",
   "tax.confirmReplace": "청구서 {number}은(는) 이미 기록되어 있어요. 바꿀까요?",
   "tax.saved": "청구서 {number} 기록됨: {total}",
@@ -915,4 +915,8 @@ export default {
   "tax.errors.description": "설명을 입력하세요.",
   "tax.errors.amount": "세금 포함 금액을 입력하세요.",
   "tax.purchaseAdded": "구매 추가됨: {amount}",
+  "tax.report": "분기 보고서",
+  "tax.reportHint": "보고서에는 받은 세금, 낸 세금, 납부할 잔액과 신고서의 줄이 모여 있어요. Excel과 PDF에는 구매 내역도 들어 있어요.",
+  "tax.reportExcel": "Excel 보고서",
+  "tax.reportPdf": "PDF 보고서",
 };

@@ -806,7 +806,7 @@ export default {
   "tax.clientName": "Nombre del cliente",
   "tax.auto": "calculado",
   "tax.formHint": "TPS y TVQ vacíos: calculados sobre el subtotal (5 % y 9,975 %). Un número ya registrado se reemplaza.",
-  "tax.nextSteps": "Próximo paso: el informe del trimestre (Excel y PDF).",
+  "tax.nextSteps": "Cuando todo esté clasificado, abre el informe del trimestre: en pantalla, en Excel o en PDF.",
   "tax.confirmRemove": "¿Quitar la factura {number} del registro de impuestos?",
   "tax.confirmReplace": "La factura {number} ya está registrada. ¿Reemplazarla?",
   "tax.saved": "Factura {number} registrada: {total}",
@@ -918,4 +918,8 @@ export default {
   "tax.errors.description": "Escribe una descripción.",
   "tax.errors.amount": "Escribe el importe, impuestos incluidos.",
   "tax.purchaseAdded": "Compra añadida: {amount}",
+  "tax.report": "Informe del trimestre",
+  "tax.reportHint": "El informe reúne los impuestos cobrados, los pagados y el saldo a remitir, con las líneas de tu declaración. El Excel y el PDF incluyen también el detalle de las compras.",
+  "tax.reportExcel": "Informe Excel",
+  "tax.reportPdf": "Informe PDF",
 };

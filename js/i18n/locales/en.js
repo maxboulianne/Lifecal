@@ -806,7 +806,7 @@ export default {
   "tax.clientName": "Client name",
   "tax.auto": "calculated",
   "tax.formHint": "Empty GST and QST: calculated on the subtotal (5% and 9.975%). A number already recorded is replaced.",
-  "tax.nextSteps": "Next step: the quarter's report (Excel and PDF).",
+  "tax.nextSteps": "When everything is classified, open the quarter report: on screen, in Excel or PDF.",
   "tax.confirmRemove": "Remove invoice {number} from the tax register?",
   "tax.confirmReplace": "Invoice {number} is already recorded. Replace it?",
   "tax.saved": "Invoice {number} recorded: {total}",
@@ -918,4 +918,8 @@ export default {
   "tax.errors.description": "Enter a description.",
   "tax.errors.amount": "Enter the amount, taxes included.",
   "tax.purchaseAdded": "Purchase added: {amount}",
+  "tax.report": "Quarter report",
+  "tax.reportHint": "The report gathers taxes collected, taxes paid and the balance to remit, with the lines of your return. The Excel and PDF also hold the purchase details.",
+  "tax.reportExcel": "Excel report",
+  "tax.reportPdf": "PDF report",
 };
