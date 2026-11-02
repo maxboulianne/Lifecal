@@ -806,7 +806,7 @@ export default {
   "tax.clientName": "Name des Kunden",
   "tax.auto": "berechnet",
   "tax.formHint": "TPS und TVQ leer: auf die Zwischensumme berechnet (5 % und 9,975 %). Eine bereits erfasste Nummer wird ersetzt.",
-  "tax.nextSteps": "Nächster Schritt: der Quartalsbericht (Excel und PDF).",
+  "tax.nextSteps": "Wenn alles eingeordnet ist, öffne den Quartalsbericht: am Bildschirm, als Excel oder PDF.",
   "tax.confirmRemove": "Rechnung {number} aus dem Steuerregister entfernen?",
   "tax.confirmReplace": "Rechnung {number} ist bereits erfasst. Ersetzen?",
   "tax.saved": "Rechnung {number} erfasst: {total}",
@@ -918,4 +918,8 @@ export default {
   "tax.errors.description": "Gib eine Beschreibung ein.",
   "tax.errors.amount": "Gib den Betrag inkl. Steuern ein.",
   "tax.purchaseAdded": "Einkauf hinzugefügt: {amount}",
+  "tax.report": "Quartalsbericht",
+  "tax.reportHint": "Der Bericht fasst eingenommene und bezahlte Steuern sowie den zu zahlenden Saldo mit den Zeilen deiner Erklärung zusammen. Excel und PDF enthalten auch die Einkäufe im Detail.",
+  "tax.reportExcel": "Bericht als Excel",
+  "tax.reportPdf": "Bericht als PDF",
 };

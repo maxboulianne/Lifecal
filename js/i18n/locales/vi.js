@@ -803,7 +803,7 @@ export default {
   "tax.clientName": "Tên khách hàng",
   "tax.auto": "tự tính",
   "tax.formHint": "TPS và TVQ để trống: tính trên tạm tính (5 % và 9,975 %). Số hóa đơn đã ghi sẽ được thay thế.",
-  "tax.nextSteps": "Bước tiếp theo: báo cáo của quý (Excel và PDF).",
+  "tax.nextSteps": "Khi đã phân loại xong, mở báo cáo quý: trên màn hình, Excel hoặc PDF.",
   "tax.confirmRemove": "Xóa hóa đơn {number} khỏi sổ thuế?",
   "tax.confirmReplace": "Hóa đơn {number} đã được ghi. Thay thế?",
   "tax.saved": "Đã ghi hóa đơn {number}: {total}",
@@ -915,4 +915,8 @@ export default {
   "tax.errors.description": "Nhập mô tả.",
   "tax.errors.amount": "Nhập số tiền, gồm thuế.",
   "tax.purchaseAdded": "Đã thêm khoản mua: {amount}",
+  "tax.report": "Báo cáo quý",
+  "tax.reportHint": "Báo cáo gồm thuế đã thu, thuế đã trả và số phải nộp, kèm các dòng của tờ khai. Bản Excel và PDF còn có chi tiết các khoản mua.",
+  "tax.reportExcel": "Báo cáo Excel",
+  "tax.reportPdf": "Báo cáo PDF",
 };

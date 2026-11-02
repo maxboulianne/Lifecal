@@ -180,7 +180,10 @@ function purchasesBlock(ts, quarter, sales, ui = {}) {
         <ul class="ts-purchase-list">${list.map(purchaseRow).join("")}</ul></details>` : ""}
     ${personalBlock(perso, ui)}
     ${homeChargingBlock(hc)}
-    ${balance}`;
+    ${balance}
+    <div class="actions start ts-tax-report-start">
+      <button type="button" class="btn primary" data-action="ts-tax-report">📄 ${t("tax.report")}</button>
+    </div>`;
 }
 
 export function taxesSection(ts, quarter, editingId, ui = {}) {
