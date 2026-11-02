@@ -51,6 +51,7 @@ import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
 import { readXlsxCells } from "../export/xlsx-read.js";
 import { invoiceFromCells } from "../timesheet/invoice-import.js";
+import { addPurchases, classifyPurchase, parseDesjardinsCsv, parseDesjardinsVisaPdf, quarterPurchases, removePurchase } from "../timesheet/purchases.js";
 import { importPreview } from "./components/taxes-view.js";
 import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
 import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
@@ -1003,6 +1004,24 @@ export class App {
       $("[data-role=ts-tax-invoice][data-edit]")?.scrollIntoView({ block: "center" });
     },
     "ts-tax-import-confirm": () => this.#confirmInvoiceImport(),
+    // Achats : garder le classement proposé (et le retenir pour ce commerce), tous ou un seul
+    "ts-purchase-ok": (el) => {
+      const ts = this.repo.timesheet();
+      const p = ts.purchases.find((x) => x.id === el.dataset.id);
+      if (p) return this.#updateTimesheet(classifyPurchase(ts, p.id, p));
+    },
+    "ts-purchase-ok-all": () => {
+      let ts = this.repo.timesheet();
+      for (const p of quarterPurchases(ts, this.taxQuarter ?? reportQuarter(todayISO()))) {
+        const now = ts.purchases.find((x) => x.id === p.id);
+        if (now?.status === "check") ts = classifyPurchase(ts, now.id, now);
+      }
+      return this.#updateTimesheet(ts);
+    },
+    "ts-purchase-remove": (el) => {
+      if (!confirm(t("tax.confirmRemovePurchase"))) return;
+      return this.#updateTimesheet(removePurchase(this.repo.timesheet(), el.dataset.id));
+    },
     "ts-tax-cancel": () => {
       this.taxEditing = null;
       this.#renderKeepingScroll();
@@ -1565,6 +1584,16 @@ export class App {
         for (const k of images) this.#readReceipt(k, r.slots[k]);
         return undefined;
       }
+      case "ts-tax-statement": {
+        const files = [...(el.files ?? [])];
+        el.value = "";
+        if (files.length) await this.#importStatements(files);
+        return undefined;
+      }
+      case "ts-purchase-cat": {
+        const [category, pct] = el.value.split(":");
+        return this.#updateTimesheet(classifyPurchase(ts, el.dataset.id, { category, pct: Number(pct) }));
+      }
       case "ts-tax-import": {
         const files = [...(el.files ?? [])];
         el.value = "";
@@ -1808,6 +1837,60 @@ export class App {
     items.sort((a, b) => (a.invoice?.date ?? "9").localeCompare(b.invoice?.date ?? "9"));
     this.taxImport = items;
     openModal(importPreview(items), { labelledBy: "tax-import-title" });
+  }
+
+  // Relevés de Desjardins (CSV de la Visa ou de la Caisse, PDF de la Visa) : transactions
+  // ajoutées et classées, sans doublons. Un PDF est vérifié : ses achats lus doivent faire
+  // le « Total » imprimé sur le relevé.
+  async #importStatements(files) {
+    let ts = this.repo.timesheet();
+    let added = 0;
+    let skipped = 0;
+    const dates = [];
+    for (const file of files) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let rows;
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+        let lines;
+        try {
+          const { pdfLines } = await import("../scan/pdf-text.js");
+          lines = await pdfLines(bytes);
+        } catch (err) {
+          console.error(err);
+          toast(t("tax.pdfFailed"));
+          continue;
+        }
+        const pdf = parseDesjardinsVisaPdf(lines);
+        rows = pdf.rows;
+        if (rows.length && pdf.expected !== null && Math.abs(pdf.total - pdf.expected) > 0.005) {
+          toast(t("tax.pdfMismatch", { file: file.name, found: fmt.money(pdf.total), expected: fmt.money(pdf.expected) }));
+        }
+      } else {
+        let text;
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        } catch {
+          text = new TextDecoder("windows-1252").decode(bytes); // relevés Desjardins
+        }
+        rows = parseDesjardinsCsv(text);
+      }
+      if (!rows.length) {
+        toast(t("tax.statementUnknown", { file: file.name }));
+        continue;
+      }
+      const r = addPurchases(ts, rows);
+      ts = r.ts;
+      added += r.added;
+      skipped += r.skipped;
+      dates.push(...rows.map((row) => row.date));
+    }
+    if (!dates.length) return undefined;
+    // Montrer le trimestre du relevé
+    this.taxQuarter = quarterOf(dates.sort()[Math.floor(dates.length / 2)]);
+    setFoldOpen("ts-taxes", true);
+    await this.#updateTimesheet(ts);
+    toast(t("tax.statementsImported", { count: added, skipped }));
+    return undefined;
   }
 
   async #confirmInvoiceImport() {

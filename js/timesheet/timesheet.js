@@ -12,6 +12,7 @@
 //   tasks     les tâches standard (voir tasks.js)
 //   days      les heures de présence de chaque journée : début, fin, pause (voir presence.js)
 //   invoices  le registre des factures émises, pour la TPS et la TVQ (voir taxes.js)
+//   purchases, merchantRules  les achats tirés des relevés et les choix retenus par commerce (voir purchases.js)
 //   expenses, recurring, rates : les dépenses à refacturer, les dépenses mensuelles (voir expenses.js)
 //   business  { name, contact, address, phone, email, tpsNumber, tvqNumber, terms, nextInvoice, mileageRate, showProjectName, showTaskCodes, showTaskDescription, logo, logoSize }
 //             show… : ce qui paraît sur chaque ligne de la facture (le code du projet, toujours)
@@ -25,6 +26,7 @@ import { DEFAULT_MILEAGE_RATE, normalizeExpenses, normalizeRates, normalizeRecur
 import { normalizeTasks, standardTasks } from "./tasks.js";
 import { copyPresence, normalizeDays } from "./presence.js";
 import { normalizeInvoices } from "./taxes.js";
+import { normalizeMerchantRules, normalizePurchases } from "./purchases.js";
 
 export const TPS_RATE = 0.05;
 export const TVQ_RATE = 0.09975;
@@ -38,7 +40,7 @@ export function emptyBusiness() {
 }
 
 export function emptyTimesheet() {
-  return { clients: [], projects: [], entries: [], expenses: [], recurring: [], rates: {}, tasks: standardTasks(), days: {}, invoices: [], business: emptyBusiness() };
+  return { clients: [], projects: [], entries: [], expenses: [], recurring: [], rates: {}, tasks: standardTasks(), days: {}, invoices: [], purchases: [], merchantRules: {}, business: emptyBusiness() };
 }
 
 const str = (v) => String(v ?? "").trim();
@@ -93,7 +95,7 @@ export function normalizeTimesheet(raw) {
   const recurring = normalizeRecurring(ts.recurring).filter((r) => (r.projectId ? known.has(r.projectId) : clientIds.has(r.clientId)));
   return {
     clients, projects, entries, expenses, recurring, rates: normalizeRates(ts.rates), tasks: normalizeTasks(ts.tasks), days: normalizeDays(ts.days),
-    invoices: normalizeInvoices(ts.invoices), business,
+    invoices: normalizeInvoices(ts.invoices), purchases: normalizePurchases(ts.purchases), merchantRules: normalizeMerchantRules(ts.merchantRules), business,
   };
 }
 

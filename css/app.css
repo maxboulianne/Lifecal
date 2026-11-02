@@ -1340,3 +1340,31 @@ body.player-open { overflow: hidden; }
 .tax-import .ts-tax-table td:nth-child(3) { white-space: nowrap; }
 .tax-import .tax-import-file { word-break: break-all; }
 .tax-import .ts-tax-table td:nth-child(4), .tax-import .ts-tax-table th:nth-child(4) { text-align: left; }
+
+/* Taxes payées : achats tirés des relevés */
+.ts-purchase-summary td:first-child { white-space: normal; }
+.ts-purchase-summary td:nth-child(n+2), .ts-purchase-summary th:nth-child(n+2) { text-align: right; white-space: nowrap; }
+.ts-purchase-list { list-style: none; margin: 6px 0; padding: 0; }
+.ts-purchase { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 6px 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.ts-purchase.is-check { background: #fff4e5; padding-left: 8px; padding-right: 4px; border-radius: 8px; border-bottom-color: transparent; margin-bottom: 4px; }
+.ts-purchase-text { min-width: 0; display: grid; }
+.ts-purchase-desc { overflow-wrap: anywhere; }
+.ts-purchase-amount { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.ts-purchase select { max-width: 11em; min-height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font: inherit; font-size: 15px; }
+.ts-purchase-ok { min-width: 36px; min-height: 36px; padding: 0 8px; }
+.ts-purchase-check { margin: 10px 0; }
+.ts-purchase-check-title { margin: 0; font-weight: 700; color: var(--danger); }
+.ts-purchase-all { margin: 10px 0; }
+.ts-purchase-all > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.ts-tax-balance { margin: 14px 0 4px; padding: 12px 14px; border-radius: 12px; background: #2c4a6e; color: #fff; }
+.ts-tax-balance-title { margin: 0 0 6px; font-weight: 700; }
+.ts-tax-balance dl { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
+.ts-tax-balance dl div { display: grid; }
+.ts-tax-balance dt { font-size: 0.8rem; opacity: 0.8; }
+.ts-tax-balance dd { margin: 0; font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ts-tax-balance .total dd { color: #ffb08f; }
+.ts-tax-balance .hint { color: #dce4ee; margin: 6px 0 0; }
+@media (max-width: 560px) {
+  .ts-purchase { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .ts-purchase-text { grid-column: 1 / -1; }
+}
