@@ -41,6 +41,7 @@ import { geocode } from "../travel/geocode.js";
 import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited, cachedHotels, cachedSuggestions, destQuery, getDest, hotelsKey, suggestionsKey } from "../travel/trip.js";
 import { settingsPage } from "./pages/settings.js";
 import { housePage } from "./pages/house.js";
+import { houseSteps } from "./components/house-steps.js";
 import * as House from "../house/house.js";
 import { CUSTOM_TASK, dayOfMonth, rangeDates, timesheetPage } from "./pages/timesheet.js";
 import { addTask, getTask, removeTask, taskUseCount, updateTask } from "../timesheet/tasks.js";
@@ -178,7 +179,8 @@ export class App {
   taxQuarter = null; // trimestre affiché dans « Taxes » (par défaut : celui qui vient de finir)
   taxEditing = null; // facture du registre en cours de modification
   taxImport = null; // factures lues dans des fichiers Excel, en attente de confirmation
-  houseUi = { tab: "inside", editing: null, focus: null, openList: null }; // page Maison : onglet, tâche modifiée ou mise en évidence
+  houseUi = { tab: "inside", editing: null, focus: null, openList: null };
+  houseStep = null; // procédure pas à pas ouverte : { listId, index } // page Maison : onglet, tâche modifiée ou mise en évidence
   taxUi = { persoOpen: false, persoQuery: "" }; // liste des transactions personnelles : ouverte, recherche
   receipt = null; // « Scanner un reçu » en cours : { date, slots, values, auto }
   timesheetExport = { range: "thisMonth", from: "", to: "", clientId: "" };
@@ -1057,6 +1059,21 @@ export class App {
       this.#renderKeepingScroll();
       document.getElementById(`house-list-${el.dataset.list}`)?.scrollIntoView({ block: "start" });
     },
+    // Procédure pas à pas : illustration, case « faite », photos, vidéos et note de chaque étape
+    "house-steps": (el) => {
+      this.houseStep = { listId: el.dataset.list, index: Number(el.dataset.index) || 0 };
+      this.#showSteps(true);
+    },
+    "house-step-go": (el) => {
+      if (!this.houseStep) return;
+      this.houseStep = { ...this.houseStep, index: Number(el.dataset.index) };
+      this.#showSteps(true);
+    },
+    "house-step-media-remove": async (el) => {
+      if (!confirm(t("house.steps.confirmRemoveMedia"))) return;
+      await this.#updateHouse(House.removeStepMedia(this.repo.house(), el.dataset.list, el.dataset.entry, el.dataset.media));
+      await deleteFile(el.dataset.media).catch(() => {});
+    },
     "house-entry-remove": (el) => this.#updateHouse(House.removeListEntry(this.repo.house(), el.dataset.list, el.dataset.entry)),
     "house-list-reset": (el) => this.#updateHouse(House.resetList(this.repo.house(), el.dataset.list)),
     "open-timesheet": () => {
@@ -1437,6 +1454,10 @@ export class App {
       return;
     }
     if (el.dataset.action === "house-photo" && el.files?.[0]) return this.#addHousePhoto(el.dataset.id, el.files[0]);
+    if (el.dataset.action === "house-step-media" && el.files?.length) return this.#addStepMedia(el.dataset.list, el.dataset.entry, [...el.files]);
+    if (el.dataset.action === "house-step-note") {
+      return this.#updateHouse(House.setStepNote(this.repo.house(), el.dataset.list, el.dataset.entry, el.value));
+    }
     if (el.dataset.action === "house-check") {
       return this.#updateHouse(House.toggleCheck(this.repo.house(), el.dataset.list, el.dataset.entry, todayISO()));
     }
@@ -1674,6 +1695,49 @@ export class App {
     await this.repo.updateHouse(house);
     window.scrollTo(0, top);
     if (focusSelector) $(focusSelector)?.focus();
+    if (this.houseStep && !$("#modal").hidden && $("#modal .house-steps")) this.#showSteps(false);
+  }
+
+  // Ouvre (ou redessine) l'étape de la procédure ; `top` : revenir en haut (autre étape)
+  #showSteps(top) {
+    const list = this.repo.house().lists.find((l) => l.id === this.houseStep?.listId);
+    if (!list?.entries.length) return;
+    const sheet = $("#modal .sheet");
+    const scroll = sheet.scrollTop;
+    for (const url of this.#stepUrls) URL.revokeObjectURL(url);
+    this.#stepUrls = [];
+    openModal(houseSteps(list, this.houseStep.index, House.listState(this.repo.house(), list.id, todayISO())), { labelledBy: "house-steps-title" });
+    sheet.scrollTop = top ? 0 : scroll;
+    this.#loadHousePhotos();
+  }
+
+  #stepUrls = [];
+
+  // Photos (réduites) et vidéos (telles quelles) d'une étape, dans le stockage des fichiers de l'appareil
+  async #addStepMedia(listId, entryId, files) {
+    const MAX_VIDEO_MB = 400;
+    let house = this.repo.house();
+    let added = 0;
+    for (const file of files) {
+      const video = file.type.startsWith("video/");
+      if (video && file.size > MAX_VIDEO_MB * 1024 * 1024) {
+        toast(t("house.steps.tooBig", { mb: MAX_VIDEO_MB }));
+        continue;
+      }
+      try {
+        const blob = video ? file : await shrinkImage(file, 1600);
+        const id = newId();
+        await putFile(id, blob);
+        house = House.addStepMedia(house, listId, entryId, { id, type: video ? "video" : "image" });
+        added++;
+      } catch (err) {
+        console.error(err);
+        toast(t("attach.storageError"));
+      }
+    }
+    if (!added) return;
+    await this.#updateHouse(house);
+    toast(t("house.steps.mediaAdded", { count: added }));
   }
 
   // Fiche d'une fourniture (nouvelle ou modifiée)
@@ -1718,6 +1782,15 @@ export class App {
 
   // Photos des fournitures : lues dans le stockage des fichiers une fois la page affichée
   #loadHousePhotos() {
+    // Vidéos : l'adresse reste valide tant que l'étape est affichée (libérée à la suivante)
+    for (const video of document.querySelectorAll("video[data-house-video]")) {
+      getFile(video.dataset.houseVideo).then((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        this.#stepUrls.push(url);
+        video.src = url;
+      }).catch(() => {});
+    }
     for (const img of document.querySelectorAll("img[data-house-photo]")) {
       getFile(img.dataset.housePhoto).then((blob) => {
         if (!blob) return;

@@ -1483,3 +1483,35 @@ body.player-open { overflow: hidden; }
   .house-need { background: #2f3b4a; color: #cfdced; }
   .house-purchase { background: #2a3038; }
 }
+/* Maison : procédure pas à pas (photos et vidéos de chaque étape) */
+.house-step-open { display: inline-flex; align-items: center; gap: 2px; flex: none; min-height: 36px; padding: 0 8px; border: none; border-radius: 8px; background: #eef2f7; color: #2c4a6e; font: inherit; font-size: 0.8rem; cursor: pointer; }
+.house-step-open span { font-size: 1.2rem; }
+.house-steps { --navy: #2c4a6e; --orange: #e0491a; --pale: #eef2f7; display: grid; gap: 12px; }
+.house-steps-head h2 { margin: 0; color: var(--navy); }
+.house-steps-head .hint { margin: 2px 0 8px; }
+.house-steps-bar { display: flex; gap: 4px; }
+.house-steps-bar button { flex: 1; height: 8px; padding: 0; border: none; border-radius: 4px; background: #d5dde7; cursor: pointer; }
+.house-steps-bar button.is-done { background: var(--navy); }
+.house-steps-bar button.is-current { background: var(--orange); }
+.house-step-figure { margin: 0; }
+.house-step-figure svg { display: block; width: 100%; max-height: 260px; }
+.house-step-figure figcaption { font-size: 0.7rem; color: var(--muted); text-align: right; }
+.house-step-check { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: 10px; background: var(--pale); color: #1f2937; font-size: 1.05rem; cursor: pointer; }
+.house-step-check input { width: 28px; height: 28px; flex: none; accent-color: var(--navy); }
+.house-step-check.is-done span { text-decoration: line-through; color: #6b7280; }
+.house-step-mine { display: grid; gap: 8px; padding: 12px; border: 2px solid var(--navy); border-radius: 10px; }
+.house-step-mine h3 { margin: 0; color: var(--navy); font-size: 1rem; }
+.house-step-media { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.house-step-file { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; background: #000; }
+img.house-step-file { background: var(--pale); }
+.house-step-add { justify-self: start; }
+.house-steps-nav { justify-content: space-between; }
+.house-steps-nav .btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+.house-list .actions .btn.primary { background: #2c4a6e; border-color: #2c4a6e; color: #fff; }
+@media (prefers-color-scheme: dark) {
+  .house-steps-head h2, .house-step-mine h3 { color: #9fb7d6; }
+  .house-step-mine { border-color: #9fb7d6; }
+  .house-step-open { background: #2f3b4a; color: #cfdced; }
+}
+.house-step-mine > label:not(.btn) { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.house-step-mine textarea { width: 100%; min-height: 64px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
