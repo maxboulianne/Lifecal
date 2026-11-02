@@ -36,6 +36,14 @@ test("Relevés : lecture des CSV de la Visa et de la Caisse", () => {
   assert.equal(caisse.length, 5);
   assert.equal(caisse[3].amount, -6000); // dépôt
   assert.equal(caisse[0].source, "caisse");
+  // Export plus récent de la carte : « Carte de credit Desjardins**** … 0000 », sans ville ni province
+  const recent = parseDesjardinsCsv(`"Carte de credit Desjardins**** **** **** 0000","","",2026/09/25,"1","Paiement Caisse","","","","","","",-400.00,""
+"Carte de credit Desjardins**** **** **** 0000","","",2026/09/24,"1","Fournisseur Test","","","","","",40.29,"",""
+"Carte de credit Desjardins**** **** **** 0000","","",2026/09/30,"1","Plan Accord D","","","","","",42.00,"",""
+`);
+  assert.deepEqual(recent[1], { source: "visa", account: "0000", date: "2026-09-24", seq: "1", description: "Fournisseur Test", amount: 40.29, orig: "" });
+  assert.equal(recent[0].amount, -400);
+  assert.equal(suggest(recent[2]).category, "excluded"); // mensualité d'un achat financé
 });
 
 test("Relevés : classement proposé", () => {

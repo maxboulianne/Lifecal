@@ -82,7 +82,8 @@ export function parseDesjardinsCsv(text) {
   const out = [];
   for (const r of csvRows(text)) {
     if (!/^\d{4}[/-]\d{2}[/-]\d{2}$/.test(str(r[3]))) continue;
-    const card = /^(VISA|MASTERCARD)/i.test(str(r[0]));
+    // Carte : « VISA**** **** **** 1000 » ou, dans l'export plus récent, « Carte de credit Desjardins**** **** **** 1009 »
+    const card = /^(VISA|MASTERCARD|CARTE DE CR[ÉE]DIT)/i.test(str(r[0]));
     if (card) {
       const description = str(r[5]).replace(/\s+/g, " ");
       const debit = amountOf(r[11]);
@@ -172,7 +173,7 @@ const RULES = [
   [/PAIEMENT D'AUTOMOBILE|FORD CREDIT|GM FINANCIAL|TOYOTA CREDIT|HONDA FINANCE/i, "exempt", 1, "check", "carLoan"],
   [/ASSURANCE|INSURANCE|CROIX ?BLEUE|BLUE ?CROSS/i, "exempt", 1, "check", "insurance"],
   [/REMISE GOUVERNEMENTALE|CODE PAIEMENT RQ|REVENU QU[ÉE]BEC|RECEVEUR G[ÉE]N[ÉE]RAL|AGENCE DU REVENU/i, "excluded", 0, "ok", "government"],
-  [/^PAIEMENT (AUTORIS|CAISSE)|^PAIEMENT \/VISA|ACC[ÈE]SD INTERNET \/VISA|TRANSFERT MENSUALIT/i, "excluded", 0, "ok", "cardPayment"],
+  [/^PAIEMENT (AUTORIS|CAISSE)|^PAIEMENT \/VISA|ACC[ÈE]SD INTERNET \/VISA|TRANSFERT MENSUALIT|^PLAN ACCORD D/i, "excluded", 0, "ok", "cardPayment"],
   [/FRAIS DE CR[ÉE]DIT|INT[ÉE]R[ÊE]TS|FRAIS FIXES|FRAIS DE SERVICE|FRAIS MENSUELS/i, "exempt", 1, "ok", "bankFees"],
   [/AMENDE|COUR MUNICIPALE|CONSTAT/i, "excluded", 0, "check", "fine"],
   [/CIRCUIT [ÉE]LECTRIQUE|LE CIRCUIT|CHARGEPOINT|\bFLO\b|SWIFTCHARGE|ELECTRIFY|\bIVY\b|PETRO.?CANADA EV|TESLA SUPERCHARG/i, "taxable", 1, "check", "charging"],
