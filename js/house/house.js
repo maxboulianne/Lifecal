@@ -7,6 +7,8 @@
 //             { kind: "dates", dates: ["05-15", "11-05"] } chaque année à ces dates (saisons)
 //   liste  : { id, key, zone, title, entries: [{ id, text }] }
 //   checks : { [listId]: { year: 2026, done: { [entryId]: true } } } — une nouvelle année repart à zéro
+//   fourniture (à racheter) : { id, key, name, description, model, qty, unit, store, url, photos: [fileIds],
+//     stock (en réserve, null = pas suivi), tasks: [taskIds], purchases: [{ id, date, qty, price, store, note }] }
 //
 // Les rappels du calendrier sont calculés (jamais enregistrés), comme les occurrences des habitudes.
 
@@ -116,12 +118,39 @@ const DEFAULT_LISTS = [
   ]],
 ];
 
+// Fournitures de départ : marques et numéros à compléter (photo du vieux filtre, du sac…)
+const DEFAULT_SUPPLIES = [
+  ["salt", "Sel pour adoucisseur d'eau", "Pastilles (ou cristaux) de sel haute pureté pour adoucisseur.", 2, "sacs de 20 kg", ["softener-salt"]],
+  ["resin-cleaner", "Nettoyant pour résine d'adoucisseur (le « savon »)", "Versé chaque mois dans la colonne du bac à sel.", 1, "dose", ["softener-soap"]],
+  ["ro-1", "Osmose 1 — filtre à sédiments 5 microns", "Souvent vendu en ensemble avec les filtres 2 et 3.", 1, "filtre", ["ro-1"]],
+  ["ro-2", "Osmose 2 — filtre au charbon en granules (GAC)", "", 1, "filtre", ["ro-2"]],
+  ["ro-3", "Osmose 3 — filtre au charbon compressé (CTO)", "", 1, "filtre", ["ro-3"]],
+  ["ro-4", "Osmose 4 — membrane d'osmose", "Noter la capacité (ex. 75 GPD).", 1, "membrane", ["ro-4"]],
+  ["ro-5", "Osmose 5 — post-filtre au charbon (en ligne)", "", 1, "filtre", ["ro-5"]],
+  ["ro-6", "Osmose 6 — cartouche de reminéralisation (en ligne)", "", 1, "cartouche", ["ro-6"]],
+  ["fridge-water", "Filtre à eau du réfrigérateur", "Le numéro est sur l'étiquette du filtre en place.", 1, "filtre", ["fridge-water"]],
+  ["fridge-air", "Filtre à air du réfrigérateur", "", 1, "filtre", ["fridge-air"]],
+  ["batteries", "Piles des détecteurs", "Type à préciser (9 V ou AA). Une par détecteur.", null, "piles", ["detectors-batteries"]],
+  ["hood-filter", "Filtre de la hotte de cuisine", "Seulement s'il se remplace (charbon) ; un filtre en métal se lave.", 1, "filtre", ["hood-filter"]],
+  ["silicone", "Silicone pour salle de bain et cuisine", "Silicone 100 % avec anti-moisissure, blanc ou transparent.", 1, "tube", ["silicone"]],
+  ["pool-close", "Produits de fermeture de la piscine", "Produit d'hivernage, chlore choc, bouchons d'hivernage au besoin.", null, "", ["pool-close"]],
+  ["pool-open", "Produits d'ouverture de la piscine", "Chlore choc, ajusteurs de pH et d'alcalinité, bandelettes d'analyse.", null, "", ["pool-open"]],
+  ["deicing-salt", "Sel de déglaçage", "Pour les bacs à l'avant et au garage.", null, "sacs", []],
+  ["grit", "Petite pierre (abrasif)", "Pour les bacs à l'avant et au garage.", null, "sacs", []],
+  ["stakes", "Piquets de déneigement", "Pour remplacer ceux qui sont brisés.", null, "piquets", ["stakes-in"]],
+  ["snowblower-oil", "Huile et stabilisateur d'essence pour la souffleuse", "", 1, "de chaque", ["snowblower"]],
+  ["stain", "Teinture ou scellant (terrasse, fenêtres en cèdre)", "Noter la couleur et la marque.", null, "gallons", ["deck-stain", "cedar-windows"]],
+];
+
 export function emptyHouse() {
   const lists = DEFAULT_LISTS.map(([key, zone, title, entries]) => ({ id: key, key, zone, title, entries: entries.map((text, i) => ({ id: `${key}-${i + 1}`, text })) }));
   const tasks = DEFAULT_TASKS.map(([key, zone, title, schedule, note = "", list = null]) => ({
-    id: key, key, zone, title, note, schedule, lastDone: null, history: [], list, active: true,
+    id: key, key, zone, title, note, schedule, lastDone: null, history: [], list, active: true, consumedOn: null,
   }));
-  return { tasks, lists, checks: {} };
+  const supplies = DEFAULT_SUPPLIES.map(([key, name, description, qty, unit, taskIds]) => ({
+    id: `s-${key}`, key, name, description, model: "", qty, unit, store: "", url: "", photos: [], stock: null, tasks: taskIds, purchases: [],
+  }));
+  return { tasks, lists, checks: {}, supplies };
 }
 
 // ---- Validation ----
@@ -146,6 +175,7 @@ function normalizeTask(t, listIds) {
   return {
     id: str(t.id) || newId(), key: str(t.key), zone: ZONES.includes(t.zone) ? t.zone : "inside", title: str(t.title), note: str(t.note),
     schedule, lastDone, history, list: listIds.has(t.list) ? t.list : null, active: t.active !== false,
+    consumedOn: ISO.test(t.consumedOn) ? t.consumedOn : null, // dernière fois où la réserve a baissé
   };
 }
 
@@ -153,6 +183,24 @@ function normalizeList(l) {
   if (!l || !str(l.title)) return null;
   const entries = (Array.isArray(l.entries) ? l.entries : []).filter((e) => e && str(e.text)).map((e) => ({ id: str(e.id) || newId(), text: str(e.text) }));
   return { id: str(l.id) || newId(), key: str(l.key), zone: ZONES.includes(l.zone) ? l.zone : "inside", title: str(l.title), entries };
+}
+
+const posNum = (v) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) || Number(v) < 0 ? null : Math.round(Number(v) * 100) / 100);
+
+function normalizePurchase(p) {
+  if (!p || !ISO.test(p.date)) return null;
+  return { id: str(p.id) || newId(), date: p.date, qty: posNum(p.qty), price: posNum(p.price), store: str(p.store), note: str(p.note) };
+}
+
+function normalizeSupply(s, taskIds) {
+  if (!s || !str(s.name)) return null;
+  return {
+    id: str(s.id) || newId(), key: str(s.key), name: str(s.name), description: str(s.description), model: str(s.model),
+    qty: posNum(s.qty), unit: str(s.unit), store: str(s.store), url: /^https?:\/\//i.test(str(s.url)) ? str(s.url) : "",
+    photos: (Array.isArray(s.photos) ? s.photos : []).filter((x) => typeof x === "string" && x),
+    stock: posNum(s.stock), tasks: (Array.isArray(s.tasks) ? s.tasks : []).filter((id) => taskIds.has(id)),
+    purchases: (Array.isArray(s.purchases) ? s.purchases : []).map(normalizePurchase).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date)),
+  };
 }
 
 export function normalizeHouse(raw) {
@@ -164,7 +212,10 @@ export function normalizeHouse(raw) {
   for (const [id, c] of Object.entries(raw.checks && typeof raw.checks === "object" ? raw.checks : {})) {
     if (listIds.has(id) && Number.isInteger(c?.year)) checks[id] = { year: c.year, done: Object.fromEntries(Object.entries(c.done ?? {}).filter(([, v]) => v === true)) };
   }
-  return { tasks, lists, checks };
+  const taskIds = new Set(tasks.map((t) => t.id));
+  // Données d'avant les fournitures : celles de départ
+  const supplies = Array.isArray(raw.supplies) ? raw.supplies.map((s) => normalizeSupply(s, taskIds)).filter(Boolean) : emptyHouse().supplies.map((s) => normalizeSupply(s, taskIds));
+  return { tasks, lists, checks, supplies };
 }
 
 // ---- Calcul des dates ----
@@ -261,20 +312,40 @@ export function houseOccurrences(house, from, to, today) {
 const mapTask = (house, id, fn) => ({ ...house, tasks: house.tasks.map((t) => (t.id === id ? fn(t) : t)) });
 
 // Marquer une tâche faite à une date (aujourd'hui par défaut)
-export function markDone(house, id, date) {
+// `consume` : l'entretien vient d'être fait (« ✓ Fait ») — la réserve des fournitures liées baisse
+export function markDone(house, id, date, { consume = false } = {}) {
   if (!ISO.test(date)) return house;
-  return mapTask(house, id, (t) => {
+  const task = house.tasks.find((t) => t.id === id);
+  if (!task) return house;
+  const fresh = !task.history.includes(date);
+  let next = mapTask(house, id, (t) => {
     const history = [...new Set([...t.history, date])].sort(); // tout l'historique est gardé
-    return { ...t, history, lastDone: history.at(-1) };
+    return { ...t, history, lastDone: history.at(-1), consumedOn: consume && fresh ? date : t.consumedOn };
   });
+  if (consume && fresh) next = shiftStock(next, id, -1);
+  return next;
 }
 
-// Annuler la dernière fois (erreur de toucher)
+// Annuler la dernière fois (erreur de toucher) ; la réserve revient si elle avait baissé
 export function undoDone(house, id) {
-  return mapTask(house, id, (t) => {
+  const task = house.tasks.find((t) => t.id === id);
+  if (!task?.history.length) return house;
+  const removed = task.history.at(-1);
+  let next = mapTask(house, id, (t) => {
     const history = t.history.slice(0, -1);
-    return { ...t, history, lastDone: history.at(-1) ?? null };
+    return { ...t, history, lastDone: history.at(-1) ?? null, consumedOn: t.consumedOn === removed ? null : t.consumedOn };
   });
+  if (task.consumedOn === removed) next = shiftStock(next, id, 1);
+  return next;
+}
+
+// Réserve des fournitures d'une tâche : ± la quantité par remplacement (1 si non précisée)
+function shiftStock(house, taskId, sign) {
+  return {
+    ...house,
+    supplies: house.supplies.map((s) => (s.tasks.includes(taskId) && s.stock !== null
+      ? { ...s, stock: Math.max(0, Math.round((s.stock + sign * (s.qty ?? 1)) * 100) / 100) } : s)),
+  };
 }
 
 export function updateTask(house, id, patch) {
@@ -287,7 +358,68 @@ export function addTask(house, fields) {
   return task ? { house: { ...house, tasks: [...house.tasks, task] }, task } : { house, task: null };
 }
 
-export const removeTask = (house, id) => ({ ...house, tasks: house.tasks.filter((t) => t.id !== id) });
+export const removeTask = (house, id) => ({
+  ...house, tasks: house.tasks.filter((t) => t.id !== id), supplies: house.supplies.map((s) => ({ ...s, tasks: s.tasks.filter((x) => x !== id) })),
+});
+
+// ---- Fournitures à racheter ----
+
+const taskIdSet = (house) => new Set(house.tasks.map((t) => t.id));
+const mapSupply = (house, id, fn) => ({ ...house, supplies: house.supplies.map((s) => (s.id === id ? fn(s) : s)) });
+
+export function addSupply(house, fields) {
+  const supply = normalizeSupply({ ...fields, id: newId(), purchases: [] }, taskIdSet(house));
+  return supply ? { house: { ...house, supplies: [...house.supplies, supply] }, supply } : { house, supply: null };
+}
+
+export function updateSupply(house, id, patch) {
+  const ids = taskIdSet(house);
+  return mapSupply(house, id, (s) => normalizeSupply({ ...s, ...patch, id }, ids) ?? s);
+}
+
+export const removeSupply = (house, id) => ({ ...house, supplies: house.supplies.filter((s) => s.id !== id) });
+
+// Noter un achat : il s'ajoute à l'historique et à la réserve
+export function addSupplyPurchase(house, id, purchase) {
+  const p = normalizePurchase(purchase);
+  if (!p) return house;
+  return mapSupply(house, id, (s) => ({
+    ...s,
+    purchases: [...s.purchases, p].sort((a, b) => a.date.localeCompare(b.date)),
+    stock: p.qty !== null ? Math.round(((s.stock ?? 0) + p.qty) * 100) / 100 : s.stock,
+    store: s.store || p.store,
+  }));
+}
+
+export function removeSupplyPurchase(house, id, purchaseId) {
+  return mapSupply(house, id, (s) => {
+    const p = s.purchases.find((x) => x.id === purchaseId);
+    const stock = p?.qty !== null && p?.qty !== undefined && s.stock !== null ? Math.max(0, Math.round((s.stock - p.qty) * 100) / 100) : s.stock;
+    return { ...s, purchases: s.purchases.filter((x) => x.id !== purchaseId), stock };
+  });
+}
+
+// Fournitures avec leur urgence : « buy » (réserve insuffisante), « soon » (entretien dû d'ici 30 jours
+// sans réserve suivie), « ok ». Les plus urgentes d'abord.
+export function supplyOverview(house, today) {
+  const rank = { buy: 0, soon: 1, ok: 2 };
+  return house.supplies.map((supply) => {
+    const tasks = house.tasks.filter((t) => supply.tasks.includes(t.id) && t.active);
+    const dues = tasks.map((t) => taskStatus(t, today)).filter((x) => x.next).sort((a, b) => a.next.localeCompare(b.next));
+    const next = dues[0] ?? null;
+    const need = supply.qty ?? 1;
+    const short = supply.stock !== null && supply.stock < need;
+    const dueSoon = next && next.days <= SOON_DAYS;
+    const status = short && (dueSoon || supply.stock === 0) ? "buy" : dueSoon && supply.stock === null ? "soon" : short ? "buy" : "ok";
+    return { supply, tasks, next, status, last: supply.purchases.at(-1) ?? null };
+  }).sort((a, b) => rank[a.status] - rank[b.status] || (a.next?.next ?? "9999").localeCompare(b.next?.next ?? "9999") || a.supply.name.localeCompare(b.supply.name, "fr"));
+}
+
+// Fournitures liées à une tâche (pour « À prévoir » sur la carte de l'entretien)
+export const taskSupplies = (house, taskId) => house.supplies.filter((s) => s.tasks.includes(taskId));
+
+// Photos gardées (à ne pas effacer du stockage des fichiers)
+export const housePhotoIds = (house) => (house?.supplies ?? []).flatMap((s) => s.photos);
 
 // ---- Listes à cocher ----
 

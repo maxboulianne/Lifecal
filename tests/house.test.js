@@ -79,3 +79,40 @@ test("Maison : tout l'historique est gardé", () => {
   assert.equal(task(h, "softener-soap").history.length, 40);
   assert.equal(normalizeHouse(JSON.parse(JSON.stringify(h))).tasks.find((t) => t.key === "softener-soap").history.length, 40);
 });
+
+test("Maison : fournitures, achats et réserve", async () => {
+  const { addSupplyPurchase, removeSupplyPurchase, supplyOverview, taskSupplies, updateSupply, housePhotoIds } = await import("../js/house/house.js");
+  let h = emptyHouse();
+  const salt = () => h.supplies.find((s) => s.key === "salt");
+  assert.deepEqual(taskSupplies(h, "softener-salt").map((s) => s.key), ["salt"]);
+  assert.equal(salt().stock, null); // pas suivi au départ
+  // Un achat : historique + réserve
+  h = addSupplyPurchase(h, salt().id, { date: "2026-10-12", qty: 4, price: 35.96, store: "Magasin Test" });
+  assert.equal(salt().stock, 4);
+  assert.equal(salt().store, "Magasin Test");
+  assert.equal(salt().purchases.length, 1);
+  // « Fait » : la réserve baisse de la quantité par remplacement (2 sacs) ; annuler la remet
+  h = markDone(h, "softener-salt", "2026-11-02", { consume: true });
+  assert.equal(salt().stock, 2);
+  h = markDone(h, "softener-salt", "2026-11-02", { consume: true }); // même date : pas deux fois
+  assert.equal(salt().stock, 2);
+  h = undoDone(h, "softener-salt");
+  assert.equal(salt().stock, 4);
+  h = markDone(h, "softener-salt", "2026-11-02", { consume: true });
+  h = markDone(h, "softener-salt", "2026-11-03", { consume: true });
+  assert.equal(salt().stock, 0);
+  assert.equal(supplyOverview(h, TODAY).find((x) => x.supply.key === "salt").status, "buy");
+  // Supprimer un achat le retire de la réserve (sans passer sous 0)
+  h = removeSupplyPurchase(h, salt().id, salt().purchases[0].id);
+  assert.equal(salt().purchases.length, 0);
+  assert.equal(salt().stock, 0);
+  // Modifier la fiche, photos gardées dans le stockage
+  h = updateSupply(h, salt().id, { model: "TEST-123", photos: ["photo-1"], url: "javascript:alert(1)" });
+  assert.equal(salt().model, "TEST-123");
+  assert.equal(salt().url, "");
+  assert.deepEqual(housePhotoIds(h), ["photo-1"]);
+  // Anciennes données (sans fournitures) : celles de départ
+  const old = JSON.parse(JSON.stringify(emptyHouse()));
+  delete old.supplies;
+  assert.equal(normalizeHouse(old).supplies.length, emptyHouse().supplies.length);
+});
