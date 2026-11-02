@@ -51,7 +51,7 @@ import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
 import { readXlsxCells } from "../export/xlsx-read.js";
 import { invoiceFromCells } from "../timesheet/invoice-import.js";
-import { addHomeCharging, addPurchases, classifyPurchase, parseChoice, parseDesjardinsCsv, parseDesjardinsVisaPdf, quarterPurchases, removeHomeCharging, removePurchase, suggest } from "../timesheet/purchases.js";
+import { addHomeCharging, addManualPurchase, addPurchases, classifyPurchase, parseChoice, parseDesjardinsCsv, parseDesjardinsVisaPdf, quarterPurchases, removeHomeCharging, removePurchase, suggest } from "../timesheet/purchases.js";
 import { importPreview } from "./components/taxes-view.js";
 import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
 import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
@@ -1695,6 +1695,18 @@ export class App {
     if (fold) setFoldOpen(fold, true);
     if (form.dataset.role === "ts-expense") return this.#addExpense(form, f, errors);
     if (form.dataset.role === "ts-tax-invoice") return this.#saveTaxInvoice(form, f, errors);
+    if (form.dataset.role === "ts-purchase-add") {
+      const amount = readNumber(text("amount"));
+      if (!isISODate(text("date"))) return (errors.textContent = t("tax.errors.date"));
+      if (!text("description")) return (errors.textContent = t("tax.errors.description"));
+      if (amount === null) return (errors.textContent = t("tax.errors.amount"));
+      const { ts: next, purchase } = addManualPurchase(ts, { date: text("date"), description: text("description"), amount, source: text("source"), ...parseChoice(text("choice")) });
+      if (!purchase) return (errors.textContent = t("tax.errors.amount"));
+      this.taxQuarter = quarterOf(purchase.date); // montrer le trimestre de l'achat
+      await this.#updateTimesheet(next);
+      toast(t("tax.purchaseAdded", { amount: fmt.money(purchase.amount) }));
+      return undefined;
+    }
     if (form.dataset.role === "ts-home-charging") {
       const amount = /^0+([.,]0+)?$/.test(text("amount")) ? 0 : readNumber(text("amount"));
       if (!isISODate(text("from")) || !isISODate(text("to")) || text("from") > text("to")) return (errors.textContent = t("tax.errors.period"));

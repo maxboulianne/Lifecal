@@ -191,3 +191,15 @@ test("TVH de l'Ontario : proposée pour un commerce physique en Ontario, 13 % r�
   ts = classifyPurchase(ts, ts.purchases[0].id, { category: "exempt", pct: 1, tax: "on" });
   assert.equal(ts.purchases[0].tax, "qc");
 });
+
+test("Achat ajouté à la main : déjà classé, payé par l'entreprise ou par soi", async () => {
+  const { addManualPurchase, purchaseTotals } = await import("../js/timesheet/purchases.js");
+  let r = addManualPurchase(emptyTimesheet(), { date: "2026-09-15", description: "Recharge publique test", amount: 22.88, tax: "on" });
+  assert.deepEqual(["source", "category", "pct", "tax", "status"].map((k) => r.purchase[k]), ["manual", "taxable", 1, "on", "ok"]);
+  r = addManualPurchase(r.ts, { date: "2026-09-16", description: "Resto test", amount: 57.49, source: "perso", category: "meal", pct: 0.5 });
+  assert.equal(r.purchase.source, "perso");
+  const totals = purchaseTotals(r.ts.purchases);
+  assert.deepEqual(Object.keys(totals.groups), ["taxableOn", "persoMeal"]);
+  assert.equal(addManualPurchase(r.ts, { date: "2026-09-16", description: "", amount: 10 }).purchase, null); // sans description
+  assert.equal(addManualPurchase(r.ts, { date: "2026-09-16", description: "Zéro", amount: 0 }).purchase, null);
+});

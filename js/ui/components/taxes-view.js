@@ -117,6 +117,28 @@ function homeChargingBlock(hc) {
       </form></details>`;
 }
 
+// Ajouter un achat à la main : date (dans le trimestre), description, montant, qui a payé, catégorie
+function addPurchaseForm(quarter) {
+  const { from } = quarterRange(quarter);
+  return `<details class="ts-new-wrap"><summary class="btn soft">＋ ${t("tax.addPurchase")}</summary>
+    <form class="form ts-new" data-role="ts-purchase-add">
+      <div class="row">
+        <label>${t("tax.date")} <input type="date" name="date" value="${from}" required></label>
+        <label>${t("tax.amountWithTaxes")} <input name="amount" inputmode="decimal" placeholder="${esc(t("ts.example", { value: "50,00" }))}" autocomplete="off" required></label>
+      </div>
+      <label>${t("ts.expenseDesc")} <input name="description" placeholder="${esc(t("ts.example", { value: "Circuit électrique — prépaiement" }))}" autocomplete="off" required></label>
+      <div class="row">
+        <label>${t("tax.paidBy")} <select name="source">
+          <option value="manual">${esc(t("tax.paidByCompany"))}</option><option value="perso">${esc(t("tax.paidByMe"))}</option></select></label>
+        <label>${t("tax.category")} <select name="choice">
+          ${PURCHASE_CHOICES.filter((c) => c.category !== "excluded").map((c) => `<option value="${choiceKey(c)}">${esc(t(`tax.choice.${c.category}.${c.pct}${c.tax === "on" ? ".on" : ""}`))}</option>`).join("")}</select></label>
+      </div>
+      <p class="hint">${t("tax.addPurchaseHint")}</p>
+      <p class="form-errors" data-role="errors" role="alert"></p>
+      <div class="actions"><button type="submit" class="btn primary">${t("tax.addPurchase")}</button></div>
+    </form></details>`;
+}
+
 function purchasesBlock(ts, quarter, sales, ui = {}) {
   const all = quarterPurchases(ts, quarter);
   const list = all.filter((p) => p.source !== "perso");
@@ -146,6 +168,7 @@ function purchasesBlock(ts, quarter, sales, ui = {}) {
   return `<h3>${t("tax.paid")}</h3>
     <p class="hint">${t("tax.paidHint")}</p>
     ${importButton("business")}
+    ${addPurchaseForm(quarter)}
     ${summary}
     ${businessCheck.length ? `<div class="ts-purchase-check">
         <p class="ts-purchase-check-title">⚠️ ${t("tax.toCheck", { count: businessCheck.length })}</p>

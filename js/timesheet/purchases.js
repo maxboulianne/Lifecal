@@ -3,7 +3,8 @@
 //
 // Rangées dans doc.timesheet :
 //   purchases [{ id, date, source, account, seq, description, amount, orig, category, pct, status, note }]
-//     source   : « visa » | « caisse » | « perso » ; account : fin du numéro (« 1041 »)
+//     source   : « visa » | « caisse » | « manual » (ajouté à la main, payé par l'entreprise) |
+//                « perso » (payé par soi) ; account : fin du numéro (« 1041 »)
 //     amount   : montant en $ CA, taxes comprises (négatif : un crédit, un dépôt)
 //     orig     : montant d'origine d'un achat en devise (« 118,25 USD »)
 //     category : taxable | meal | exempt | excluded ; pct : part pour l'entreprise (1 ou 0,5)
@@ -207,7 +208,7 @@ export function normalizePurchase(p) {
   const category = PURCHASE_CATEGORIES.includes(p.category) ? p.category : "taxable";
   const pct = category === "excluded" ? 0 : [1, 0.5].includes(Number(p.pct)) ? Number(p.pct) : 1;
   return {
-    id: p.id ?? newId(), date: p.date, source: ["visa", "caisse", "perso"].includes(p.source) ? p.source : "visa", account: str(p.account), seq: str(p.seq),
+    id: p.id ?? newId(), date: p.date, source: ["visa", "caisse", "manual", "perso"].includes(p.source) ? p.source : "visa", account: str(p.account), seq: str(p.seq),
     description: str(p.description), amount: round2(Number(p.amount)), orig: str(p.orig), category, pct,
     tax: p.tax === "on" && (category === "taxable" || category === "meal") ? "on" : "qc",
     status: p.status === "ok" ? "ok" : "check", note: str(p.note),
@@ -274,6 +275,16 @@ export function classifyPurchase(ts, id, { category, pct, tax = "qc" }, { rememb
   });
   const merchantRules = remember && target.amount >= 0 ? { ...(ts.merchantRules ?? {}), [key]: choice } : ts.merchantRules ?? {};
   return { ...ts, purchases, merchantRules };
+}
+
+// Achat ajouté à la main (reçu absent des relevés, session de recharge…) : déjà classé.
+// source : « manual » (payé par l'entreprise) ou « perso » (payé par soi). -> { ts, purchase }
+export function addManualPurchase(ts, { date, description, amount, source = "manual", category = "taxable", pct = 1, tax = "qc" }) {
+  const purchase = normalizePurchase({
+    date, description, amount, source: source === "perso" ? "perso" : "manual", category, pct, tax, status: "ok", note: "manual",
+  });
+  if (!purchase || !purchase.description || !(purchase.amount > 0)) return { ts, purchase: null };
+  return { ts: { ...ts, purchases: [...(ts.purchases ?? []), purchase] }, purchase };
 }
 
 export const removePurchase = (ts, id) => ({ ...ts, purchases: (ts.purchases ?? []).filter((p) => p.id !== id) });
