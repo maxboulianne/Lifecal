@@ -3,6 +3,7 @@
 
 import { esc } from "../../core/dom.js";
 import { fmt, t } from "../../i18n/index.js";
+import { subtitleOf } from "../../timesheet/invoice.js";
 import { REPORT_LABELS as L } from "../../timesheet/tax-report.js";
 
 const money = (n) => esc(fmt.money(n));
@@ -10,17 +11,17 @@ const money = (n) => esc(fmt.money(n));
 export function taxReportPreview(d) {
   const b = d.business;
   return `<div class="tax-report">
-    <h2 id="tax-report-title">📄 ${t("tax.report")}</h2>
-    <p class="hint">${t("tax.reportHint")}</p>
+    <h2 id="tax-report-title">📄 ${t(d.sample ? "tax.sampleReportTitle" : "tax.report")}</h2>
+    <p class="hint">${t(d.sample ? "ts.sampleHint" : "tax.reportHint")}</p>
     <div class="actions start">
-      <button type="button" class="btn primary" data-action="ts-tax-report-xlsx">📊 ${t("tax.reportExcel")}</button>
-      <button type="button" class="btn soft" data-action="ts-tax-report-pdf">📄 ${t("tax.reportPdf")}</button>
+      <button type="button" class="btn primary" data-action="${d.sample ? "ts-sample-report-xlsx" : "ts-tax-report-xlsx"}">📊 ${t("tax.reportExcel")}</button>
+      <button type="button" class="btn soft" data-action="${d.sample ? "ts-sample-report-pdf" : "ts-tax-report-pdf"}">📄 ${t("tax.reportPdf")}</button>
       <button type="button" class="btn ghost" data-action="close">${t("detail.close")}</button>
     </div>
     <article class="tax-report-doc">
       <header class="tax-report-top">
         <div>${b.logo ? `<img src="${esc(b.logo)}" alt="">` : ""}</div>
-        <div class="tax-report-heading"><h3>${L.title}</h3><p>${L.subtitle}</p></div>
+        <div class="tax-report-heading"><h3>${L.title}</h3><p>${esc(subtitleOf(L, d))}</p></div>
       </header>
       <div class="tax-report-meta">
         <div><p class="tax-report-company">${esc(b.name)}</p><p>${esc(b.addressLine)}</p>

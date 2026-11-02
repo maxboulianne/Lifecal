@@ -1398,6 +1398,7 @@ body.player-open { overflow: hidden; }
 .tax-report-table { min-width: 560px; font-size: 0.85rem; }
 .tax-report-table.is-invoices thead th:nth-child(-n+3), .tax-report-table.is-invoices tbody td:nth-child(-n+3) { text-align: left; }
 .tax-report-table tfoot th:first-child { text-align: left; }
+.tax-report-table.is-invoices td:nth-child(-n+2) { white-space: nowrap; }
 .tax-report-lines { font-size: 0.85rem; }
 .tax-report-lines td:first-child { color: #e0491a; font-weight: 700; width: 3em; }
 .tax-report-lines td:nth-child(2) { text-align: left; }

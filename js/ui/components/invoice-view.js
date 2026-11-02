@@ -3,7 +3,7 @@
 
 import { esc } from "../../core/dom.js";
 import { fmt, t } from "../../i18n/index.js";
-import { CATEGORY_LABELS, EXPENSE_CATEGORIES, INVOICE_LABELS as L } from "../../timesheet/invoice.js";
+import { CATEGORY_LABELS, EXPENSE_CATEGORIES, INVOICE_LABELS as L, subtitleOf } from "../../timesheet/invoice.js";
 
 // Montants et heures comme dans Excel : « 1 075,02 $ », « 4,50 », « – » pour zéro.
 const money = (n) => esc(fmt.money(n));
@@ -16,7 +16,7 @@ function header(d) {
   const b = d.business;
   return `<header class="inv-top">
     <div class="inv-logo">${d.logo ? `<img src="${esc(d.logo)}" alt="">` : ""}</div>
-    <div class="inv-heading"><h1>${L.title}</h1><p>${L.subtitle}</p></div>
+    <div class="inv-heading"><h1>${L.title}</h1><p>${esc(subtitleOf(L, d))}</p></div>
   </header>
   <div class="inv-rule"></div>
   <div class="inv-meta">
@@ -109,15 +109,19 @@ export const invoiceDocument = (d) => `<article class="invoice-doc" lang="fr-CA"
 export function invoicePreview(d) {
   return `<div class="invoice-preview">
     <div class="invoice-tools">
-      <h2 id="invoice-title">🧾 ${t("ts.invoicePreview")}</h2>
-      <p class="hint">${t("ts.invoicePreviewHint")}</p>
-      <div class="actions start">
+      <h2 id="invoice-title">🧾 ${t(d.sample ? "ts.sampleInvoiceTitle" : "ts.invoicePreview")}</h2>
+      <p class="hint">${t(d.sample ? "ts.sampleHint" : "ts.invoicePreviewHint")}</p>
+      ${d.sample ? `<div class="actions start">
+        <button type="button" class="btn primary" data-action="ts-sample-invoice-pdf">📄 ${t("ts.invoicePdf")}</button>
+        <button type="button" class="btn soft" data-action="ts-sample-invoice-xlsx">📊 Excel</button>
+        <button type="button" class="btn ghost" data-action="close">${t("detail.close")}</button>
+      </div>` : `<div class="actions start">
         <button type="button" class="btn primary" data-action="ts-invoice-xlsx">📊 ${t("ts.createInvoice")}</button>
         <button type="button" class="btn soft" data-action="ts-invoice-pdf-pending">📄 ${t("ts.invoicePdf")}</button>
         <button type="button" class="btn soft" data-action="ts-invoice-email-pending">✉️ ${t("ts.sendToClient")}</button>
         <button type="button" class="btn soft" data-action="ts-invoice-print">🖨️ ${t("ts.printInvoice")}</button>
         <button type="button" class="btn ghost" data-action="close">${t("detail.close")}</button>
-      </div>
+      </div>`}
     </div>
     <div class="invoice-scroll">${invoiceDocument(d)}</div>
   </div>`;

@@ -55,6 +55,7 @@ import { addHomeCharging, addManualPurchase, addPurchases, classifyPurchase, par
 import { importPreview } from "./components/taxes-view.js";
 import { taxReportPreview } from "./components/tax-report-view.js";
 import { taxReportData, taxReportPdf, taxReportSheets } from "../timesheet/tax-report.js";
+import { SAMPLE_INVOICE, SAMPLE_QUARTER, sampleTimesheet } from "../timesheet/sample.js";
 import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
 import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
 import { invoicePdf } from "../timesheet/invoice-pdf.js";
@@ -1018,6 +1019,26 @@ export class App {
       $("[data-role=ts-tax-invoice][data-edit]")?.scrollIntoView({ block: "center" });
     },
     "ts-tax-import-confirm": () => this.#confirmInvoiceImport(),
+    // Documents d'exemple (données fictives) : pour montrer l'application, sans toucher aux vraies données
+    "ts-sample-invoice": () => {
+      openModal(invoicePreview(invoiceData(sampleTimesheet(), SAMPLE_INVOICE)), { labelledBy: "invoice-title" });
+      this.#fitInvoice();
+    },
+    "ts-sample-invoice-pdf": async () => {
+      const d = invoiceData(sampleTimesheet(), SAMPLE_INVOICE);
+      await this.#shareFile(new File([invoicePdf(d, { measure: this.#measure() })], "Exemple-Facture.pdf", { type: PDF_TYPE }));
+    },
+    "ts-sample-invoice-xlsx": async () => {
+      const { sheets, styles } = invoiceSheets(sampleTimesheet(), SAMPLE_INVOICE);
+      await this.#shareFile(new File([buildXlsx({ sheets, styles })], "Exemple-Facture.xlsx", { type: XLSX_TYPE }));
+    },
+    "ts-sample-report": () => openModal(taxReportPreview(this.#sampleReport()), { labelledBy: "tax-report-title" }),
+    "ts-sample-report-xlsx": async () => {
+      await this.#shareFile(new File([buildXlsx(taxReportSheets(this.#sampleReport()))], "Exemple-Rapport-TPS-TVQ.xlsx", { type: XLSX_TYPE }));
+    },
+    "ts-sample-report-pdf": async () => {
+      await this.#shareFile(new File([taxReportPdf(this.#sampleReport(), { measure: this.#measure() })], "Exemple-Rapport-TPS-TVQ.pdf", { type: PDF_TYPE }));
+    },
     // Rapport du trimestre : aperçu, puis Excel ou PDF
     "ts-tax-report": () => openModal(taxReportPreview(this.#taxReport()), { labelledBy: "tax-report-title" }),
     "ts-tax-report-xlsx": async () => {
@@ -1095,16 +1116,7 @@ export class App {
       if (!options) return;
       this.#invoicePending = options;
       openModal(invoicePreview(invoiceData(this.repo.timesheet(), options)), { labelledBy: "invoice-title" });
-      // Sur un téléphone, la page entière tient dans la largeur (on peut zoomer avec deux doigts).
-      const doc = $(".invoice-doc");
-      const box = $(".invoice-scroll");
-      const scale = Math.min(1, box.clientWidth / doc.offsetWidth);
-      if (scale < 1) {
-        doc.style.transform = `scale(${scale.toFixed(3)})`;
-        doc.style.transformOrigin = "top left";
-        box.style.height = `${Math.ceil(doc.offsetHeight * scale)}px`;
-        box.style.overflow = "hidden";
-      }
+      this.#fitInvoice();
     },
     "ts-invoice-xlsx": async () => {
       const options = this.#invoicePending;
@@ -1968,6 +1980,24 @@ export class App {
   }
 
   // Données du rapport TPS/TVQ du trimestre affiché
+  // Sur un téléphone, la facture entière tient dans la largeur (on peut zoomer avec deux doigts).
+  #fitInvoice() {
+    const doc = $(".invoice-doc");
+    const box = $(".invoice-scroll");
+    if (!doc || !box) return;
+    const scale = Math.min(1, box.clientWidth / doc.offsetWidth);
+    if (scale < 1) {
+      doc.style.transform = `scale(${scale.toFixed(3)})`;
+      doc.style.transformOrigin = "top left";
+      box.style.height = `${Math.ceil(doc.offsetHeight * scale)}px`;
+      box.style.overflow = "hidden";
+    }
+  }
+
+  #sampleReport() {
+    return taxReportData(sampleTimesheet(), SAMPLE_QUARTER, { today: "2026-10-15", sample: true });
+  }
+
   #taxReport() {
     return taxReportData(this.repo.timesheet(), this.taxQuarter ?? reportQuarter(todayISO()), { today: todayISO() });
   }

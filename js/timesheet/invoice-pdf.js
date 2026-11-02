@@ -5,7 +5,7 @@
 //   invoicePdf(data, { logo: { bytes, width, height } (JPEG), measure }) -> Uint8Array
 
 import { PdfWriter } from "../export/pdf.js";
-import { CATEGORY_LABELS, EXPENSE_CATEGORIES, INVOICE_LABELS as L } from "./invoice.js";
+import { CATEGORY_LABELS, EXPENSE_CATEGORIES, INVOICE_LABELS as L, subtitleOf } from "./invoice.js";
 
 const C = { navy: "#2C4A6E", orange: "#E0491A", gray: "#6B7280", ink: "#1F2937", text: "#374151", light: "#EEF2F7", head: "#DCE4EE", line: "#C9D2DE", white: "#FFFFFF" };
 const PAGE_W = 612;
@@ -41,7 +41,7 @@ export function invoicePdf(d, { logo = null, measure } = {}) {
     page.image(logoImg, M, M, logoImg.width * scale, logoImg.height * scale);
   }
   page.text(L.title, RIGHT, M + 40, { size: 26, bold: true, color: C.navy, align: "right" });
-  page.text(L.subtitle, RIGHT, M + 54, { size: 9, bold: true, color: C.orange, align: "right" });
+  page.text(subtitleOf(L, d), RIGHT, M + 54, { size: 9, bold: true, color: C.orange, align: "right" });
   y = M + 74;
   page.line(M, y, RIGHT, y, { color: C.orange, width: 2.5 });
   y += 18;

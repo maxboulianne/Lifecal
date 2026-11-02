@@ -941,4 +941,9 @@ export default {
   "tax.reportHint": "Le rapport réunit les taxes perçues, les taxes payées et le solde à remettre, avec les lignes de ta déclaration. L'Excel et le PDF contiennent aussi le détail des achats.",
   "tax.reportExcel": "Rapport Excel",
   "tax.reportPdf": "Rapport PDF",
+  "ts.sampleInvoice": "Voir une facture d'exemple",
+  "tax.sampleReport": "Voir un rapport d'exemple",
+  "ts.sampleHint": "Exemple fait de données entièrement fictives (entreprise, client, montants), pour montrer l'application. Tes vraies données ne sont ni utilisées ni modifiées.",
+  "ts.sampleInvoiceTitle": "Facture d'exemple",
+  "tax.sampleReportTitle": "Rapport d'exemple",
 };

@@ -922,4 +922,9 @@ export default {
   "tax.reportHint": "The report gathers taxes collected, taxes paid and the balance to remit, with the lines of your return. The Excel and PDF also hold the purchase details.",
   "tax.reportExcel": "Excel report",
   "tax.reportPdf": "PDF report",
+  "ts.sampleInvoice": "See a sample invoice",
+  "tax.sampleReport": "See a sample report",
+  "ts.sampleHint": "Sample made entirely of fictional data (business, client, amounts), to show the app. Your real data is neither used nor changed.",
+  "ts.sampleInvoiceTitle": "Sample invoice",
+  "tax.sampleReportTitle": "Sample report",
 };

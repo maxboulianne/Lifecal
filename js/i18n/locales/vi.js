@@ -919,4 +919,9 @@ export default {
   "tax.reportHint": "Báo cáo gồm thuế đã thu, thuế đã trả và số phải nộp, kèm các dòng của tờ khai. Bản Excel và PDF còn có chi tiết các khoản mua.",
   "tax.reportExcel": "Báo cáo Excel",
   "tax.reportPdf": "Báo cáo PDF",
+  "ts.sampleInvoice": "Xem hóa đơn mẫu",
+  "tax.sampleReport": "Xem báo cáo mẫu",
+  "ts.sampleHint": "Mẫu được tạo hoàn toàn từ dữ liệu hư cấu (doanh nghiệp, khách hàng, số tiền) để giới thiệu ứng dụng. Dữ liệu thật của bạn không được dùng hay thay đổi.",
+  "ts.sampleInvoiceTitle": "Hóa đơn mẫu",
+  "tax.sampleReportTitle": "Báo cáo mẫu",
 };

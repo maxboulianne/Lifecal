@@ -183,6 +183,7 @@ function purchasesBlock(ts, quarter, sales, ui = {}) {
     ${balance}
     <div class="actions start ts-tax-report-start">
       <button type="button" class="btn primary" data-action="ts-tax-report">📄 ${t("tax.report")}</button>
+      <button type="button" class="btn ghost" data-action="ts-sample-report">👀 ${t("tax.sampleReport")}</button>
     </div>`;
 }
 

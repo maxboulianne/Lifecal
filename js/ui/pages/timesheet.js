@@ -567,7 +567,8 @@ function exportSection(ts, today, exp) {
         </table>
         <button type="button" class="btn soft" data-action="ts-export" data-from="${from}" data-to="${to}" data-client="${esc(clientId)}">📊 ${t("ts.exportExcel")}</button>`
       : `<p class="ts-empty-export">${t("ts.nothingToExport")}</p>`}
-      ${invoiceBlock(ts, today, clientId, from, to, s.projects.length > 0 || spent > 0, exp.invoiceNumber)}`,
+      ${invoiceBlock(ts, today, clientId, from, to, s.projects.length > 0 || spent > 0, exp.invoiceNumber)}
+      <div class="actions start ts-sample"><button type="button" class="btn ghost" data-action="ts-sample-invoice">👀 ${t("ts.sampleInvoice")}</button></div>`,
   });
 }
 

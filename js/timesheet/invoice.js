@@ -24,6 +24,10 @@ export const EXPENSE_LABELS = {
 // Frais généraux du client (sans projet), ex. le cellulaire du mois
 export const GENERAL = "Général";
 
+// Document d'exemple (données fictives, pour montrer l'application) : mention sous le titre
+export const SAMPLE_MARK = "EXEMPLE / SAMPLE";
+export const subtitleOf = (labels, d) => (d?.sample ? `${labels.subtitle}  ·  ${SAMPLE_MARK}` : labels.subtitle);
+
 export const INVOICE_LABELS = {
   title: "FACTURE",
   subtitle: "INVOICE",
@@ -118,7 +122,7 @@ export function expenseDescription(line) {
 
 // Contenu de la facture (lignes, sommaire, totaux), commun au fichier Excel
 // et à l'aperçu dans l'application.
-export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
+export function invoiceData(ts, { from, to, clientId, number, date, po = "", sample = false }) {
   const client = getClient(ts, clientId);
   const business = ts.business;
   const lines = periodEntries(ts, from, to, clientId).map((e) => {
@@ -177,7 +181,7 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "" }) {
   const tvq = round2(due * tvqRate);
   const addressLines = textLines(business.address);
   return {
-    business, number, date, po, tpsRate, tvqRate,
+    sample: Boolean(sample), business, number, date, po, tpsRate, tvqRate,
     logo: business.logo || "",
     addressLine: addressLines.join(", "),
     addressLines,
@@ -416,7 +420,7 @@ export function invoiceSheets(ts, options) {
   row(19.5);
   merges.push("G1:K2");
   r = row(15.75);
-  r[6] = { v: L.subtitle, s: "subtitle" };
+  r[6] = { v: subtitleOf(L, d), s: "subtitle" };
   merge("G", "K");
   row(15.75);
   fill(row(6), 0, W - 1, "rule");

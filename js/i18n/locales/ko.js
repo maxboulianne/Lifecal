@@ -919,4 +919,9 @@ export default {
   "tax.reportHint": "보고서에는 받은 세금, 낸 세금, 납부할 잔액과 신고서의 줄이 모여 있어요. Excel과 PDF에는 구매 내역도 들어 있어요.",
   "tax.reportExcel": "Excel 보고서",
   "tax.reportPdf": "PDF 보고서",
+  "ts.sampleInvoice": "예시 청구서 보기",
+  "tax.sampleReport": "예시 보고서 보기",
+  "ts.sampleHint": "앱을 보여 주기 위해 완전히 가상의 데이터(회사, 고객, 금액)로 만든 예시입니다. 실제 데이터는 사용되거나 변경되지 않습니다.",
+  "ts.sampleInvoiceTitle": "예시 청구서",
+  "tax.sampleReportTitle": "예시 보고서",
 };
