@@ -84,6 +84,47 @@ export function parseDesjardinsCsv(text) {
   return out;
 }
 
+// Relevé de carte Visa Desjardins en PDF (lignes de texte lues par pdf.js) :
+//   « 02  06  02  06  001  CSC IBEROSTAR CLUB 3  866-8594402  AZ  167,65 »
+//   « 118,25 DOLLAR AMERICAIN  TX: 1.417758 »   (montant d'origine de l'achat précédent)
+//   « 15  06  15  06  001  PAIEMENT CAISSE  4 500,00CR »   (opérations au compte : crédit)
+// -> { rows, total, expected } ; total (achats lus) doit égaler expected (« Total » du relevé).
+const CURRENCY_NAMES = {
+  "DOLLAR AMERICAIN": "USD", DONG: "VND", EURO: "EUR", "LIVRE STERLING": "GBP", "PESO MEXICAIN": "MXN", YUAN: "CNY", "YUAN RENMINBI": "CNY",
+  REAL: "BRL", "REAL BRESILIEN": "BRL", DIRHAM: "AED", WON: "KRW", YEN: "JPY", BAHT: "THB", "DOLLAR AUSTRALIEN": "AUD", "FRANC SUISSE": "CHF",
+};
+const frAmount = (v) => Number(v.replace(/[\s\u00a0\u202f]/g, "").replace(",", "."));
+export function parseDesjardinsVisaPdf(lines) {
+  const text = lines.join("\n");
+  const statement = /DATE DU RELEV[ÉE].*?Mois\s+(\d\d)\s+Ann[ée]e\s+(20\d\d)/i.exec(text);
+  if (!statement) return { rows: [], total: 0, expected: null };
+  const [month, year] = [Number(statement[1]), Number(statement[2])];
+  const account = /\*{4}\s+(\d{4})/.exec(text)?.[1] ?? "";
+  const rows = [];
+  let last = null;
+  let section = "card";
+  let expected = null;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (/^Op[ée]rations au compte/i.test(line)) section = "account";
+    const total = /^Total\s+([\d\s\u00a0]+,\d\d)$/.exec(line);
+    if (total && section === "card" && expected === null) expected = frAmount(total[1]);
+    const m = /^(\d\d)\s+(\d\d)\s+\d\d\s+\d\d\s+(\d{3})\s+(.+?)\s+(\d{1,3}(?:[\s\u00a0]\d{3})*,\d\d)(CR)?$/.exec(line);
+    if (m) {
+      const [, d, mo, seq, description, amount, credit] = m;
+      const y = Number(mo) > month ? year - 1 : year; // relevé de janvier : achats de décembre
+      last = { source: "visa", account, date: `${y}-${mo}-${d}`, seq: `${section === "account" ? "A" : ""}${seq}`,
+        description: description.replace(/\s+/g, " "), amount: round2(credit ? -frAmount(amount) : frAmount(amount)), orig: "", section };
+      rows.push(last);
+      continue;
+    }
+    const c = /^([\d\s\u00a0]+,\d\d)\s+([A-ZÀ-Ü][A-ZÀ-Ü ]*?)\s+TX:/.exec(line);
+    if (c && last) last.orig = `${c[1].replace(/\s+/g, " ")} ${CURRENCY_NAMES[c[2].trim()] ?? c[2].trim()}`;
+  }
+  const total = round2(rows.filter((r) => r.section === "card").reduce((sum, r) => sum + r.amount, 0));
+  return { rows: rows.map(({ section, ...r }) => r), total, expected };
+}
+
 // ---- Classer ----
 
 // Le commerce, pour retenir les choix, sans ce qui change d'un achat à l'autre (no de

@@ -88,7 +88,7 @@ function purchasesBlock(ts, quarter, sales) {
     <p class="hint">${t("tax.paidHint")}</p>
     <div class="actions start ts-tax-import">
       <label class="btn primary">📥 ${t("tax.importStatements")}
-        <input type="file" accept=".csv,text/csv" multiple data-action="ts-tax-statement" hidden></label>
+        <input type="file" accept=".csv,text/csv,.pdf,application/pdf" multiple data-action="ts-tax-statement" hidden></label>
     </div>
     ${summary}
     ${toCheck.length ? `<div class="ts-purchase-check">

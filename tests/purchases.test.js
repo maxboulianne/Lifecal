@@ -82,3 +82,40 @@ test("Relevés : doublons, choix retenu par commerce, crédits et totaux du trim
   assert.equal(back.purchases.length, ts.purchases.length);
   assert.deepEqual(back.merchantRules, ts.merchantRules);
 });
+
+// Relevé Visa en PDF inventé, tel que pdf.js le rend (une ligne par rangée de texte)
+const PDF_LINES = [
+  "CARTE AFFAIRES VISA DESJARDINS",
+  "30  01  2027  27  02  2027  4530 92** **** 9999",
+  "DATE DU RELEVÉ  Jour  30  Mois  01  Année 2027  Page : 1 de 2",
+  "Transactions effectuées avec la carte de : CLIENT TEST",
+  "28  12  29  12  001  HOTEL SOLEIL  866-5551234  AZ  1 167,65",
+  "823,25 DOLLAR AMERICAIN  TX: 1.417758",
+  "04  01  04  01  002  QUINCAILLERIE TEST #12  SAINT-JEROME QC  79,51",
+  "29  01  30  01  003  CAFE EXEMPLE  HO CHI MINH  VN  13,06",
+  "236 380,00 DONG  TX: 0.000055",
+  "Total  1 260,22",
+  "Opérations au compte  4530 92** **** 9999",
+  "15  01  15  01  001  PAIEMENT CAISSE  4 500,00CR",
+  "30  01  30  01  002  FRAIS DE CRÉDIT  12,45",
+  "001  FRE  13 000,00  24 05 2024  24 05 2027  ACCORD D CAISSE  10,40 %",
+];
+
+test("Relevé Visa en PDF : achats, devises, opérations au compte, total vérifié", async () => {
+  const { parseDesjardinsVisaPdf } = await import("../js/timesheet/purchases.js");
+  const r = parseDesjardinsVisaPdf(PDF_LINES);
+  assert.equal(r.rows.length, 5); // la ligne du plan de financement n'est pas une transaction
+  assert.deepEqual([r.total, r.expected], [1260.22, 1260.22]);
+  assert.deepEqual(r.rows[0], { source: "visa", account: "9999", date: "2026-12-28", seq: "001", description: "HOTEL SOLEIL 866-5551234 AZ", amount: 1167.65, orig: "823,25 USD" }); // relevé de janvier : décembre de l'année d'avant
+  assert.equal(r.rows[2].orig, "236 380,00 VND");
+  assert.deepEqual(r.rows.slice(3).map((p) => [p.seq, p.amount]), [["A001", -4500], ["A002", 12.45]]);
+  assert.deepEqual(parseDesjardinsVisaPdf(["Bonjour"]), { rows: [], total: 0, expected: null });
+});
+
+test("PDF : morceaux de texte regroupés en lignes", async () => {
+  const { groupLines } = await import("../js/scan/pdf-text.js");
+  const item = (str, x, y, width = str.length * 5) => ({ str, transform: [1, 0, 0, 1, x, y], width });
+  assert.deepEqual(groupLines([
+    item("79,51", 500, 700), item("02", 40, 700.8), item("06", 60, 700), item("DISSAN", 120, 700), item("Total", 40, 650), item("1 260,22", 500, 650),
+  ]), ["02  06  DISSAN  79,51", "Total  1 260,22"]);
+});

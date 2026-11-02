@@ -51,7 +51,7 @@ import { timesheetSheets } from "../timesheet/export.js";
 import { invoiceData, invoiceSheets } from "../timesheet/invoice.js";
 import { readXlsxCells } from "../export/xlsx-read.js";
 import { invoiceFromCells } from "../timesheet/invoice-import.js";
-import { addPurchases, classifyPurchase, parseDesjardinsCsv, quarterPurchases, removePurchase } from "../timesheet/purchases.js";
+import { addPurchases, classifyPurchase, parseDesjardinsCsv, parseDesjardinsVisaPdf, quarterPurchases, removePurchase } from "../timesheet/purchases.js";
 import { importPreview } from "./components/taxes-view.js";
 import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
 import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
@@ -1839,7 +1839,9 @@ export class App {
     openModal(importPreview(items), { labelledBy: "tax-import-title" });
   }
 
-  // Relevés (CSV de Desjardins) : transactions ajoutées et classées, sans doublons.
+  // Relevés de Desjardins (CSV de la Visa ou de la Caisse, PDF de la Visa) : transactions
+  // ajoutées et classées, sans doublons. Un PDF est vérifié : ses achats lus doivent faire
+  // le « Total » imprimé sur le relevé.
   async #importStatements(files) {
     let ts = this.repo.timesheet();
     let added = 0;
@@ -1847,13 +1849,31 @@ export class App {
     const dates = [];
     for (const file of files) {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      let text;
-      try {
-        text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-      } catch {
-        text = new TextDecoder("windows-1252").decode(bytes); // relevés Desjardins
+      let rows;
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+        let lines;
+        try {
+          const { pdfLines } = await import("../scan/pdf-text.js");
+          lines = await pdfLines(bytes);
+        } catch (err) {
+          console.error(err);
+          toast(t("tax.pdfFailed"));
+          continue;
+        }
+        const pdf = parseDesjardinsVisaPdf(lines);
+        rows = pdf.rows;
+        if (rows.length && pdf.expected !== null && Math.abs(pdf.total - pdf.expected) > 0.005) {
+          toast(t("tax.pdfMismatch", { file: file.name, found: fmt.money(pdf.total), expected: fmt.money(pdf.expected) }));
+        }
+      } else {
+        let text;
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        } catch {
+          text = new TextDecoder("windows-1252").decode(bytes); // relevés Desjardins
+        }
+        rows = parseDesjardinsCsv(text);
       }
-      const rows = parseDesjardinsCsv(text);
       if (!rows.length) {
         toast(t("tax.statementUnknown", { file: file.name }));
         continue;
