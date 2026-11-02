@@ -1515,3 +1515,4 @@ img.house-step-file { background: var(--pale); }
 }
 .house-step-mine > label:not(.btn) { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); }
 .house-step-mine textarea { width: 100%; min-height: 64px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
+.house-list .checklist label { flex: 1; }

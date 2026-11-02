@@ -140,3 +140,25 @@ test("Maison : procédure pas à pas (illustrations, note, photos et vidéos)", 
   for (const l of old.lists) for (const e of l.entries) { delete e.figure; delete e.media; delete e.note; }
   assert.equal(normalizeHouse(old).lists.find((l) => l.id === "pool-open").entries[0].figure, "uncover");
 });
+
+test("Maison : la procédure de piscine revue remplace l'ancienne (sans perdre les ajouts)", () => {
+  // Données d'avant : procédure générale de 10 étapes, version absente, une ligne ajoutée
+  const old = JSON.parse(JSON.stringify(emptyHouse()));
+  const close = old.lists.find((l) => l.id === "pool-close");
+  delete close.version;
+  close.title = "Piscine : fermeture (procédure générale)";
+  close.entries = close.entries.slice(0, 10).map((e, i) => ({ id: `pool-close-${i + 1}`, text: `Ancienne étape ${i + 1}` }));
+  close.entries.push({ id: "mine", text: "Ma ligne à moi" });
+  old.checks = { "pool-close": { year: 2026, done: { "pool-close-1": true } } };
+  const h = normalizeHouse(old);
+  const up = h.lists.find((l) => l.id === "pool-close");
+  assert.equal(up.title, "Piscine : fermeture");
+  assert.ok(up.entries.some((e) => /thermopompe/i.test(e.text) && e.figure === "heatpump"));
+  assert.ok(up.entries.some((e) => /souterrains/.test(e.text) && e.figure === "underground"));
+  assert.equal(up.entries.at(-1).text, "Ma ligne à moi");
+  assert.equal(h.checks["pool-close"], undefined);
+  // Une procédure déjà personnalisée (photo) n'est pas remplacée
+  close.entries[2].media = [{ id: "f1", type: "image" }];
+  const kept = normalizeHouse(old).lists.find((l) => l.id === "pool-close");
+  assert.equal(kept.entries[0].text, "Ancienne étape 1");
+});
