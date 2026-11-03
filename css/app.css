@@ -1516,3 +1516,74 @@ img.house-step-file { background: var(--pale); }
 .house-step-mine > label:not(.btn) { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); }
 .house-step-mine textarea { width: 100%; min-height: 64px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
 .house-list .checklist label { flex: 1; }
+
+/* ---- Santé : réactions aux aliments (couleurs des documents Maxxam) ---- */
+.health { --navy: #2c4a6e; --orange: #e0491a; --pale: #eef2f7; --amber: #b7791f; display: grid; gap: 14px; }
+.hl-tabs button.active { background: var(--navy); color: #fff; }
+.hl-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.hl-actions .btn { flex: 1 1 220px; min-height: 56px; font-size: 1.05rem; }
+.health .btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+.hl-react-now { background: var(--orange); border-color: var(--orange); color: #fff; font-weight: 700; }
+.hl-ongoing { display: grid; gap: 10px; padding: 16px; border-radius: var(--radius); background: #fff4ee; border: 2px solid var(--orange); color: #1f2937; }
+.hl-ongoing h2 { margin: 0; font-size: 1.1rem; color: var(--orange); }
+.hl-ongoing .hint { color: #6b7280; }
+.hl-choice { display: flex; flex-wrap: wrap; gap: 6px; }
+.hl-choice button { min-height: 44px; min-width: 44px; padding: 0 14px; border: 1px solid #c8d1dc; border-radius: 10px; background: #fff; color: var(--navy); font: inherit; font-weight: 600; cursor: pointer; }
+.hl-choice button.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.hl-choice.is-scale button { flex: 1; }
+.hl-choice.is-small button { min-height: 36px; min-width: 36px; padding: 0 6px; background: transparent; border-color: transparent; opacity: 0.45; }
+.hl-choice.is-small button.active { opacity: 1; background: var(--pale); border-color: #c8d1dc; color: inherit; }
+.hl-stop { justify-self: start; }
+.hl-summary { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 14px 18px; border-radius: var(--radius); background: var(--navy); color: #fff; }
+.hl-summary > div { display: flex; align-items: baseline; gap: 6px; }
+.hl-value { font-size: 1.5rem; font-weight: 700; color: #ffb08f; font-variant-numeric: tabular-nums; }
+.hl-day h2, .hl-level h2, .hl-now h2, .hl-tips h2, .hl-intro h2 { margin: 12px 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--navy); color: var(--navy); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.hl-level.is-avoid h2 { color: var(--orange); border-color: var(--orange); }
+.hl-meals, .hl-foods, .hl-reactions, .hl-tested { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.hl-meal { display: grid; gap: 6px; padding: 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid #9aa5b1; }
+.hl-meal.has-reaction { border-left-color: var(--orange); }
+.hl-meal p { margin: 0; }
+.hl-meal-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.hl-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.hl-chip { padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; background: var(--pale); color: var(--navy); }
+.hl-chip.is-limit { background: #fbf1dc; color: #8a5a00; }
+.hl-chip.is-avoid { background: #fde7df; color: #b13b12; }
+.hl-reaction { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 8px; background: #fff4ee; color: #7a2a0c; font-size: 0.9rem; }
+.hl-reactions.is-loose { margin-top: 6px; }
+.hl-empty { padding: 16px; border-radius: 10px; background: var(--surface); border: 1px dashed var(--line); color: var(--muted); }
+.hl-form { padding: 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.hl-form h2 { margin: 0 0 6px; font-size: 1rem; color: var(--navy); }
+.hl-flags { display: flex; flex-wrap: wrap; gap: 16px; }
+.hl-flags label { display: flex; align-items: center; gap: 6px; }
+.hl-pick > summary { cursor: pointer; color: var(--navy); font-weight: 600; padding: 6px 0; }
+.hl-pick-search, .hl-food-search { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
+.hl-pick-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.hl-pick-item { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 0.85rem; cursor: pointer; }
+.hl-pick-item.is-avoid { border-color: #f3b8a3; }
+.hl-pick-item.is-limit { border-color: #ecd59d; }
+.hl-pick-item:has(input:checked) { background: var(--navy); border-color: var(--navy); color: #fff; }
+.hl-food { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.hl-food.is-react { border-color: var(--orange); }
+.hl-food.is-ok { border-color: #8fc3a0; }
+.hl-food-name { flex: 1 1 180px; min-width: 0; }
+.hl-icon { width: 36px; height: 36px; border: none; border-radius: 8px; background: transparent; font-size: 1.1rem; cursor: pointer; }
+.hl-food-tools { display: grid; gap: 6px; }
+.hl-phases { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.hl-phases li { display: grid; gap: 2px; padding: 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid #9aa5b1; }
+.hl-phases li.is-current { border-left-color: var(--orange); background: #fff4ee; color: #1f2937; }
+.hl-phases li.is-done { opacity: 0.7; border-left-color: var(--navy); }
+.hl-start { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 10px; }
+.hl-test { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: #fff4ee; border: 1px solid var(--orange); color: #1f2937; }
+.hl-test p { margin: 0; }
+.hl-tips ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.hl-disclaimer { font-size: 0.85rem; color: var(--muted); }
+.hl-disclaimer > summary { cursor: pointer; }
+@media (prefers-color-scheme: dark) {
+  .hl-day h2, .hl-level h2, .hl-now h2, .hl-tips h2, .hl-intro h2, .hl-form h2, .hl-pick > summary { color: #9fb7d6; border-color: #9fb7d6; }
+  .hl-chip { background: #2f3b4a; color: #cfdced; }
+  .hl-chip.is-limit { background: #3a2f17; color: #f0c46a; }
+  .hl-chip.is-avoid { background: #3d211e; color: #f19a8f; }
+  .hl-reaction { background: #3d211e; color: #f8c4b4; }
+  .hl-choice.is-small button.active { background: #2f3b4a; }
+}
+@media (min-width: 760px) { .hl-foods { grid-template-columns: 1fr 1fr; } }
