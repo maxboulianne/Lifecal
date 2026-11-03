@@ -52,6 +52,13 @@ export const MODULES = {
     icon: "🏠",
     features: ["maintenance"],
   },
+  // Santé : réactions aux aliments, programme en 3 phases (rappels calculés depuis la page Santé)
+  sante: {
+    id: "sante",
+    color: "#e0491a", // orange des documents Maxxam
+    icon: "🩺",
+    features: ["maintenance"],
+  },
   journal: {
     id: "journal",
     color: "#64748b", // gris

@@ -41,6 +41,8 @@ import { geocode } from "../travel/geocode.js";
 import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited, cachedHotels, cachedSuggestions, destQuery, getDest, hotelsKey, suggestionsKey } from "../travel/trip.js";
 import { settingsPage } from "./pages/settings.js";
 import { housePage } from "./pages/house.js";
+import { healthPage } from "./pages/health.js";
+import * as Health from "../health/health.js";
 import { houseSteps } from "./components/house-steps.js";
 import * as House from "../house/house.js";
 import { CUSTOM_TASK, dayOfMonth, rangeDates, timesheetPage } from "./pages/timesheet.js";
@@ -117,6 +119,12 @@ const invoiceFileName = (number) => String(number).trim().replace(/[^\w.-]+/g, "
 // Nombre écrit à la main : « 2 924 738 », « 0,000053931 », « 25,50 $ » ; null si invalide ou 0.
 const readNumber = (value) => parseAmount(String(value ?? "").replace(/[\s$\u00a0\u202f]/g, ""));
 
+// Heure qu'il est, « 12:40 »
+const nowHM = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
 // Photo réduite (côté le plus long : `max` pixels), en JPEG : une photo d'iPhone pèse sinon plusieurs Mo.
 async function shrinkImage(file, max) {
   const url = URL.createObjectURL(file);
@@ -152,6 +160,7 @@ const PAGES = {
   habits: habitsPage,
   timesheet: timesheetPage,
   house: housePage,
+  health: healthPage,
   settings: settingsPage,
 };
 const JOURNAL_SAVE_DELAY = 700;
@@ -180,6 +189,7 @@ export class App {
   taxEditing = null; // facture du registre en cours de modification
   taxImport = null; // factures lues dans des fichiers Excel, en attente de confirmation
   houseUi = { tab: "inside", editing: null, focus: null, openList: null };
+  healthUi = { tab: "journal", editing: null, reacting: null }; // page Santé : onglet, repas modifié, réaction ajoutée
   houseStep = null; // procédure pas à pas ouverte : { listId, index } // page Maison : onglet, tâche modifiée ou mise en évidence
   taxUi = { persoOpen: false, persoQuery: "" }; // liste des transactions personnelles : ouverte, recherche
   receipt = null; // « Scanner un reçu » en cours : { date, slots, values, auto }
@@ -245,6 +255,12 @@ export class App {
       if (e.key === "ArrowRight") this.#actions.next();
     });
     document.addEventListener("input", (e) => {
+      // Santé : chercher un aliment (liste ou choix du repas) sans redessiner la page
+      const filter = { "health-food-filter": ".hl-food", "health-pick-filter": ".hl-pick-item" }[e.target.dataset.action];
+      if (filter) {
+        const q = e.target.value.trim().toLowerCase();
+        for (const el of document.querySelectorAll(filter)) el.hidden = Boolean(q) && !el.dataset.search.includes(q);
+      }
       if (e.target.dataset.journal) this.#scheduleJournalSave();
       if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
       // Recherche dans les transactions personnelles : sans redessiner la page
@@ -361,7 +377,7 @@ export class App {
     $("#fab").setAttribute("aria-label", t({ habits: "habits.add", trips: "trips.add", events: "events.add" }[this.page] ?? "nav.add"));
     $("#fab").dataset.action = this.page === "habits" ? "new-habit" : "new-item";
     $("#fab").dataset.module = fabModule;
-    $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip", "timesheet", "house"].includes(this.page)
+    $("#fab").hidden = ["settings", "meditation", "medstats", "journal", "trip", "timesheet", "house", "health"].includes(this.page)
       || this.page === "shopping"; // l'épicerie a ses propres champs
     this.#map?.remove();
     this.#map = null;
@@ -393,6 +409,7 @@ export class App {
         taxEditing: this.taxEditing,
         taxUi: this.taxUi,
         houseUi: this.houseUi,
+        healthUi: this.healthUi,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -430,6 +447,8 @@ export class App {
         aria-label="${esc(t("nav.timesheet"))}" title="${esc(t("nav.timesheet"))}">⏱️</button>
       <button type="button" class="icon-btn ${this.page === "house" ? "active" : ""}" data-action="open-house"
         aria-label="${esc(t("nav.house"))}" title="${esc(t("nav.house"))}">🏠</button>
+      <button type="button" class="icon-btn ${this.page === "health" ? "active" : ""}" data-action="open-health"
+        aria-label="${esc(t("nav.health"))}" title="${esc(t("nav.health"))}">🩺</button>
       <button type="button" class="icon-btn ${this.page === "journal" ? "active" : ""}" data-action="open-journal"
         aria-label="${esc(t("nav.journal"))}" title="${esc(t("nav.journal"))}">📓</button>
       <button type="button" class="icon-btn ${this.page === "meditation" ? "active" : ""}" data-action="open-meditation"
@@ -478,6 +497,7 @@ export class App {
       settings: this.repo.settings,
       timesheet: this.repo.timesheet(),
       house: this.repo.house(),
+      health: this.repo.health(),
       hour: new Date().getHours(),
     });
     this.#lastNudgeKey = nudges.map((n) => n.id).join("|");
@@ -493,6 +513,13 @@ export class App {
   #detailDate = null; // date de l'occurrence affichée (fête qui revient chaque année)
 
   openItem(id, date) {
+    // Rappel du programme Santé (calculé) : ouvrir la page Santé sur le programme
+    if (String(id).startsWith("health:")) {
+      this.healthUi = { ...this.healthUi, tab: "program", editing: null, reacting: null };
+      if (this.page === "health") this.render();
+      else this.openPage("health");
+      return;
+    }
     // Rappel d'entretien (calculé) : ouvrir la page Maison sur cette tâche
     if (String(id).startsWith("house:")) {
       const task = this.repo.house().tasks.find((x) => x.id === id.split(":")[1]);
@@ -973,6 +1000,78 @@ export class App {
 
     "open-trips": () => this.openPage("trips"),
     "open-events": () => this.openPage("events"),
+    // ---- Santé : journal des repas et réactions, aliments, programme ----
+    "open-health": () => {
+      this.healthUi = { ...this.healthUi, editing: null, reacting: null };
+      if (this.page === "health") return this.render();
+      this.openPage("health");
+    },
+    "health-tab": (el) => {
+      this.healthUi = { ...this.healthUi, tab: el.dataset.tab, editing: null, reacting: null };
+      this.render();
+    },
+    // Un toucher pendant le repas : la réaction commence maintenant (rattachée au repas en cours)
+    "health-react-now": async () => {
+      const { health, reaction } = Health.startReaction(this.repo.health(), { date: todayISO(), time: nowHM() });
+      this.healthUi = { ...this.healthUi, tab: "journal" };
+      await this.#updateHealth(health);
+      window.scrollTo(0, 0);
+      toast(t(reaction.mealId ? "health.reactStarted" : "health.reactStartedNoMeal"));
+    },
+    "health-react-set": (el) => this.#updateHealth(Health.updateReaction(this.repo.health(), el.dataset.id, {
+      [el.dataset.field]: el.dataset.field === "intensity" ? Number(el.dataset.value) : el.dataset.value,
+    })),
+    "health-react-stop": async (el) => {
+      await this.#updateHealth(Health.stopReaction(this.repo.health(), el.dataset.id, todayISO(), nowHM()));
+      toast(t("health.reactStopped"));
+    },
+    "health-meal-new": () => {
+      this.healthUi = { ...this.healthUi, editing: this.healthUi.editing === "new-meal" ? null : "new-meal", reacting: null };
+      this.#renderKeepingScroll();
+    },
+    "health-meal-edit": (el) => {
+      this.healthUi = { ...this.healthUi, editing: el.dataset.id, reacting: null };
+      this.#renderKeepingScroll();
+    },
+    "health-meal-remove": async (el) => {
+      if (!confirm(t("health.confirmRemoveMeal"))) return;
+      this.healthUi = { ...this.healthUi, editing: null };
+      await this.#updateHealth(Health.removeMeal(this.repo.health(), el.dataset.id));
+    },
+    "health-cancel": () => {
+      this.healthUi = { ...this.healthUi, editing: null, reacting: null };
+      this.#renderKeepingScroll();
+    },
+    "health-reaction-new": (el) => {
+      this.healthUi = { ...this.healthUi, reacting: this.healthUi.reacting === el.dataset.id ? null : el.dataset.id, editing: null };
+      this.#renderKeepingScroll();
+    },
+    "health-reaction-remove": (el) => {
+      if (!confirm(t("health.confirmRemoveReaction"))) return;
+      return this.#updateHealth(Health.removeReaction(this.repo.health(), el.dataset.id));
+    },
+    "health-food-status": (el) => this.#updateHealth(Health.setFoodStatus(this.repo.health(), el.dataset.id, el.dataset.value)),
+    "health-food-remove": (el) => {
+      if (!confirm(t("health.confirmRemoveFood"))) return;
+      return this.#updateHealth(Health.removeFood(this.repo.health(), el.dataset.id));
+    },
+    "health-food-list": async (el) => {
+      const food = this.repo.health().foods.find((f) => f.id === el.dataset.id);
+      if (!food) return;
+      const list = this.repo.grocery().list;
+      const next = addToList(list, food.name);
+      if (next === list) return toast(t("house.supply.alreadyListed"));
+      await this.#updateGrocery({ list: next });
+      toast(t("house.supply.listed", { name: food.name }));
+    },
+    "health-test-result": async (el) => {
+      await this.#updateHealth(Health.finishTest(this.repo.health(), el.dataset.value));
+      toast(t(el.dataset.value === "ok" ? "health.program.savedOk" : "health.program.savedReact"));
+    },
+    "health-program-stop": () => {
+      if (!confirm(t("health.program.confirmStop"))) return;
+      return this.#updateHealth(Health.stopProgram(this.repo.health()));
+    },
     // ---- Maison : entretiens et listes à cocher ----
     "open-house": () => {
       this.houseUi = { ...this.houseUi, focus: null, editing: null };
@@ -1492,6 +1591,7 @@ export class App {
     if (e.target.dataset.role === "grocery-add") return this.#addGrocery(e);
     if (e.target.dataset.role?.startsWith("ts-")) return this.#onTimesheetSubmit(e);
     if (e.target.dataset.role === "price-add") return this.#addPrice(e);
+    if (e.target.dataset.role?.startsWith("health-")) return this.#onHealthSubmit(e);
     if (e.target.dataset.role === "house-task") return this.#saveHouseTask(e);
     if (e.target.dataset.role === "house-supply") return this.#saveHouseSupply(e);
     if (e.target.dataset.role === "house-purchase") {
@@ -1689,6 +1789,60 @@ export class App {
   }
 
   // ---- Mes heures --------------------------------------------------------
+
+  async #updateHealth(health) {
+    const top = window.scrollY;
+    await this.repo.updateHealth(health);
+    window.scrollTo(0, top);
+  }
+
+  // Formulaires de la page Santé : repas, réaction après coup, nouvel aliment, programme
+  async #onHealthSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const f = new FormData(form);
+    const get = (k) => String(f.get(k) ?? "").trim();
+    let health = this.repo.health();
+    switch (form.dataset.role) {
+      case "health-meal": {
+        const fields = {
+          date: get("date"), time: get("time"), kind: get("kind"), text: get("text"), drink: get("drink"), note: get("note"),
+          spicy: f.has("spicy"), hot: f.has("hot"), foods: f.getAll("foods").map(String),
+        };
+        if (form.dataset.id) health = Health.updateMeal(health, form.dataset.id, fields);
+        else {
+          const added = Health.addMeal(health, fields);
+          if (!added.meal) return toast(t("health.errors.meal"));
+          health = added.health;
+        }
+        this.healthUi = { ...this.healthUi, editing: null };
+        await this.#updateHealth(health);
+        return toast(t("health.mealSaved"));
+      }
+      case "health-reaction": {
+        const meal = health.meals.find((m) => m.id === form.dataset.meal);
+        health = Health.addReaction(health, {
+          date: meal?.date ?? todayISO(), time: meal?.time ?? "", mealId: meal?.id ?? null,
+          where: get("where"), intensity: Number(get("intensity")), minutes: get("minutes") === "" ? null : Number(get("minutes")),
+        });
+        this.healthUi = { ...this.healthUi, reacting: null };
+        return this.#updateHealth(health);
+      }
+      case "health-food": {
+        const added = Health.addFood(health, { name: get("name"), level: get("level"), group: get("group") });
+        if (!added.food) return toast(t("health.errors.food"));
+        await this.#updateHealth(added.health);
+        return toast(t("health.foodAdded", { name: added.food.name }));
+      }
+      case "health-start":
+        await this.#updateHealth(Health.startProgram(health, get("start") || todayISO()));
+        return toast(t("health.program.started"));
+      case "health-test":
+        await this.#updateHealth(Health.startTest(health, get("food"), todayISO()));
+        return toast(t("health.program.testStarted"));
+      default:
+    }
+  }
 
   async #updateHouse(house, focusSelector) {
     const top = window.scrollY;

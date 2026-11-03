@@ -9,6 +9,7 @@ import { getChecklist, progress } from "../data/checklist.js";
 import { fmt } from "../i18n/index.js";
 import { kindIcon, reminderPhase, upcomingEvents } from "../events/events.js";
 import { dueSoon } from "../house/house.js";
+import { currentPhase, currentTest, toTest } from "../health/health.js";
 
 const upcoming = (items, today, moduleId, maxDays) =>
   items
@@ -215,6 +216,30 @@ export const houseReminder = {
   },
 };
 
+// Programme Santé : le jour où une phase commence, et pendant la réintroduction
+// (résultat à noter après les jours de test, ou prochain aliment à essayer).
+export const healthReminder = {
+  id: "sante",
+  kind: "calendar",
+  evaluate({ health, today }) {
+    const p = health?.program;
+    if (!p?.start) return [];
+    const phase = currentPhase(p, today);
+    if (!phase || phase.upcoming) return [];
+    const base = { tone: "soft", icon: "🩺", itemIds: [], actionKey: "nudge.healthAction", action: "open-health", params: {} };
+    if (phase.from === today) return [{ ...base, id: `sante:${phase.id}:${today}`, messageKey: `nudge.health.${phase.id}` }];
+    if (phase.id !== "reintro") return [];
+    const test = currentTest(health);
+    if (test) {
+      const days = Math.round((Date.parse(today) - Date.parse(test.start)) / 86400000) + 1;
+      if (days < p.testDays) return [];
+      const food = health.foods.find((f) => f.id === test.foodId);
+      return [{ ...base, id: `sante:result:${today}`, messageKey: "nudge.health.result", params: { food: food?.name ?? "" } }];
+    }
+    return toTest(health).length ? [{ ...base, id: `sante:next:${today}`, messageKey: "nudge.health.next" }] : [];
+  },
+};
+
 // Le dimanche, si la dernière copie des données date de plus d'un mois
 // (ou n'existe pas) : un rappel doux d'en faire une. Les données ne vivent
 // que sur l'appareil ; une copie les met à l'abri.
@@ -243,5 +268,5 @@ export const backupReminder = {
 };
 
 export const calendarTriggers = [
-  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, timesheetReminder, houseReminder, backupReminder,
+  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, timesheetReminder, houseReminder, healthReminder, backupReminder,
 ];

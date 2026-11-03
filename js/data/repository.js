@@ -10,6 +10,7 @@ import { addDays, parseISODate, toISODate } from "../core/dates.js";
 import { STATUS, compareItems, createItem, normalizeItem, validateItem } from "./item.js";
 import { occurrencesBetween } from "./recurrence.js";
 import { houseOccurrences } from "../house/house.js";
+import { healthOccurrences } from "../health/health.js";
 import { SCHEMA_VERSION, emptyDocument, migrate, readLegacy } from "./migrations.js";
 
 export class ValidationError extends Error {
@@ -69,7 +70,8 @@ export class Repository extends Emitter {
   // Les entretiens de la maison s'y ajoutent (rappels calculés, module « maison »).
   between(fromISO, toISO) {
     const house = houseOccurrences(this.#doc.house, fromISO, toISO, toISODate(this.clock()));
-    return [...occurrencesBetween(this.#doc.items, fromISO, toISO), ...house].sort(compareItems);
+    const health = healthOccurrences(this.#doc.health, fromISO, toISO);
+    return [...occurrencesBetween(this.#doc.items, fromISO, toISO), ...house, ...health].sort(compareItems);
   }
 
   // L'élément tel qu'il apparaît à une date (occurrence s'il est répété).
@@ -181,6 +183,15 @@ export class Repository extends Emitter {
 
   house() {
     return this.#doc.house;
+  }
+
+  health() {
+    return this.#doc.health;
+  }
+
+  async updateHealth(health) {
+    this.#doc.health = health;
+    await this.#commit("health", null);
   }
 
   async updateHouse(house) {
