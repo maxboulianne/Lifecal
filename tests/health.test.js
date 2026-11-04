@@ -99,3 +99,23 @@ test("Santé : heures de début et de fin des réactions, aliments souvent mang�
   for (const text of ["Poulet et riz", "Poulet et brocoli", "Poulet"]) h = addMeal(h, { date: "2026-11-04", time: "12:00", text }).health;
   assert.deepEqual(frequentFoods(h).map((f) => f.name).slice(0, 1), ["Poulet"]);
 });
+
+test("Santé : boissons du repas (liste par catégorie, marque)", async () => {
+  const { drinkOptions } = await import("../js/health/health.js");
+  let h = emptyHealth();
+  const opts = drinkOptions();
+  for (const c of ["water", "coffee", "tea", "juice", "milk", "soda", "energy", "alcohol"]) assert.ok(opts.some((o) => o.category === c), c);
+  for (const o of opts) assert.ok(h.foods.some((f) => f.id === o.id && f.group === "drinks"), o.name);
+  const capsule = opts.find((o) => o.name.startsWith("Café en capsule"));
+  const added = addMeal(h, { date: "2026-11-04", time: "07:30", kind: "breakfast", text: "Gruau", drinks: [{ foodId: capsule.id, brand: "Nespresso Ristretto" }, { foodId: null, brand: "Kombucha maison" }, { foodId: null, brand: "" }] });
+  assert.deepEqual(added.meal.drinks, [{ foodId: capsule.id, brand: "Nespresso Ristretto" }, { foodId: null, brand: "Kombucha maison" }]);
+  h = added.health;
+  assert.deepEqual(normalizeHealth(JSON.parse(JSON.stringify(h))).meals[0].drinks, added.meal.drinks);
+  // Repas avec seulement une boisson : accepté
+  assert.ok(addMeal(h, { date: "2026-11-04", time: "15:00", drinks: [{ foodId: capsule.id, brand: "" }] }).meal);
+  // Anciennes données sans les nouvelles boissons : elles s'ajoutent une fois
+  const old = JSON.parse(JSON.stringify(emptyHealth()));
+  old.foods = old.foods.filter((f) => f.group !== "drinks");
+  delete old.drinksSeeded;
+  assert.ok(normalizeHealth(old).foods.some((f) => f.id === capsule.id));
+});

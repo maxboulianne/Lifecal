@@ -1609,3 +1609,12 @@ img.house-step-file { background: var(--pale); }
 .hl-pick-item input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
 .hl-pick-item:has(input:focus-visible) { outline: 3px solid #e0491a; outline-offset: 2px; }
 .hl-pick-item:has(input:checked) span::before { content: "✓ "; }
+/* Santé : boissons du repas */
+.hl-drinks { margin: 0; padding: 0; border: none; display: grid; gap: 8px; }
+.hl-drinks > legend { font-weight: 600; margin-bottom: 4px; }
+.hl-drink-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; padding: 8px; border-radius: 10px; background: var(--pale); }
+.hl-drink-row label { display: grid; gap: 4px; font-size: 0.85rem; min-width: 0; }
+.hl-drink-row select, .hl-drink-row input { width: 100%; min-height: 44px; font-size: 16px; }
+.hl-drink-more { justify-self: start; }
+.hl-drink-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; }
+@media (prefers-color-scheme: dark) { .hl-drink-row { background: #232c37; } }

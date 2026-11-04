@@ -119,6 +119,13 @@ const invoiceFileName = (number) => String(number).trim().replace(/[^\w.-]+/g, "
 // Nombre écrit à la main : « 2 924 738 », « 0,000053931 », « 25,50 $ » ; null si invalide ou 0.
 const readNumber = (value) => parseAmount(String(value ?? "").replace(/[\s$\u00a0\u202f]/g, ""));
 
+// Boissons d'un formulaire de repas : une paire (type, marque) par ligne ; « autre » = la marque décrit la boisson
+const drinksFromForm = (f) => {
+  const brands = f.getAll("drinkBrand").map((x) => String(x).trim());
+  return f.getAll("drinkType").map((type, i) => ({ foodId: type && type !== "other" ? String(type) : null, brand: brands[i] ?? "" }))
+    .filter((d) => d.foodId || d.brand);
+};
+
 // Heure qu'il est, « 12:40 »
 const nowHM = () => {
   const d = new Date();
@@ -1060,6 +1067,16 @@ export class App {
       this.healthUi = { ...this.healthUi, reacting: this.healthUi.reacting === el.dataset.id ? null : el.dataset.id, editing: null };
       this.#renderKeepingScroll();
     },
+    // Une autre boisson pour ce repas : nouvelle ligne vide, sans redessiner (ce qui est saisi reste)
+    "health-drink-add": (el) => {
+      const rows = el.closest(".hl-drinks").querySelectorAll(".hl-drink-row");
+      if (rows.length >= 6) return;
+      const row = rows[rows.length - 1].cloneNode(true);
+      row.querySelector("select").value = "";
+      row.querySelector("input").value = "";
+      el.before(row);
+      row.querySelector("select").focus();
+    },
     "health-reaction-edit": (el) => {
       this.healthUi = { ...this.healthUi, reactionEditing: el.dataset.id, reacting: null, editing: null };
       this.#renderKeepingScroll();
@@ -1079,7 +1096,7 @@ export class App {
         ...this.healthUi,
         draft: {
           mealId: form.dataset.id ?? "", date: get("date"), time: get("time"), kind: get("kind"), text: get("text"), drink: get("drink"), note: get("note"),
-          spicy: f.has("spicy"), hot: f.has("hot"), foods: [...new Set([...f.getAll("foods").map(String), ...(id ? [id] : [])])],
+          spicy: f.has("spicy"), hot: f.has("hot"), foods: [...new Set([...f.getAll("foods").map(String), ...(id ? [id] : [])])], drinks: drinksFromForm(f),
         },
       };
       if (added.food) await this.#updateHealth(added.health);
@@ -1868,7 +1885,7 @@ export class App {
       case "health-meal": {
         const fields = {
           date: get("date"), time: get("time"), kind: get("kind"), text: get("text"), drink: get("drink"), note: get("note"),
-          spicy: f.has("spicy"), hot: f.has("hot"), foods: f.getAll("foods").map(String),
+          spicy: f.has("spicy"), hot: f.has("hot"), foods: f.getAll("foods").map(String), drinks: drinksFromForm(f),
         };
         if (form.dataset.id) health = Health.updateMeal(health, form.dataset.id, fields);
         else {
