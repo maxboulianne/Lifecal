@@ -7,7 +7,7 @@
 import { addDays, parseISODate, toISODate } from "../../core/dates.js";
 import { esc } from "../../core/dom.js";
 import {
-  GROUPS, LEVELS, MEAL_KINDS, WHERE, currentPhase, currentTest, frequentFoods, journal, mealKindAt, ongoingReaction, programPhases, reactionEnd, toTest, weekSummary,
+  DRINK_CATEGORIES, GROUPS, LEVELS, MEAL_KINDS, WHERE, drinkOptions, currentPhase, currentTest, frequentFoods, journal, mealKindAt, ongoingReaction, programPhases, reactionEnd, toTest, weekSummary,
 } from "../../health/health.js";
 import { fmt, t } from "../../i18n/index.js";
 
@@ -35,6 +35,22 @@ function reactionLine(r, ui = {}, meal = null) {
       <button type="button" class="check-remove" data-action="health-reaction-remove" data-id="${esc(r.id)}" aria-label="${esc(t("health.remove"))}">×</button>
     </span>
   </li>`;
+}
+
+// Une boisson du repas : liste déroulante par catégorie (café, thé, jus…) et marque ou produit
+function drinkRow(health, d) {
+  const options = drinkOptions().filter((o) => health.foods.some((f) => f.id === o.id));
+  // Boissons ajoutées par l'utilisateur (groupe « Boissons ») : à la fin
+  const own = health.foods.filter((f) => f.group === "drinks" && !options.some((o) => o.id === f.id));
+  return `<div class="hl-drink-row">
+    <label>${t("health.meal.drinkType")} <select name="drinkType">
+      <option value="">${t("health.meal.noDrink")}</option>
+      ${DRINK_CATEGORIES.map((c) => `<optgroup label="${esc(t(`health.drinkCat.${c}`))}">${options.filter((o) => o.category === c).map((o) => `<option value="${esc(o.id)}" ${d.foodId === o.id ? "selected" : ""}>${esc(o.name)}</option>`).join("")}</optgroup>`).join("")}
+      ${own.length ? `<optgroup label="${esc(t("health.drinkCat.mine"))}">${own.map((f) => `<option value="${esc(f.id)}" ${d.foodId === f.id ? "selected" : ""}>${esc(f.name)}</option>`).join("")}</optgroup>` : ""}
+      <option value="other" ${!d.foodId && d.brand ? "selected" : ""}>${t("health.meal.otherDrink")}</option>
+    </select></label>
+    <label>${t("health.meal.brand")} <input name="drinkBrand" value="${esc(d.brand)}" autocomplete="off" placeholder="${esc(t("health.meal.brandHint"))}"></label>
+  </div>`;
 }
 
 // Choix des aliments du repas, comme la liste personnalisée d'épicerie : les plus souvent mangés,
@@ -75,7 +91,11 @@ function mealForm(health, meal, today, now, draft = null) {
       <label>${t("health.meal.kind")} <select name="kind">${MEAL_KINDS.map((k) => `<option value="${k}" ${m.kind === k ? "selected" : ""}>${KIND_ICONS[k]} ${t(`health.kind.${k}`)}</option>`).join("")}</select></label>
     </div>
     <label>${t("health.meal.text")} <input name="text" value="${esc(m.text)}" autocomplete="off" placeholder="${esc(t("health.meal.textHint"))}"></label>
-    <label>${t("health.meal.drink")} <input name="drink" value="${esc(m.drink)}" autocomplete="off" placeholder="${esc(t("health.meal.drinkHint"))}"></label>
+    <fieldset class="hl-drinks"><legend>${t("health.meal.drinks")}</legend>
+      ${(m.drinks?.length ? m.drinks : [{ foodId: "", brand: "" }]).map((d) => drinkRow(health, d)).join("")}
+      <button type="button" class="btn soft hl-drink-more" data-action="health-drink-add">＋ ${t("health.meal.anotherDrink")}</button>
+      ${m.drink ? `<p class="hint">${t("health.meal.oldDrink", { drink: m.drink })}</p><input type="hidden" name="drink" value="${esc(m.drink)}">` : ""}
+    </fieldset>
     <div class="hl-flags">
       <label><input type="checkbox" name="spicy" ${m.spicy ? "checked" : ""}> 🌶️ ${t("health.meal.spicy")}</label>
       <label><input type="checkbox" name="hot" ${m.hot ? "checked" : ""}> 🔥 ${t("health.meal.hot")}</label>
@@ -145,7 +165,10 @@ function journalTab(health, ui, today, now) {
       <ul class="hl-meals">${d.meals.map(({ meal: m, reactions }) => ui.editing === m.id ? `<li class="hl-meal is-editing">${mealForm(health, m, today, now, ui.draft)}</li>` : `<li class="hl-meal ${reactions.length ? "has-reaction" : ""}">
         <div class="hl-meal-head"><strong>${KIND_ICONS[m.kind]} ${t(`health.kind.${m.kind}`)}</strong><span class="hint">${esc(hm(m.time))}${m.spicy ? " · 🌶️" : ""}${m.hot ? " · 🔥" : ""}</span></div>
         ${m.foods.length ? `<div class="hl-chips">${m.foods.map((id) => health.foods.find((f) => f.id === id)).filter(Boolean).map(foodChip).join("")}</div>` : ""}
-        ${m.text ? `<p>${esc(m.text)}</p>` : ""}${m.drink ? `<p class="hint">☕ ${esc(m.drink)}</p>` : ""}${m.note ? `<p class="hint">📝 ${esc(m.note)}</p>` : ""}
+        ${m.text ? `<p>${esc(m.text)}</p>` : ""}${m.drinks?.length ? `<p class="hl-drink-line">🥤 ${m.drinks.map((d) => {
+          const f = health.foods.find((x) => x.id === d.foodId);
+          return `<span class="hl-chip is-${f?.level ?? "limit"}">${esc(f ? f.name : d.brand)}${f && d.brand ? ` — ${esc(d.brand)}` : ""}</span>`;
+        }).join(" ")}</p>` : ""}${m.drink ? `<p class="hint">☕ ${esc(m.drink)}</p>` : ""}${m.note ? `<p class="hint">📝 ${esc(m.note)}</p>` : ""}
         ${reactions.length ? `<ul class="hl-reactions">${reactions.map((r) => reactionLine(r, ui, m)).join("")}</ul>` : `<p class="hint">${t("health.noReaction")}</p>`}
         ${ui.reacting === m.id ? reactionForm(m.id, null, m.time) : ""}
         <div class="actions start">

@@ -30,22 +30,18 @@ const FOODS = {
     fruits: ["Banane", "Melon (cantaloup, miel)", "Poire", "Mangue mûre", "Papaye", "Avocat"],
     grains: ["Gruau", "Riz", "Quinoa", "Pain de blé entier", "Pâtes", "Craquelins", "Sarrasin"],
     proteins: ["Poulet", "Dinde", "Poisson blanc", "Saumon", "Œufs", "Tofu", "Légumineuses bien cuites", "Porc maigre"],
-    dairy: ["Lait", "Boisson d'amande"],
     fats: ["Huile d'olive", "Amandes", "Beurre d'amande"],
     herbs: ["Basilic", "Persil", "Aneth", "Coriandre", "Thym", "Gingembre frais (un peu)", "Cannelle"],
-    drinks: ["Eau", "Tisane de camomille"],
   },
   limit: {
     fruits: ["Pomme rouge douce", "Raisins rouges", "Bleuets", "Pêche bien mûre"],
     vegetables: ["Oignon cuit", "Ail cuit"],
     dairy: ["Fromage doux", "Yogourt nature"],
-    drinks: ["Thé vert léger", "Café peu acide ou infusé à froid"],
     other: ["Chocolat noir"],
     herbs: ["Cumin", "Curcuma", "Paprika doux"],
   },
   avoid: {
     fruits: ["Orange", "Pamplemousse", "Citron", "Lime", "Clémentine", "Ananas", "Kiwi", "Fraises", "Framboises", "Canneberges", "Rhubarbe", "Pomme verte"],
-    drinks: ["Jus d'orange", "Jus de fruits", "Café (filtre, espresso)", "Thé noir fort", "Boissons gazeuses", "Boissons énergisantes", "Vin blanc", "Bière", "Tisane à la menthe"],
     vegetables: ["Tomate", "Sauce tomate", "Oignon cru", "Ail cru"],
     other: ["Ketchup", "Salsa", "Vinaigre et vinaigrettes", "Marinades et cornichons", "Moutarde forte", "Fritures", "Plats très gras"],
     herbs: ["Piment", "Sauce piquante", "Poivre fort", "Wasabi", "Raifort", "Menthe"],
@@ -54,6 +50,29 @@ const FOODS = {
 
 const slug = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+// ---- Boissons : liste déroulante du repas, par catégorie ----
+// Chaque boisson est aussi un aliment du groupe « Boissons » (statut, réintroduction, analyse).
+// [catégorie, nom, niveau] ; le café : la torréfaction (foncée = moins acide) et l'infusion à froid
+// changent plus l'acidité que la méthode ; le type et la marque notés diront ce qui te fait réagir.
+export const DRINK_CATEGORIES = ["water", "coffee", "tea", "juice", "milk", "soda", "energy", "alcohol"];
+const DRINKS = [
+  ["water", "Eau", "good"], ["water", "Eau pétillante nature", "limit"],
+  ["coffee", "Café filtre", "avoid"], ["coffee", "Espresso", "avoid"], ["coffee", "Café en capsule (Nespresso, Keurig…)", "avoid"],
+  ["coffee", "Café instantané", "avoid"], ["coffee", "Café torréfaction foncée", "limit"], ["coffee", "Café infusé à froid (cold brew)", "limit"],
+  ["coffee", "Café décaféiné", "limit"],
+  ["tea", "Thé orange pekoe (noir)", "avoid"], ["tea", "Thé vert léger", "limit"], ["tea", "Tisane de camomille", "good"],
+  ["tea", "Tisane au gingembre", "limit"], ["tea", "Tisane à la menthe", "avoid"],
+  ["juice", "Jus d'orange", "avoid"], ["juice", "Jus de pamplemousse", "avoid"], ["juice", "Jus de canneberge", "avoid"],
+  ["juice", "Jus de pomme", "limit"], ["juice", "Jus de raisin", "limit"], ["juice", "Jus de légumes ou de tomate", "avoid"], ["juice", "Jus de fruits", "avoid"],
+  ["milk", "Lait", "good"], ["milk", "Boisson de soya", "good"], ["milk", "Boisson d'amande", "good"], ["milk", "Boisson d'avoine", "good"], ["milk", "Lait au chocolat", "limit"],
+  ["soda", "Cola", "avoid"], ["soda", "Soda au gingembre (ginger ale)", "avoid"], ["soda", "Soda citron-lime", "avoid"],
+  ["soda", "Eau pétillante aromatisée", "avoid"], ["soda", "Boissons gazeuses", "avoid"],
+  ["energy", "Boissons énergisantes", "avoid"], ["energy", "Boisson pour sportifs", "avoid"],
+  ["alcohol", "Bière", "avoid"], ["alcohol", "Vin blanc", "avoid"], ["alcohol", "Vin rouge", "avoid"], ["alcohol", "Spiritueux", "avoid"],
+];
+const drinkFood = ([, name, level]) => ({ id: `f-${slug(name)}`, key: slug(name), name, group: "drinks", level, status: "unknown" });
+export const drinkOptions = () => DRINKS.map(([category, name]) => ({ category, id: `f-${slug(name)}`, name }));
+
 export function emptyHealth() {
   const foods = [];
   for (const level of LEVELS) {
@@ -61,7 +80,8 @@ export function emptyHealth() {
       for (const name of names) foods.push({ id: `f-${slug(name)}`, key: slug(name), name, group, level, status: "unknown" });
     }
   }
-  return { foods, meals: [], reactions: [], program: { start: null, observeDays: 14, calmDays: 28, testDays: 3, tests: [] } };
+  for (const d of DRINKS) if (!foods.some((f) => f.id === drinkFood(d).id)) foods.push(drinkFood(d));
+  return { foods, meals: [], reactions: [], program: { start: null, observeDays: 14, calmDays: 28, testDays: 3, tests: [] }, drinksSeeded: true };
 }
 
 // ---- Validation ----
@@ -77,10 +97,14 @@ function normalizeFood(f) {
 function normalizeMeal(m, foodIds) {
   if (!m || !ISO.test(m.date)) return null;
   const foods = [...new Set((Array.isArray(m.foods) ? m.foods : []).filter((id) => foodIds.has(id)))];
-  if (!foods.length && !str(m.text) && !str(m.drink)) return null;
+  // Boissons : une ligne par boisson, avec la marque ou le produit (facultatif) ; « autre » : la marque décrit la boisson
+  const drinks = (Array.isArray(m.drinks) ? m.drinks : [])
+    .map((d) => ({ foodId: foodIds.has(d?.foodId) ? d.foodId : null, brand: str(d?.brand) }))
+    .filter((d) => d.foodId || d.brand).slice(0, 6);
+  if (!foods.length && !drinks.length && !str(m.text) && !str(m.drink)) return null;
   return {
     id: str(m.id) || newId(), date: m.date, time: HM.test(m.time) ? m.time : "", kind: MEAL_KINDS.includes(m.kind) ? m.kind : "snack",
-    foods, text: str(m.text), drink: str(m.drink), spicy: Boolean(m.spicy), hot: Boolean(m.hot), note: str(m.note),
+    foods, drinks, text: str(m.text), drink: str(m.drink), spicy: Boolean(m.spicy), hot: Boolean(m.hot), note: str(m.note),
   };
 }
 
@@ -98,6 +122,8 @@ function normalizeReaction(r, mealIds) {
 export function normalizeHealth(raw) {
   if (!raw || typeof raw !== "object" || !Array.isArray(raw.foods)) return emptyHealth();
   const foods = raw.foods.map(normalizeFood).filter(Boolean);
+  // Boissons ajoutées à la liste de départ : celles qui manquent s'ajoutent (une fois)
+  if (!raw.drinksSeeded) for (const d of DRINKS) if (!foods.some((f) => f.id === drinkFood(d).id)) foods.push(drinkFood(d));
   const foodIds = new Set(foods.map((f) => f.id));
   const meals = (Array.isArray(raw.meals) ? raw.meals : []).map((m) => normalizeMeal(m, foodIds)).filter(Boolean).sort(byWhen);
   const mealIds = new Set(meals.map((m) => m.id));
@@ -109,7 +135,7 @@ export function normalizeHealth(raw) {
     tests: (Array.isArray(p.tests) ? p.tests : []).filter((x) => foodIds.has(x?.foodId) && ISO.test(x.start))
       .map((x) => ({ foodId: x.foodId, start: x.start, result: ["ok", "react"].includes(x.result) ? x.result : null })),
   };
-  return { foods, meals, reactions, program };
+  return { foods, meals, reactions, program, drinksSeeded: true };
 }
 
 const byWhen = (a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || "");
