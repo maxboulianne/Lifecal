@@ -1213,4 +1213,11 @@ export default {
   "health.menu.logged": "Comida anotada en tu diario.",
   "health.menu.errors.dish": "Ponle un nombre al plato.",
   "health.menu.dishAdded": "Plato añadido: {name}",
+  "settings.backup": "Copia completa (con fotos y vídeos)",
+  "settings.backupHint": "Un solo archivo con todos tus datos y todos los archivos del dispositivo: recibos, justificantes, fotos de suministros, fotos y vídeos de la piscina. Guárdalo en Archivos, iCloud o en tu ordenador; «Importar una copia» lo restaura en cualquier dispositivo.",
+  "settings.exportJson": "Solo datos (archivo JSON ligero, sin fotos ni vídeos)",
+  "settings.backupWorking": { one: "Preparando la copia ({count} archivo)…", other: "Preparando la copia ({count} archivos)…" },
+  "settings.backupDone": { one: "Copia lista, con {count} foto o archivo.", other: "Copia lista, con {count} fotos y archivos." },
+  "settings.backupFailed": "No se pudo preparar la copia. Inténtalo de nuevo; con muchos vídeos, libera algo de espacio.",
+  "settings.restored": "Copia restaurada: tus datos y {files} fotos o archivos.",
 };

@@ -75,11 +75,13 @@ export const settingsPage = {
         ${storageProtected ? `<p class="hint">🔒 ${t("settings.persisted")}</p>` : ""}
         <p class="hint">📶 ${t("settings.offline")}</p>
         <div class="actions start">
-          <button type="button" class="btn soft" data-action="export">${t("settings.export")}</button>
+          <button type="button" class="btn primary" data-action="export">💾 ${t("settings.backup")}</button>
           <label class="btn soft file-btn">${t("settings.import")}
-            <input type="file" accept="application/json,.json" data-action="import" hidden>
+            <input type="file" accept="application/zip,.zip,application/json,.json" data-action="import" hidden>
           </label>
         </div>
+        <p class="hint">${t("settings.backupHint")}</p>
+        <button type="button" class="btn link" data-action="export-json">${t("settings.exportJson")}</button>
       </div>
     </section>`;
   },

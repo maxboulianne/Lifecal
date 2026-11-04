@@ -1210,4 +1210,11 @@ export default {
   "health.menu.logged": "Đã ghi bữa ăn vào nhật ký.",
   "health.menu.errors.dish": "Hãy đặt tên cho món.",
   "health.menu.dishAdded": "Đã thêm món: {name}",
+  "settings.backup": "Bản sao đầy đủ (kèm ảnh và video)",
+  "settings.backupHint": "Một tệp duy nhất chứa mọi dữ liệu và mọi tệp trên thiết bị: hóa đơn, chứng từ, ảnh vật tư, ảnh và video hồ bơi. Lưu vào Tệp, iCloud hoặc máy tính; «Nhập bản sao» sẽ khôi phục trên bất kỳ thiết bị nào.",
+  "settings.exportJson": "Chỉ dữ liệu (tệp JSON nhẹ, không có ảnh hay video)",
+  "settings.backupWorking": { one: "Đang chuẩn bị bản sao ({count} tệp)…", other: "Đang chuẩn bị bản sao ({count} tệp)…" },
+  "settings.backupDone": { one: "Bản sao đã sẵn sàng, gồm {count} ảnh hoặc tệp.", other: "Bản sao đã sẵn sàng, gồm {count} ảnh và tệp." },
+  "settings.backupFailed": "Không thể chuẩn bị bản sao. Hãy thử lại; nếu có nhiều video, hãy giải phóng bớt dung lượng.",
+  "settings.restored": "Đã khôi phục bản sao: dữ liệu của bạn và {files} ảnh hoặc tệp.",
 };

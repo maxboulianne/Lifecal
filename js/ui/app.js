@@ -66,7 +66,8 @@ import { taxReportPreview } from "./components/tax-report-view.js";
 import { taxReportData, taxReportPdf, taxReportSheets } from "../timesheet/tax-report.js";
 import { SAMPLE_INVOICE, SAMPLE_QUARTER, sampleTimesheet } from "../timesheet/sample.js";
 import { quarterOf, quarterRange, recordInvoice, removeInvoice, reportQuarter, salesTaxes, shiftQuarter } from "../timesheet/taxes.js";
-import { blobHash, deleteFile, getFile, pruneFiles, putFile } from "../data/files.js";
+import { blobHash, deleteFile, fileIds, getFile, pruneFiles, putFile } from "../data/files.js";
+import { BACKUP_TYPE, buildBackup, isBackupZip, readBackup } from "../data/backup.js";
 import { invoicePdf } from "../timesheet/invoice-pdf.js";
 import { receiptsPdf } from "../timesheet/receipts-pdf.js";
 import { PDF_TYPE, jpegInfo } from "../export/pdf.js";
@@ -1568,6 +1569,7 @@ export class App {
     "clear-position": (el) => this.#setFormCoords(el.closest("form"), null),
     "check-remove": (el) => this.#updateChecklist(el.dataset.id, (list) => removeEntry(list, el.dataset.entry), null, el.dataset.field),
     export: () => this.#exportData(),
+    "export-json": () => this.#exportJSON(),
     close: () => closeModal(),
   };
 
@@ -3161,7 +3163,29 @@ export class App {
 
   // ---- Sauvegarde --------------------------------------------------------
 
-  #exportData() {
+  // Copie complète : les données et tous les fichiers de l'appareil (photos, PDF, vidéos) dans un ZIP,
+  // à enregistrer dans Fichiers, iCloud ou sur l'ordinateur (feuille de partage de l'iPad).
+  async #exportData() {
+    try {
+      const ids = await fileIds().catch(() => []);
+      toast(t("settings.backupWorking", { count: ids.length }));
+      const files = [];
+      for (const id of ids) {
+        const blob = await getFile(id).catch(() => null);
+        if (blob) files.push({ id: String(id), type: blob.type, bytes: new Uint8Array(await blob.arrayBuffer()) });
+      }
+      const bytes = buildBackup(this.repo.exportJSON(), files);
+      await this.#shareFile(new File([bytes], `lifecal-copie-${todayISO()}.zip`, { type: BACKUP_TYPE }));
+      await this.repo.updateSettings({ lastExport: todayISO() });
+      toast(t("settings.backupDone", { count: files.length }));
+    } catch (err) {
+      console.error(err);
+      toast(t("settings.backupFailed"));
+    }
+  }
+
+  // Données seulement (sans photos ni vidéos) : petit fichier JSON, comme avant
+  #exportJSON() {
     const blob = new Blob([this.repo.exportJSON()], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -3173,14 +3197,27 @@ export class App {
     this.repo.updateSettings({ lastExport: todayISO() });
   }
 
+  // Restaurer : une copie complète (ZIP : données + photos et vidéos) ou un ancien export JSON
   async #importData(file) {
     if (!confirm(t("confirm.import"))) return;
     try {
-      const n = await this.repo.importJSON(await file.text());
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let restored = 0;
+      let n;
+      if (isBackupZip(bytes)) {
+        const backup = await readBackup(bytes);
+        n = await this.repo.importJSON(backup.json);
+        for (const f of backup.files) {
+          await putFile(f.id, new Blob([f.bytes], { type: f.type }));
+          restored++;
+        }
+      } else {
+        n = await this.repo.importJSON(new TextDecoder().decode(bytes));
+      }
       setLanguage(this.repo.settings.language ?? getLanguage());
       setProductLanguage(getLanguage());
       this.render();
-      toast(t("toast.imported", { count: n }));
+      toast(restored ? t("settings.restored", { files: restored }) : t("toast.imported", { count: n }));
     } catch (err) {
       console.error(err);
       toast(t("toast.importFailed"));

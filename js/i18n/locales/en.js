@@ -1213,4 +1213,11 @@ export default {
   "health.menu.logged": "Meal logged in your journal.",
   "health.menu.errors.dish": "Give the dish a name.",
   "health.menu.dishAdded": "Dish added: {name}",
+  "settings.backup": "Full backup (with photos and videos)",
+  "settings.backupHint": "One file with all your data and every file on the device: receipts, supporting documents, supply photos, pool photos and videos. Save it in Files, iCloud or on your computer; “Import a copy” restores it on any device.",
+  "settings.exportJson": "Data only (light JSON file, no photos or videos)",
+  "settings.backupWorking": { one: "Preparing the backup ({count} file)…", other: "Preparing the backup ({count} files)…" },
+  "settings.backupDone": { one: "Backup ready, with {count} photo or file.", other: "Backup ready, with {count} photos and files." },
+  "settings.backupFailed": "The backup could not be prepared. Try again; with many videos, free up some space.",
+  "settings.restored": "Backup restored: your data and {files} photos or files.",
 };

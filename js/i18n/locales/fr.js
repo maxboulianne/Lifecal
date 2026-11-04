@@ -1232,4 +1232,11 @@ export default {
   "health.menu.logged": "Repas noté dans ton journal.",
   "health.menu.errors.dish": "Donne un nom au plat.",
   "health.menu.dishAdded": "Plat ajouté : {name}",
+  "settings.backup": "Copie complète (avec photos et vidéos)",
+  "settings.backupHint": "Un seul fichier avec toutes tes données et tous les fichiers de l'appareil : reçus, justificatifs, photos des fournitures, photos et vidéos de la piscine. Enregistre-le dans Fichiers, iCloud ou sur ton ordinateur ; « Importer une copie » le restaure sur n'importe quel appareil.",
+  "settings.exportJson": "Données seulement (fichier JSON léger, sans photos ni vidéos)",
+  "settings.backupWorking": { one: "Préparation de la copie ({count} fichier)…", other: "Préparation de la copie ({count} fichiers)…" },
+  "settings.backupDone": { one: "Copie prête, avec {count} photo ou fichier.", other: "Copie prête, avec {count} photos et fichiers." },
+  "settings.backupFailed": "La copie n'a pas pu être préparée. Réessaie ; s'il y a beaucoup de vidéos, libère un peu d'espace.",
+  "settings.restored": "Copie restaurée : tes données et {files} photos ou fichiers.",
 };
