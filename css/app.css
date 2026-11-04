@@ -1650,3 +1650,13 @@ img.house-step-file { background: var(--pale); }
   .hl-day-card h3, .hl-week-nav strong, .hl-slot-kind { color: #9fb7d6; }
   .hl-warn { color: #f19a8f; }
 }
+/* Mes heures : congé férié du Québec */
+.ts-holiday { display: grid; gap: 2px; margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: #eef2f7; border-left: 4px solid #2c4a6e; color: #1f2937; }
+.ts-holiday strong { color: #2c4a6e; }
+.ts-holiday.is-worked { background: #fff4ee; border-left-color: #e0491a; }
+.ts-holiday.is-worked strong { color: #b13b12; }
+@media (prefers-color-scheme: dark) {
+  .ts-holiday { background: #232c37; color: #e6ebf1; }
+  .ts-holiday strong { color: #9fb7d6; }
+  .ts-holiday.is-worked { background: #3d211e; }
+}

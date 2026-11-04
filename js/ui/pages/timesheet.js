@@ -16,6 +16,7 @@ import { foldSection, isFoldOpen } from "../components/fold.js";
 import { taxesSection } from "../components/taxes-view.js";
 import { reportQuarter } from "../../timesheet/taxes.js";
 import { CHEVRON_LEFT, CHEVRON_RIGHT } from "../components/icons.js";
+import { holidayOn } from "../../timesheet/holidays.js";
 
 export const QUICK_STEPS = [0.25, 0.5, 1];
 export const EXPORT_RANGES = ["thisWeek", "lastWeek", "thisMonth", "lastMonth", "custom"];
@@ -214,9 +215,11 @@ function expensesBlock(ts, date, projects, chosen, editingId) {
 // et sert au balancement ; elle n'est enregistrée qu'une fois confirmée.
 function presenceBlock(ts, date) {
   const p = getPresence(ts, date);
-  const worked = presenceHours(withSuggestions(p));
-  const suggesting = !p.start || !p.end || p.pause === null;
   const logged = dayTotal(ts, date);
+  // Congé férié sans rien de noté : aucune valeur proposée (sinon « 7 h à répartir »)
+  const off = holidayOn(date) && !p.start && !p.end && p.pause === null && !logged;
+  const worked = off ? null : presenceHours(withSuggestions(p));
+  const suggesting = !off && (!p.start || !p.end || p.pause === null);
   const gap = worked === null ? 0 : Math.round((worked - logged) * 100) / 100;
   const input = (field, extra) => `data-action="ts-presence" data-field="${field}" data-date="${date}" ${extra}`;
   let status = `<p class="hint">${t("ts.presenceHint")}</p>`;
@@ -234,9 +237,9 @@ function presenceBlock(ts, date) {
   return `<div class="ts-presence">
     <h3>🕘 ${t("ts.presence")}</h3>
     <div class="ts-presence-row">
-      <label>${t("ts.start")} <input type="time" ${input("start", p.start ? `value="${p.start}"` : `data-suggest="${SUGGESTED.start}" class="is-suggested"`)}></label>
-      <label>${t("ts.end")} <input type="time" ${input("end", p.end ? `value="${p.end}"` : `data-suggest="${SUGGESTED.end}" class="is-suggested"`)}></label>
-      <label>${t("ts.pause")} <input ${input("pause", `${p.pause !== null ? `value="${esc(fmt.hours(p.pause))}"` : `data-suggest="${esc(fmt.hours(SUGGESTED.pause))}" class="is-suggested"`}
+      <label>${t("ts.start")} <input type="time" ${input("start", p.start ? `value="${p.start}"` : off ? "" : `data-suggest="${SUGGESTED.start}" class="is-suggested"`)}></label>
+      <label>${t("ts.end")} <input type="time" ${input("end", p.end ? `value="${p.end}"` : off ? "" : `data-suggest="${SUGGESTED.end}" class="is-suggested"`)}></label>
+      <label>${t("ts.pause")} <input ${input("pause", `${p.pause !== null ? `value="${esc(fmt.hours(p.pause))}"` : off ? "" : `data-suggest="${esc(fmt.hours(SUGGESTED.pause))}" class="is-suggested"`}
         inputmode="decimal" autocomplete="off" placeholder="${esc(t("ts.pausePlaceholder"))}"`)}></label>
     </div>
     ${status}
@@ -262,6 +265,15 @@ function weekStrip(ts, date, today) {
     }).join("")}
     <button type="button" class="ts-week-jump" data-action="ts-day" data-date="${jump(7)}" aria-label="${esc(t("ts.nextWeek"))}" title="${esc(t("ts.nextWeek"))}">»</button>
   </nav>`;
+}
+
+// Congé férié du Québec : en congé, 0 h facturée ; des heures notées sont facturées normalement
+function holidayBanner(date, worked) {
+  const h = holidayOn(date);
+  if (!h) return "";
+  const name = t(`holiday.${h.key}`);
+  return `<p class="ts-holiday ${worked ? "is-worked" : ""}">⚜️ <strong>${esc(t("holiday.banner", { name }))}</strong>
+    <span>${esc(t(worked ? "holiday.worked" : "holiday.off"))}</span></p>`;
 }
 
 function daySection(ts, date, today, selected, editingExpense) {
@@ -290,6 +302,7 @@ function daySection(ts, date, today, selected, editingExpense) {
       <span class="ts-total">${esc(h(dayTotal(ts, date)))}</span>
       <span class="hint">${esc(t("ts.week", { hours: h(weekTotal(ts, date)) }))}</span>
     </div>
+    ${holidayBanner(date, entries.length > 0)}
     ${presenceBlock(ts, date)}
     ${entries.length ? `<ul class="ts-entries">${entries.map((e) => entryRow(ts, e)).join("")}</ul>` : ""}
     ${prev ? `<button type="button" class="btn soft" data-action="ts-copy" data-from="${prev}" data-date="${date}">📋 ${esc(t("ts.copyDay", { date: fmt.longDate(parseISODate(prev)) }))}</button>` : ""}
