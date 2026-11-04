@@ -2,9 +2,9 @@
 //
 // Rangée dans doc.timesheet :
 //   clients   [{ id, name, contact, email, address, po, tps, tvq }]   tps / tvq : taxes facturées ; po : no PO du client
-//   projects  [{ id, number, name, clientId, rate, overtimeRate, archived, pinned, showDescription }]
+//   projects  [{ id, number, name, clientId, rate, overtimeRate, archived, pinned, showName }]
 //             pinned : toujours en premier sur la facture (ex. le projet qualité)
-//             showDescription : la description de la tâche paraît sur la facture pour ce projet,
+//             showName : le nom du projet paraît sur la facture pour ce projet,
 //             même si l'option générale est décochée
 //             rate : taux horaire régulier ($) ; overtimeRate : taux du surtemps
 //             (vide : 1,5 × le taux régulier)
@@ -71,7 +71,7 @@ export function normalizeTimesheet(raw) {
   }));
   const projects = (Array.isArray(ts.projects) ? ts.projects : []).filter((p) => p && (str(p.number) || str(p.name))).map((p) => ({
     id: p.id ?? newId(), number: str(p.number), name: str(p.name), clientId: p.clientId ?? null,
-    rate: rateOrNull(p.rate), overtimeRate: rateOrNull(p.overtimeRate), archived: Boolean(p.archived), pinned: Boolean(p.pinned), showDescription: Boolean(p.showDescription),
+    rate: rateOrNull(p.rate), overtimeRate: rateOrNull(p.overtimeRate), archived: Boolean(p.archived), pinned: Boolean(p.pinned), showName: Boolean(p.showName ?? p.showDescription), // showDescription : ancien nom de l'option
   }));
   const entries = (Array.isArray(ts.entries) ? ts.entries : [])
     .filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.projectId && num(e.hours) !== null && num(e.hours) >= 0)

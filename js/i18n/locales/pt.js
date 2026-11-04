@@ -704,7 +704,7 @@ export default {
   "ts.presenceCol.logged": "Anotadas (h)",
   "ts.presenceCol.gap": "Diferença (h)",
   "ts.pinFirst": "Sempre primeiro na fatura",
-  "ts.projectShowDesc": "Mostrar sempre a descrição da tarefa na fatura (mesmo com a opção geral desmarcada)",
+  "ts.projectShowName": "Mostrar sempre o nome do projeto na fatura (mesmo com a opção geral desmarcada)",
   "ts.monthly": "Repetir todo mês, no dia {day}",
   "ts.monthlyList": { one: "{count} despesa mensal", other: "{count} despesas mensais" },
   "ts.monthlyDay": "dia {day} de cada mês",

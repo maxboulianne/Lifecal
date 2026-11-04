@@ -376,7 +376,7 @@ function projectCard(ts, p) {
         placeholder="${p.rate != null ? esc(fmt.hours(rateFor(p, true))) : ""}">`)}
     </div>
     <label class="switch"><input type="checkbox" data-action="ts-project-pin" data-id="${esc(p.id)}" ${p.pinned ? "checked" : ""}><span>📌 ${t("ts.pinFirst")}</span></label>
-    <label class="switch"><input type="checkbox" data-action="ts-project-desc" data-id="${esc(p.id)}" ${p.showDescription ? "checked" : ""}><span>📝 ${t("ts.projectShowDesc")}</span></label>
+    <label class="switch"><input type="checkbox" data-action="ts-project-name" data-id="${esc(p.id)}" ${p.showName ? "checked" : ""}><span>🏷️ ${t("ts.projectShowName")}</span></label>
     <div class="ts-card-actions">
       ${p.archived ? "" : `<button type="button" class="btn soft" data-action="ts-pick" data-id="${esc(p.id)}">⏱️ ${t("ts.logHours")}</button>`}
       <button type="button" class="btn link" data-action="ts-archive" data-id="${esc(p.id)}">${t(p.archived ? "ts.unarchive" : "ts.archive")}</button>

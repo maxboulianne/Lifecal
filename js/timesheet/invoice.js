@@ -103,7 +103,8 @@ export const dueDate = (date, terms) => toISODate(addDays(parseISODate(date), Nu
 // Projet : son code (ou son nom), qui sert aussi à regrouper le sommaire.
 const projectKey = (p) => p?.number || p?.name || "?";
 // Projet tel qu'il paraît sur une ligne : toujours le code ; le nom en plus si l'option est cochée.
-const projectLabel = (p, business) => (business.showProjectName && p?.number && p?.name ? `${p.number} · ${p.name}` : projectKey(p));
+// Le nom du projet : option générale, ou exception cochée sur la fiche du projet
+const projectLabel = (p, business) => ((business.showProjectName || p?.showName) && p?.number && p?.name ? `${p.number} · ${p.name}` : projectKey(p));
 
 // Tâche sur une ligne : « QA04 : Painting specification review », « QA04 », la description seule, ou rien.
 const taskText = (code, description) => (code && description ? `${code} : ${description}` : code || description || "");
@@ -135,8 +136,7 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "", sam
     const line = {
       // Le nom du projet, le code et la description de la tâche paraissent selon les options choisies.
       date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), label: projectLabel(p, business),
-      taskCode: business.showTaskCodes ? e.taskCode : "", description: business.showTaskDescription || p?.showDescription ? e.task : "",
-      showDescription: Boolean(business.showTaskDescription || p?.showDescription),
+      taskCode: business.showTaskCodes ? e.taskCode : "", description: business.showTaskDescription ? e.task : "",
       taskDescription: e.task, work: e.work, hours: e.hours, overtime: e.overtime, rate, amount: round2(e.hours * (rate ?? 0)),
     };
     return { ...line, kind: "hours", code: e.taskCode, text: lineDescription(line) };
@@ -333,9 +333,8 @@ function hoursLineFormula(h, line, b) {
   const project = `Heures!C${h}${nameSuffix ? `&"${nameSuffix}"` : ""}`;
   const code = `Heures!D${h}`;
   const desc = `Heures!E${h}`;
-  const showDesc = line.showDescription ?? b.showTaskDescription; // exception possible par projet
-  const task = b.showTaskCodes && showDesc ? `IF(${code}="",${desc},IF(${desc}="",${code},${code}&" : "&${desc}))`
-    : b.showTaskCodes ? code : showDesc ? desc : "";
+  const task = b.showTaskCodes && b.showTaskDescription ? `IF(${code}="",${desc},IF(${desc}="",${code},${code}&" : "&${desc}))`
+    : b.showTaskCodes ? code : b.showTaskDescription ? desc : "";
   return `${project}${task ? `&IF(${task}="","","  —  "&${task})` : ""}&IF(Heures!F${h}="","","  —  "&Heures!F${h})&IF(Heures!H${h}="${OVERTIME}","  (${L.overtime})","")`;
 }
 

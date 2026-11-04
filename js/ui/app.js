@@ -2321,8 +2321,8 @@ export class App {
       }
       case "ts-project-pin":
         return this.#updateTimesheet(updateProject(ts, id, { pinned: el.checked }));
-      case "ts-project-desc":
-        return this.#updateTimesheet(updateProject(ts, id, { showDescription: el.checked }));
+      case "ts-project-name":
+        return this.#updateTimesheet(updateProject(ts, id, { showName: el.checked }));
       case "ts-recurring-amount": {
         const amount = readNumber(el.value);
         if (amount === null) return toast(t("ts.errors.expenseAmount"));
