@@ -13,6 +13,7 @@
 
 import { addDays, parseISODate, toISODate } from "../core/dates.js";
 import { newId } from "../data/item.js";
+import { normalizeMenus } from "./menus.js";
 
 export const HEALTH_MODULE = "sante";
 export const LEVELS = ["good", "limit", "avoid"];
@@ -82,7 +83,7 @@ export function emptyHealth() {
     }
   }
   for (const d of DRINKS) if (!foods.some((f) => f.id === drinkFood(d).id)) foods.push(drinkFood(d));
-  return { foods, meals: [], reactions: [], program: { start: null, observeDays: 14, calmDays: 28, testDays: 3, tests: [] }, drinksSeeded: true };
+  return { foods, meals: [], reactions: [], program: { start: null, observeDays: 14, calmDays: 28, testDays: 3, tests: [] }, drinksSeeded: true, menus: {}, dishes: [] };
 }
 
 // ---- Validation ----
@@ -136,7 +137,8 @@ export function normalizeHealth(raw) {
     tests: (Array.isArray(p.tests) ? p.tests : []).filter((x) => foodIds.has(x?.foodId) && ISO.test(x.start))
       .map((x) => ({ foodId: x.foodId, start: x.start, result: ["ok", "react"].includes(x.result) ? x.result : null })),
   };
-  return { foods, meals, reactions, program, drinksSeeded: true };
+  const { menus, dishes } = normalizeMenus(raw, foodIds);
+  return { foods, meals, reactions, program, drinksSeeded: true, menus, dishes };
 }
 
 const byWhen = (a, b) => a.date.localeCompare(b.date) || (a.time || "").localeCompare(b.time || "");
