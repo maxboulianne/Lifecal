@@ -155,17 +155,20 @@ export function mealKindAt(time) {
 
 // Aliments reconnus dans un texte libre (« poulet, riz et brocoli ») : liés au repas pour l'analyse
 const plain = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-export function foodsInText(health, text) {
-  const t = ` ${plain(text).replace(/[^a-z0-9]+/g, " ")} `;
-  const found = health.foods.map((f) => ({ id: f.id, base: plain(f.name).replace(/\(.*?\)/g, "").replace(/[^a-z0-9]+/g, " ").trim() }))
+// `nameOf` : nom dans la langue affichée (« chicken and rice » trouve aussi Poulet et Riz)
+export function foodsInText(health, text, nameOf = null) {
+  // Lettres de toutes les langues (coréen, vietnamien…), sans accents
+  const t = ` ${plain(text).replace(/[^\p{L}\p{N}]+/gu, " ")} `;
+  const base = (name) => plain(name).replace(/\(.*?\)/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const found = health.foods.flatMap((f) => [...new Set([f.name, nameOf?.(f) ?? f.name])].map((name) => ({ id: f.id, base: base(name) })))
     .filter((f) => f.base && t.includes(` ${f.base} `));
   // « Jus d'orange » plutôt que « Orange » aussi : le nom le plus long l'emporte
-  return found.filter((f) => !found.some((g) => g !== f && g.base.length > f.base.length && ` ${g.base} `.includes(` ${f.base} `))).map((f) => f.id);
+  return [...new Set(found.filter((f) => !found.some((g) => g !== f && g.base.length > f.base.length && ` ${g.base} `.includes(` ${f.base} `))).map((f) => f.id))];
 }
 
-export function addMeal(health, fields) {
+export function addMeal(health, fields, nameOf = null) {
   const ids = new Set(health.foods.map((f) => f.id));
-  const foods = [...new Set([...(fields.foods ?? []), ...foodsInText(health, `${fields.text ?? ""} ${fields.drink ?? ""}`)])];
+  const foods = [...new Set([...(fields.foods ?? []), ...foodsInText(health, `${fields.text ?? ""} ${fields.drink ?? ""}`, nameOf)])];
   const meal = normalizeMeal({ ...fields, foods, id: newId() }, ids);
   return meal ? { health: { ...health, meals: [...health.meals, meal].sort(byWhen) }, meal } : { health, meal: null };
 }

@@ -43,6 +43,7 @@ import { settingsPage } from "./pages/settings.js";
 import { housePage } from "./pages/house.js";
 import { healthPage } from "./pages/health.js";
 import * as Health from "../health/health.js";
+import { foodName } from "../health/food-names.js";
 import { houseSteps } from "./components/house-steps.js";
 import * as House from "../house/house.js";
 import { CUSTOM_TASK, dayOfMonth, rangeDates, timesheetPage } from "./pages/timesheet.js";
@@ -1096,7 +1097,7 @@ export class App {
       const f = new FormData(form);
       const get = (k) => String(f.get(k) ?? "").trim();
       const added = Health.addFood(this.repo.health(), { name, level: "limit", group: el.dataset.group });
-      const existing = this.repo.health().foods.find((x) => x.name.toLowerCase() === name.toLowerCase());
+      const existing = this.repo.health().foods.find((x) => [x.name, foodName(x, getLanguage())].some((n) => n.toLowerCase() === name.toLowerCase()));
       const id = added.food?.id ?? existing?.id;
       this.healthUi = {
         ...this.healthUi,
@@ -1122,10 +1123,11 @@ export class App {
       const food = this.repo.health().foods.find((f) => f.id === el.dataset.id);
       if (!food) return;
       const list = this.repo.grocery().list;
-      const next = addToList(list, food.name);
+      const name = foodName(food, getLanguage());
+      const next = addToList(list, name);
       if (next === list) return toast(t("house.supply.alreadyListed"));
       await this.#updateGrocery({ list: next });
-      toast(t("house.supply.listed", { name: food.name }));
+      toast(t("house.supply.listed", { name }));
     },
     "health-test-result": async (el) => {
       await this.#updateHealth(Health.finishTest(this.repo.health(), el.dataset.value));
@@ -1868,7 +1870,7 @@ export class App {
     for (const box of form.querySelectorAll(`input[name=foods][value="${CSS.escape(el.value)}"]`)) box.checked = el.checked;
     const foods = this.repo.health().foods;
     const picked = [...new Set([...form.querySelectorAll("input[name=foods]:checked")].map((x) => x.value))];
-    const names = picked.map((id) => foods.find((f) => f.id === id)?.name).filter(Boolean);
+    const names = picked.map((id) => foods.find((f) => f.id === id)).filter(Boolean).map((f) => foodName(f, getLanguage()));
     const summary = $("[data-role=hl-picked]", form);
     if (summary) summary.textContent = names.length ? `✓ ${names.join(", ")}` : t("health.meal.noneYet");
     for (const group of form.querySelectorAll(".hl-group[data-group]")) {
@@ -1900,7 +1902,7 @@ export class App {
         };
         if (form.dataset.id) health = Health.updateMeal(health, form.dataset.id, fields);
         else {
-          const added = Health.addMeal(health, fields);
+          const added = Health.addMeal(health, fields, (x) => foodName(x, getLanguage()));
           if (!added.meal) return toast(t("health.errors.meal"));
           health = added.health;
         }

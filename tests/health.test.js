@@ -142,3 +142,23 @@ test("Santé : repas sans réaction et bilan par aliment (boissons comprises)", 
   h = addReaction(h, { date: "2026-11-05", time: "07:10", mealId: meals[0].id, where: "nose", intensity: 2, minutes: 5 });
   assert.equal(h.meals.find((m) => m.id === meals[0].id).calm, false);
 });
+
+test("Santé : noms des aliments dans la langue choisie", async () => {
+  const { foodName, FOOD_NAMES } = await import("../js/health/food-names.js");
+  const h = emptyHealth();
+  for (const lang of Object.keys(FOOD_NAMES)) for (const f of h.foods) assert.ok(FOOD_NAMES[lang][f.key], `${lang}: ${f.key}`);
+  const orange = food(h, "Jus d'orange");
+  assert.equal(foodName(orange, "en"), "Orange juice");
+  assert.equal(foodName(orange, "fr"), "Jus d'orange");
+  assert.equal(foodName({ key: "", name: "Kombucha" }, "en"), "Kombucha"); // aliment ajouté : son nom
+  // « chicken and rice » en anglais trouve Poulet et Riz
+  const nameOf = (f) => foodName(f, "en");
+  assert.deepEqual(foodsInText(h, "Chicken and rice", nameOf).sort(), [food(h, "Poulet").id, food(h, "Riz").id].sort());
+});
+
+test("Santé : aliments reconnus dans le texte en coréen et en vietnamien", async () => {
+  const { foodName } = await import("../js/health/food-names.js");
+  const h = emptyHealth();
+  assert.deepEqual(foodsInText(h, "닭고기, 밥", (f) => foodName(f, "ko")).sort(), [food(h, "Poulet").id, food(h, "Riz").id].sort());
+  assert.deepEqual(foodsInText(h, "Thịt gà và cơm", (f) => foodName(f, "vi")).sort(), [food(h, "Poulet").id, food(h, "Riz").id].sort());
+});
