@@ -148,3 +148,25 @@ export function packingCatalog(lang) {
 }
 
 export const RAW_PACKING = RAW;
+
+// Un article de la liste « À emporter » est enregistré dans la langue du moment : on le reconnaît
+// dans toutes les langues (même clé), et on l'affiche dans la langue choisie.
+const norm = (s) => String(s ?? "").toLowerCase().replace(/œ/g, "oe").normalize("NFD").replace(/[̀-ͯ]/g, "")
+  .replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+let aliases = null;
+function packingAliases() {
+  if (aliases) return aliases;
+  aliases = new Map();
+  const rows = RAW.flatMap((c) => c.items);
+  for (const i of LANGS.keys()) for (const row of rows) if (!aliases.has(norm(row[i]))) aliases.set(norm(row[i]), row);
+  return aliases;
+}
+
+// Clé commune : celle du nom français (un article ajouté à la main : son propre nom)
+export const packingKey = (text) => norm(packingAliases().get(norm(text))?.[0] ?? text);
+
+export function localPacking(text, lang) {
+  const row = packingAliases().get(norm(text));
+  const i = LANGS.indexOf(lang);
+  return row && i >= 0 ? row[i] : text;
+}

@@ -4,7 +4,9 @@ import { esc } from "../../core/dom.js";
 import { currentStreak, periodSummary } from "../../data/habit-stats.js";
 import { hasCoordinates, isCancelled } from "../../data/item.js";
 import { mapUrl } from "../../geo/geo.js";
-import { fmt, t } from "../../i18n/index.js";
+import { fmt, getLanguage, t } from "../../i18n/index.js";
+import { localPacking } from "../../travel/packing.js";
+import { localProduct } from "../../grocery/grocery.js";
 import { getProvider } from "../../sync/providers.js";
 import { describeRule, streakText } from "./habit-text.js";
 import { stateLabel } from "./item-chip.js";
@@ -119,6 +121,8 @@ const MOOD_FACES = MOODS;
 export function checklistSection(item, { field = "checklist", title = null, placeholder = null, doneText = null } = {}) {
   const list = getChecklist(item, field);
   const p = progress(list);
+  // Articles des catalogues (épicerie, à emporter) dans la langue affichée ; le reste tel quel
+  const shown = (text) => (item.data?.grocery ? localProduct(text, getLanguage()) : item.module === "voyage" ? localPacking(text, getLanguage()) : text);
   const titleKey = `checklist.title.${item.module}`;
   const heading = title ?? (t(titleKey) === titleKey ? t("checklist.title") : t(titleKey));
   const hint = placeholder ?? t("checklist.placeholder");
@@ -130,10 +134,10 @@ export function checklistSection(item, { field = "checklist", title = null, plac
     ${list.length ? `<ul class="check-list">${list.map((e) => `<li class="${e.done ? "is-checked" : ""}">
       <label class="check-row">
         <input type="checkbox" data-action="check-toggle" ${ids} data-entry="${esc(e.id)}" ${e.done ? "checked" : ""}>
-        <span>${esc(e.text)}</span>
+        <span>${esc(shown(e.text))}</span>
       </label>
       <button type="button" class="check-remove" data-action="check-remove" ${ids} data-entry="${esc(e.id)}"
-        aria-label="${esc(t("checklist.remove", { text: e.text }))}">×</button>
+        aria-label="${esc(t("checklist.remove", { text: shown(e.text) }))}">×</button>
     </li>`).join("")}</ul>` : ""}
     ${p.complete ? `<p class="check-done">${esc(doneText ?? t("checklist.allDone"))}</p>` : ""}
     <form class="check-add" ${ids}>

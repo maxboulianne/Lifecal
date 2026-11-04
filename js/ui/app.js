@@ -33,7 +33,8 @@ import { tripPage } from "./pages/trip.js";
 import { tripsPage } from "./pages/trips.js";
 import { eventsPage } from "./pages/events.js";
 import { SHOPPING_TABS, perText, shoppingPage } from "./pages/shopping.js";
-import { parseAmount, addCustomItem, fromChecklist, looksLikeGroceryList, removeCustomItem, toChecklist, toggleListed, addToList, clearDone, createPrice, planList, productKey, removeListEntry, toggleListEntry } from "../grocery/grocery.js";
+import { parseAmount, addCustomItem, fromChecklist, looksLikeGroceryList, removeCustomItem, toChecklist, toggleListed, addToList, clearDone, createPrice, planList, productKey, removeListEntry, setProductLanguage, toggleListEntry } from "../grocery/grocery.js";
+import { packingKey } from "../travel/packing.js";
 import { getStore } from "../grocery/stores.js";
 import { mountMap } from "../travel/map.js";
 import { MAX_CHAINS, fetchHotels, fetchSuggestions, getChain } from "../travel/discover.js";
@@ -1503,6 +1504,7 @@ export class App {
     },
     "pick-language": async (el) => {
       setLanguage(el.dataset.lang);
+      setProductLanguage(el.dataset.lang);
       await this.repo.updateSettings({ language: el.dataset.lang });
       // L'accueil se redessine dans la nouvelle langue.
       if ($("#modal .welcome")) openModal(welcome(), { labelledBy: "welcome-title" });
@@ -1617,9 +1619,9 @@ export class App {
     }
     if (el.dataset.action === "packing-toggle") {
       // Coché : ajouté à « À emporter » ; décoché : retiré de la liste.
-      const key = productKey(el.dataset.name);
-      return this.#updateChecklist(el.dataset.id, (list) => (list.some((e) => productKey(e.text) === key)
-        ? list.filter((e) => productKey(e.text) !== key)
+      const key = packingKey(el.dataset.name);
+      return this.#updateChecklist(el.dataset.id, (list) => (list.some((e) => packingKey(e.text) === key)
+        ? list.filter((e) => packingKey(e.text) !== key)
         : addEntry(list, el.dataset.name)));
     }
     if (el.dataset.action === "hotel-chain") {
@@ -3127,6 +3129,7 @@ export class App {
     try {
       const n = await this.repo.importJSON(await file.text());
       setLanguage(this.repo.settings.language ?? getLanguage());
+      setProductLanguage(getLanguage());
       this.render();
       toast(t("toast.imported", { count: n }));
     } catch (err) {

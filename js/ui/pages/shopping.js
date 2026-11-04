@@ -12,6 +12,9 @@ import { catalog, resolveCategory, sortNames } from "../../grocery/catalog.js";
 import {
   KG_PER_LB, UNIT_IDS, isExpired, isListed, productKey, isStale, knownProducts, nextFlyerEnd, planList, priceBook, unitPrice,
 } from "../../grocery/grocery.js";
+import { localProduct } from "../../grocery/grocery.js";
+// Article du catalogue dans la langue affichée (un produit ajouté à la main garde son nom)
+const shown = (name) => localProduct(name, getLanguage());
 import { STORES, flyerUrl, getStore } from "../../grocery/stores.js";
 
 export const SHOPPING_TABS = ["grocery", "prices", "lists"];
@@ -48,7 +51,7 @@ function tabs(current) {
 }
 
 const productList = (grocery) =>
-  `<datalist id="grocery-products">${knownProducts(grocery).map((p) => `<option value="${esc(p)}"></option>`).join("")}</datalist>`;
+  `<datalist id="grocery-products">${[...new Set(knownProducts(grocery).map(shown))].map((p) => `<option value="${esc(p)}"></option>`).join("")}</datalist>`;
 
 // ---- Liste d'épicerie ------------------------------------------------------------
 
@@ -64,14 +67,14 @@ function groceryRow({ entry, best, next, rows }, today) {
   return `<li class="${entry.done ? "is-checked" : ""}">
     <label class="check-row">
       <input type="checkbox" data-action="grocery-toggle" data-entry="${esc(entry.id)}" ${entry.done ? "checked" : ""}>
-      <span class="g-name">${esc(entry.product)}${entry.qty ? ` <span class="hint">(${esc(entry.qty)})</span>` : ""}</span>
+      <span class="g-name">${esc(shown(entry.product))}${entry.qty ? ` <span class="hint">(${esc(entry.qty)})</span>` : ""}</span>
     </label>
     ${best ? `<span class="g-price"><strong>${esc(perText(best.per))}</strong>
       <small>${esc(detailText(best, today))}</small>
       ${saving > 0.005 ? `<small class="g-save">${esc(t("grocery.cheaper", { amount: perText({ ...best.per, value: saving }).split(" · ")[0], store: storeName(next.store) }))}</small>` : ""}
-    </span>` : `<button type="button" class="btn link no-print" data-action="grocery-price" data-product="${esc(entry.product)}">${t("grocery.addPrice")}</button>`}
+    </span>` : `<button type="button" class="btn link no-print" data-action="grocery-price" data-product="${esc(shown(entry.product))}">${t("grocery.addPrice")}</button>`}
     <button type="button" class="check-remove no-print" data-action="grocery-remove" data-entry="${esc(entry.id)}"
-      aria-label="${esc(t("grocery.remove", { name: entry.product }))}">×</button>
+      aria-label="${esc(t("grocery.remove", { name: shown(entry.product) }))}">×</button>
     ${rows.length > 1 ? compareList(rows) : ""}
   </li>`;
 }
@@ -132,9 +135,9 @@ function productCard(book, today, inList) {
   const others = book.all.filter((p) => !shown.has(p.id));
   return `<article class="card price-card" data-key="${esc(book.key)}">
     <header class="store-head">
-      <h3>${esc(book.product)}</h3>
+      <h3>${esc(shown(book.product))}</h3>
       ${inList ? `<span class="hint">✓ ${t("grocery.inList")}</span>`
-        : `<button type="button" class="btn link" data-action="grocery-add-product" data-product="${esc(book.product)}">+ ${t("grocery.toList")}</button>`}
+        : `<button type="button" class="btn link" data-action="grocery-add-product" data-product="${esc(shown(book.product))}">+ ${t("grocery.toList")}</button>`}
     </header>
     ${book.rows.length ? `<ul class="price-rows">${book.rows.map((p, k) => priceRow(p, today, k === 0 && book.rows.length > 1)).join("")}</ul>` : ""}
     ${others.length ? `<details class="g-compare"><summary>${t("grocery.otherPrices", { count: others.length })}</summary>
