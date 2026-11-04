@@ -13,6 +13,7 @@
 import { addDays, diffDays, parseISODate, toISODate } from "../core/dates.js";
 import { newId } from "../data/item.js";
 import { ALL_STORE_IDS } from "./stores.js";
+import { CATALOG_LANGS, RAW_CATALOG } from "./catalog.js";
 
 // Facteur vers l'unité de comparaison : kg, L ou unité.
 export const UNITS = {
@@ -56,8 +57,47 @@ const SYNONYMS = [
 
 // « Bœuf  haché, mi-maigre », « boeuf hache mi maigre » et « Steak haché
 // mi-maigre » sont le même produit.
+// Un article du catalogue a la même clé dans toutes les langues (« Concombres », « Cucumbers »,
+// « Pepinos » : la clé du nom français), pour que la liste, le carnet de prix et les cases à cocher
+// le reconnaissent après un changement de langue.
 export function productKey(name) {
-  return SYNONYMS.reduce((key, [pattern, replacement]) => key.replace(pattern, replacement), baseKey(name));
+  const key = synonymKey(name);
+  return catalogAliases().get(key)?.canon ?? key;
+}
+
+// Langue affichée : un nom présent dans deux langues avec deux sens (« Raisins » : raisins frais en
+// français, raisins secs en anglais) est d'abord compris dans cette langue.
+let preferred = "fr";
+export function setProductLanguage(lang) {
+  if (lang === preferred || !CATALOG_LANGS.includes(lang)) return;
+  preferred = lang;
+  aliases = null;
+}
+
+const synonymKey = (name) => SYNONYMS.reduce((key, [pattern, replacement]) => key.replace(pattern, replacement), baseKey(name));
+
+// Nom d'un article du catalogue dans la langue affichée ; un article ajouté à la main garde son nom.
+export function localProduct(name, lang) {
+  const hit = catalogAliases().get(synonymKey(name));
+  const i = CATALOG_LANGS.indexOf(lang);
+  return hit && i >= 0 ? hit.row[i] : name;
+}
+
+let aliases = null;
+function catalogAliases() {
+  if (aliases) return aliases;
+  aliases = new Map();
+  const rows = RAW_CATALOG.flatMap((c) => c.items);
+  // La clé commune : celle du nom français. La langue affichée d'abord, puis le français,
+  // puis les autres langues si le nom n'est pas déjà pris.
+  const order = [CATALOG_LANGS.indexOf(preferred), 0, ...CATALOG_LANGS.keys()];
+  for (const i of [...new Set(order)]) {
+    for (const row of rows) {
+      const k = synonymKey(row[i]);
+      if (!aliases.has(k)) aliases.set(k, { canon: synonymKey(row[0]), row });
+    }
+  }
+  return aliases;
 }
 
 function baseKey(name) {

@@ -141,3 +141,11 @@ test("liste à emporter : 7 langues, sans doublon, triée", () => {
   assert.ok(docs.includes("Passeport"));
   assert.deepEqual(docs, [...docs].sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" })));
 });
+
+test("à emporter : un article du catalogue suit la langue", async () => {
+  const { localPacking, packingKey } = await import("../js/travel/packing.js");
+  assert.equal(localPacking("Passeport", "en"), "Passport");
+  assert.equal(localPacking("Passport", "ko"), "여권");
+  assert.equal(packingKey("Pasaporte"), packingKey("Passeport"));
+  assert.equal(localPacking("Mon oreiller préféré", "en"), "Mon oreiller préféré");
+});

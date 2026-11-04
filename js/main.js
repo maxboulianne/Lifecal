@@ -2,12 +2,13 @@
 
 import { LocalStorageAdapter, MemoryAdapter, isLocalStorageAvailable } from "./data/storage/adapters.js";
 import { Repository } from "./data/repository.js";
-import { detectLanguage, setLanguage, t } from "./i18n/index.js";
+import { detectLanguage, getLanguage, setLanguage, t } from "./i18n/index.js";
 import { TriggerEngine } from "./triggers/engine.js";
 import { calendarTriggers } from "./triggers/calendar-triggers.js";
 import { proximityTriggers } from "./triggers/proximity-triggers.js";
 import { App } from "./ui/app.js";
 import { toast } from "./ui/components/toast.js";
+import { setProductLanguage } from "./grocery/grocery.js";
 
 // Copie de l'application pour fonctionner sans Internet (voir sw.js).
 function registerServiceWorker() {
@@ -37,11 +38,15 @@ async function protectStorage() {
 async function boot() {
   registerServiceWorker();
   setLanguage(detectLanguage());
+  setProductLanguage(getLanguage()); // noms du catalogue d'épicerie compris d'abord dans cette langue
   const persistent = isLocalStorageAvailable();
   const adapter = persistent ? new LocalStorageAdapter("lifecal:data") : new MemoryAdapter();
   const repo = new Repository(adapter, { legacyStorage: persistent ? localStorage : null });
   const { migrated, count } = await repo.init();
-  if (repo.settings.language) setLanguage(repo.settings.language);
+  if (repo.settings.language) {
+    setLanguage(repo.settings.language);
+    setProductLanguage(repo.settings.language);
+  }
 
   const triggers = new TriggerEngine().register(...calendarTriggers, ...proximityTriggers);
 

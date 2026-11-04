@@ -9,7 +9,7 @@ import {
   cachedHotels, cachedSuggestions, destQuery, getDest, getHotelChains, getPlaces, located, placeMapUrl, tripStatus,
 } from "../../travel/trip.js";
 import { productKey } from "../../grocery/grocery.js";
-import { packingCatalog } from "../../travel/packing.js";
+import { packingCatalog, packingKey } from "../../travel/packing.js";
 import { getChecklist, progress } from "../../data/checklist.js";
 import { foldSection, isFoldOpen } from "../components/fold.js";
 import { checklistSection } from "../components/item-detail.js";
@@ -118,10 +118,10 @@ function hotelsCard(trip, status) {
 // idées d'articles courants à cocher (par catégorie, repliées au départ).
 function prepSection(trip) {
   const list = getChecklist(trip);
-  const have = new Set(list.map((e) => productKey(e.text)));
+  const have = new Set(list.map((e) => packingKey(e.text)));
   const p = progress(list);
   const ideas = packingCatalog(getLanguage()).map((c) => {
-    const checked = c.items.filter((name) => have.has(productKey(name))).length;
+    const checked = c.items.filter((name) => have.has(packingKey(name))).length;
     return foldSection(`packing-${c.id}`, {
       title: `<span aria-hidden="true">${c.icon}</span> ${esc(c.name)}`,
       extra: `${checked ? `✓ ${checked} · ` : ""}${c.items.length}`,
@@ -129,7 +129,7 @@ function prepSection(trip) {
       className: "packing-cat",
       open: isFoldOpen(`packing-${c.id}`, false),
       body: `<ul class="catalog-grid">${c.items.map((name) => {
-        const on = have.has(productKey(name));
+        const on = have.has(packingKey(name));
         return `<li class="catalog-item ${on ? "is-on" : ""}"><label>
           <input type="checkbox" data-action="packing-toggle" data-id="${esc(trip.id)}" data-name="${esc(name)}" ${on ? "checked" : ""}>
           <span>${esc(name)}</span></label></li>`;

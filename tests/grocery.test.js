@@ -17,7 +17,7 @@ test("même produit malgré les accents, la casse et la ponctuation", () => {
   assert.equal(productKey("Poitrines de poulet"), productKey("poitrine de poulet"));
   assert.notEqual(productKey("Bœuf haché maigre"), productKey("Bœuf haché mi-maigre"));
   assert.notEqual(productKey("우유"), productKey("버터"), "coréen");
-  assert.equal(productKey("Đậu hộp"), "đau hop", "vietnamien");
+  assert.equal(productKey("Đậu hộp"), productKey("Haricots en conserve"), "vietnamien : même article que le français");
   assert.equal(parseAmount("4,99"), 4.99);
   assert.equal(parseAmount("0"), null);
   assert.equal(parseAmount("abc"), null);
@@ -105,7 +105,7 @@ test("migration v2 -> v3 : section épicerie vide, données gardées ; dépôt",
   assert.deepEqual([cleaned.prices.length, cleaned.stores], [0, ["maxi"]]);
 });
 
-import { addCustomItem, isListed, removeCustomItem, toggleListed } from "../js/grocery/grocery.js";
+import { addCustomItem, isListed, removeCustomItem, setProductLanguage, toggleListed } from "../js/grocery/grocery.js";
 import { CATALOG_LANGS, RAW_CATALOG, catalog } from "../js/grocery/catalog.js";
 
 test("liste personnalisée : cocher ajoute à la liste, décocher retire", () => {
@@ -137,9 +137,11 @@ test("catalogue : chaque article a ses 7 langues, sans doublon dans une langue",
     for (const item of c.items) assert.equal(item.length, CATALOG_LANGS.length, item[0]);
   }
   for (const lang of CATALOG_LANGS) {
+    setProductLanguage(lang); // un nom est d'abord compris dans la langue affichée
     const keys = catalog(lang).flatMap((c) => c.items).map(productKey);
     assert.equal(new Set(keys).size, keys.length, `doublon en ${lang}`);
   }
+  setProductLanguage("fr");
   const total = RAW_CATALOG.reduce((n, c) => n + c.items.length, 0);
   assert.ok(total >= 300, `${total} articles`);
   // Triés par ordre alphabétique de la langue, accents compris.
@@ -175,4 +177,19 @@ test("ancienne commission « Liste d'épicerie » reconnue", () => {
   assert.equal(looksLikeGroceryList(item({ title: "Quincaillerie" }), names), false);
   assert.equal(looksLikeGroceryList(item({ done: true }), names), false);
   assert.equal(looksLikeGroceryList(item({ module: "rdv" }), names), false);
+});
+
+test("épicerie : un article du catalogue suit la langue (liste, prix, cases à cocher)", async () => {
+  const { localProduct } = await import("../js/grocery/grocery.js");
+  setProductLanguage("es");
+  assert.equal(localProduct("Concombres", "es"), "Pepinos");
+  assert.equal(localProduct("Épinards", "en"), "Spinach");
+  assert.equal(localProduct("Mon produit maison", "en"), "Mon produit maison"); // ajouté à la main : tel quel
+  assert.equal(productKey("Pepinos"), productKey("Concombres")); // même article
+  const list = addToList([], "Concombres");
+  assert.equal(addToList(list, "Pepinos"), list); // déjà dans la liste, même en espagnol
+  setProductLanguage("en");
+  assert.equal(productKey("Raisins"), productKey("Raisins secs")); // en anglais : raisins secs
+  setProductLanguage("fr");
+  assert.equal(productKey("Raisins"), productKey("Grapes")); // en français : raisins frais
 });
