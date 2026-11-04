@@ -162,3 +162,17 @@ test("Maison : la procédure de piscine revue remplace l'ancienne (sans perdre l
   const kept = normalizeHouse(old).lists.find((l) => l.id === "pool-close");
   assert.equal(kept.entries[0].text, "Ancienne étape 1");
 });
+
+test("Maison : textes de départ dans la langue choisie, textes modifiés gardés", async () => {
+  const Tx = await import("../js/house/house-texts.js");
+  const h = emptyHouse();
+  for (const lang of Object.keys(Tx.HOUSE_TEXTS)) {
+    for (const t of h.tasks) assert.notEqual(Tx.taskTitle(t, lang), t.title, `${lang} ${t.key}`);
+    for (const l of h.lists) for (const e of l.entries) assert.notEqual(Tx.entryText(e, lang), e.text, `${lang} ${e.id}`);
+    for (const s of h.supplies) assert.notEqual(Tx.supplyName(s, lang), s.name, `${lang} ${s.key}`);
+  }
+  const soap = task(h, "softener-soap");
+  assert.equal(Tx.taskTitle(soap, "fr"), soap.title);
+  assert.equal(Tx.taskTitle({ ...soap, title: "Mon adoucisseur" }, "en"), "Mon adoucisseur"); // modifié : tel quel
+  assert.equal(Tx.listTitle(h.lists.find((l) => l.key === "winter"), "en"), "Get ready for winter");
+});

@@ -43,8 +43,10 @@ import { settingsPage } from "./pages/settings.js";
 import { housePage } from "./pages/house.js";
 import { healthPage } from "./pages/health.js";
 import * as Health from "../health/health.js";
+import { foodName } from "../health/food-names.js";
 import { houseSteps } from "./components/house-steps.js";
 import * as House from "../house/house.js";
+import * as HouseTx from "../house/house-texts.js";
 import { CUSTOM_TASK, dayOfMonth, rangeDates, timesheetPage } from "./pages/timesheet.js";
 import { addTask, getTask, removeTask, taskUseCount, updateTask } from "../timesheet/tasks.js";
 import { normalizeTime, parsePause, setPresence } from "../timesheet/presence.js";
@@ -211,6 +213,21 @@ export class App {
     this.repo = repo;
     this.triggers = triggers;
     this.storageLabel = storageLabel; // clé de traduction
+    // Rappels calculés (Maison, Santé) : titres dans la langue affichée
+    repo.localize = (item) => this.#localizeOccurrence(item);
+  }
+
+  #localizeOccurrence(item) {
+    const lang = getLanguage();
+    const houseTask = item.data?.house && this.repo.house().tasks.find((x) => x.id === item.data.house.taskId);
+    if (houseTask) return { ...item, title: HouseTx.taskTitle(houseTask, lang) };
+    const key = item.data?.health?.key;
+    if (!key) return item;
+    if (key.startsWith("test-")) {
+      const food = this.repo.health().foods.find((f) => f.id === key.slice(5));
+      return food ? { ...item, title: t("health.cal.test", { food: foodName(food, lang) }) } : item;
+    }
+    return { ...item, title: t(`health.cal.${key}`) };
   }
 
   start() {
@@ -1077,6 +1094,12 @@ export class App {
       el.before(row);
       row.querySelector("select").focus();
     },
+    // « Aucune réaction » confirmé pour un repas (ou retiré)
+    "health-meal-calm": async (el) => {
+      const calm = el.dataset.value === "true";
+      await this.#updateHealth(Health.setMealCalm(this.repo.health(), el.dataset.id, calm));
+      if (calm) toast(t("health.calmSaved"));
+    },
     "health-reaction-edit": (el) => {
       this.healthUi = { ...this.healthUi, reactionEditing: el.dataset.id, reacting: null, editing: null };
       this.#renderKeepingScroll();
@@ -1090,13 +1113,13 @@ export class App {
       const f = new FormData(form);
       const get = (k) => String(f.get(k) ?? "").trim();
       const added = Health.addFood(this.repo.health(), { name, level: "limit", group: el.dataset.group });
-      const existing = this.repo.health().foods.find((x) => x.name.toLowerCase() === name.toLowerCase());
+      const existing = this.repo.health().foods.find((x) => [x.name, foodName(x, getLanguage())].some((n) => n.toLowerCase() === name.toLowerCase()));
       const id = added.food?.id ?? existing?.id;
       this.healthUi = {
         ...this.healthUi,
         draft: {
           mealId: form.dataset.id ?? "", date: get("date"), time: get("time"), kind: get("kind"), text: get("text"), drink: get("drink"), note: get("note"),
-          spicy: f.has("spicy"), hot: f.has("hot"), foods: [...new Set([...f.getAll("foods").map(String), ...(id ? [id] : [])])], drinks: drinksFromForm(f),
+          spicy: f.has("spicy"), hot: f.has("hot"), calm: f.has("calm"), foods: [...new Set([...f.getAll("foods").map(String), ...(id ? [id] : [])])], drinks: drinksFromForm(f),
         },
       };
       if (added.food) await this.#updateHealth(added.health);
@@ -1116,10 +1139,11 @@ export class App {
       const food = this.repo.health().foods.find((f) => f.id === el.dataset.id);
       if (!food) return;
       const list = this.repo.grocery().list;
-      const next = addToList(list, food.name);
+      const name = foodName(food, getLanguage());
+      const next = addToList(list, name);
       if (next === list) return toast(t("house.supply.alreadyListed"));
       await this.#updateGrocery({ list: next });
-      toast(t("house.supply.listed", { name: food.name }));
+      toast(t("house.supply.listed", { name }));
     },
     "health-test-result": async (el) => {
       await this.#updateHealth(Health.finishTest(this.repo.health(), el.dataset.value));
@@ -1142,7 +1166,7 @@ export class App {
     "house-done": async (el) => {
       const task = this.repo.house().tasks.find((x) => x.id === el.dataset.id);
       await this.#updateHouse(House.markDone(this.repo.house(), el.dataset.id, todayISO(), { consume: true }));
-      if (task) toast(t("house.doneToast", { title: task.title }));
+      if (task) toast(t("house.doneToast", { title: HouseTx.taskTitle(task, getLanguage()) }));
     },
     "house-edit": (el) => {
       this.houseUi = { ...this.houseUi, editing: el.dataset.id, focus: null, purchasing: null };
@@ -1186,12 +1210,14 @@ export class App {
     "house-to-list": async (el) => {
       const s = this.repo.house().supplies.find((x) => x.id === el.dataset.id);
       if (!s) return;
-      const qty = [s.qty !== null ? fmt.decimal(s.qty) : "", s.unit, s.model ? `(${s.model})` : ""].filter(Boolean).join(" ");
+      const lang = getLanguage();
+      const name = HouseTx.supplyName(s, lang);
+      const qty = [s.qty !== null ? fmt.decimal(s.qty) : "", HouseTx.supplyUnit(s, lang), s.model ? `(${s.model})` : ""].filter(Boolean).join(" ");
       const list = this.repo.grocery().list;
-      const next = addToList(list, s.name, qty);
+      const next = addToList(list, name, qty);
       if (next === list) return toast(t("house.supply.alreadyListed"));
       await this.#updateGrocery({ list: next });
-      toast(t("house.supply.listed", { name: s.name }));
+      toast(t("house.supply.listed", { name }));
     },
     "house-new": () => {
       this.houseUi = { ...this.houseUi, editing: this.houseUi.editing === "new" ? null : "new" };
@@ -1612,6 +1638,11 @@ export class App {
     if (el.dataset.action === "health-react-start" && el.value) {
       return this.#updateHealth(Health.updateReaction(this.repo.health(), el.dataset.id, { time: el.value }));
     }
+    // Repas : l'heure du début choisit le repas (déjeuner, dîner, souper…), sauf s'il a été choisi à la main
+    if (el.form?.dataset.role === "health-meal" && el.name === "kind") el.form.dataset.kindTouched = "1";
+    if (el.form?.dataset.role === "health-meal" && el.name === "time" && el.value && !el.form.dataset.kindTouched) {
+      el.form.elements.kind.value = Health.mealKindAt(el.value);
+    }
     // Repas : un aliment coché l'est partout (souvent mangés + son groupe) ; le résumé suit
     if (el.name === "foods" && el.form?.dataset.role === "health-meal") return this.#syncFoodPicker(el);
     if (el.dataset.action === "house-photo" && el.files?.[0]) return this.#addHousePhoto(el.dataset.id, el.files[0]);
@@ -1857,7 +1888,7 @@ export class App {
     for (const box of form.querySelectorAll(`input[name=foods][value="${CSS.escape(el.value)}"]`)) box.checked = el.checked;
     const foods = this.repo.health().foods;
     const picked = [...new Set([...form.querySelectorAll("input[name=foods]:checked")].map((x) => x.value))];
-    const names = picked.map((id) => foods.find((f) => f.id === id)?.name).filter(Boolean);
+    const names = picked.map((id) => foods.find((f) => f.id === id)).filter(Boolean).map((f) => foodName(f, getLanguage()));
     const summary = $("[data-role=hl-picked]", form);
     if (summary) summary.textContent = names.length ? `✓ ${names.join(", ")}` : t("health.meal.noneYet");
     for (const group of form.querySelectorAll(".hl-group[data-group]")) {
@@ -1885,11 +1916,11 @@ export class App {
       case "health-meal": {
         const fields = {
           date: get("date"), time: get("time"), kind: get("kind"), text: get("text"), drink: get("drink"), note: get("note"),
-          spicy: f.has("spicy"), hot: f.has("hot"), foods: f.getAll("foods").map(String), drinks: drinksFromForm(f),
+          spicy: f.has("spicy"), hot: f.has("hot"), calm: f.has("calm"), foods: f.getAll("foods").map(String), drinks: drinksFromForm(f),
         };
         if (form.dataset.id) health = Health.updateMeal(health, form.dataset.id, fields);
         else {
-          const added = Health.addMeal(health, fields);
+          const added = Health.addMeal(health, fields, (x) => foodName(x, getLanguage()));
           if (!added.meal) return toast(t("health.errors.meal"));
           health = added.health;
         }
@@ -1984,8 +2015,13 @@ export class App {
     const f = new FormData(form);
     const get = (k) => String(f.get(k) ?? "").trim();
     const amount = (k) => (get(k) ? readNumber(get(k)) ?? (get(k) === "0" ? 0 : null) : null);
+    const old = this.repo.house().supplies.find((x) => x.id === form.dataset.id);
+    const lang = getLanguage();
+    const keep = (value, stored, shown) => (old && value === shown ? stored : value);
     const fields = {
-      name: get("name"), description: get("description"), model: get("model"), qty: amount("qty"), unit: get("unit"),
+      name: keep(get("name"), old?.name, old && HouseTx.supplyName(old, lang)),
+      description: keep(get("description"), old?.description, old && HouseTx.supplyDescription(old, lang)),
+      model: get("model"), qty: amount("qty"), unit: keep(get("unit"), old?.unit, old && HouseTx.supplyUnit(old, lang)),
       store: get("store"), url: get("url"), stock: amount("stock"), tasks: f.getAll("tasks").map(String),
     };
     let house = this.repo.house();
@@ -2051,7 +2087,14 @@ export class App {
       toast(t("house.errors.schedule"));
       return form.elements.date1.focus();
     }
-    const fields = { title: get("title"), zone: get("zone"), note: get("note"), schedule };
+    // Texte traduit laissé tel quel : on garde le texte de départ (il suivra la langue)
+    const old = this.repo.house().tasks.find((x) => x.id === form.dataset.id);
+    const lang = getLanguage();
+    const keep = (value, stored, shown) => (old && value === shown ? stored : value);
+    const fields = {
+      title: keep(get("title"), old?.title, old && HouseTx.taskTitle(old, lang)), zone: get("zone"),
+      note: keep(get("note"), old?.note, old && HouseTx.taskNote(old, lang)), schedule,
+    };
     let house = this.repo.house();
     const id = form.dataset.id;
     if (id) {

@@ -6,10 +6,11 @@ import { addDays, diffDays, parseISODate, startOfWeek, toISODate } from "../core
 import { isCancelled } from "../data/item.js";
 import { FREQ, doneInWeek, occurrencesBetween } from "../data/recurrence.js";
 import { getChecklist, progress } from "../data/checklist.js";
-import { fmt } from "../i18n/index.js";
+import { fmt, getLanguage } from "../i18n/index.js";
 import { kindIcon, reminderPhase, upcomingEvents } from "../events/events.js";
 import { dueSoon } from "../house/house.js";
 import { currentPhase, currentTest, toTest } from "../health/health.js";
+import { foodName } from "../health/food-names.js";
 
 const upcoming = (items, today, moduleId, maxDays) =>
   items
@@ -234,7 +235,7 @@ export const healthReminder = {
       const days = Math.round((Date.parse(today) - Date.parse(test.start)) / 86400000) + 1;
       if (days < p.testDays) return [];
       const food = health.foods.find((f) => f.id === test.foodId);
-      return [{ ...base, id: `sante:result:${today}`, messageKey: "nudge.health.result", params: { food: food?.name ?? "" } }];
+      return [{ ...base, id: `sante:result:${today}`, messageKey: "nudge.health.result", params: { food: food ? foodName(food, getLanguage()) : "" } }];
     }
     return toTest(health).length ? [{ ...base, id: `sante:next:${today}`, messageKey: "nudge.health.next" }] : [];
   },

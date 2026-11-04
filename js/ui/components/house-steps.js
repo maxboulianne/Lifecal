@@ -3,7 +3,8 @@
 
 import { esc } from "../../core/dom.js";
 import { FIGURES } from "../../house/figures.js";
-import { t } from "../../i18n/index.js";
+import { getLanguage, t } from "../../i18n/index.js";
+import { entryText, listTitle } from "../../house/house-texts.js";
 
 export function mediaTag(m, attrs) {
   return m.type === "video"
@@ -19,7 +20,7 @@ export function houseSteps(list, index, done) {
   const doneCount = list.entries.filter((x) => done[x.id]).length;
   return `<div class="house-steps">
     <header class="house-steps-head">
-      <h2 id="house-steps-title">${esc(list.title)}</h2>
+      <h2 id="house-steps-title">${esc(listTitle(list, getLanguage()))}</h2>
       <p class="hint">${t("house.steps.of", { n: i + 1, total })} · ${t("house.steps.progress", { done: doneCount, total })}</p>
       <div class="house-steps-bar" aria-hidden="true">${list.entries.map((x, k) => `<button type="button" class="${k === i ? "is-current" : ""} ${done[x.id] ? "is-done" : ""}"
         data-action="house-step-go" data-index="${k}" tabindex="-1"></button>`).join("")}</div>
@@ -27,7 +28,7 @@ export function houseSteps(list, index, done) {
     ${e.figure && FIGURES[e.figure] ? `<figure class="house-step-figure">${FIGURES[e.figure]}<figcaption>${t("house.steps.generic")}</figcaption></figure>` : ""}
     <label class="house-step-check ${done[e.id] ? "is-done" : ""}">
       <input type="checkbox" data-action="house-check" ${ids} ${done[e.id] ? "checked" : ""}>
-      <span><strong>${i + 1}.</strong> ${esc(e.text)}</span>
+      <span><strong>${i + 1}.</strong> ${esc(entryText(e, getLanguage()))}</span>
     </label>
     <section class="house-step-mine">
       <h3>🏡 ${t("house.steps.mine")}</h3>

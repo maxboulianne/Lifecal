@@ -71,7 +71,9 @@ export class Repository extends Emitter {
   between(fromISO, toISO) {
     const house = houseOccurrences(this.#doc.house, fromISO, toISO, toISODate(this.clock()));
     const health = healthOccurrences(this.#doc.health, fromISO, toISO);
-    return [...occurrencesBetween(this.#doc.items, fromISO, toISO), ...house, ...health].sort(compareItems);
+    // Titres des rappels calculés dans la langue affichée (fourni par l'interface)
+    const local = this.localize ? [...house, ...health].map((i) => this.localize(i)) : [...house, ...health];
+    return [...occurrencesBetween(this.#doc.items, fromISO, toISO), ...local].sort(compareItems);
   }
 
   // L'élément tel qu'il apparaît à une date (occurrence s'il est répété).
