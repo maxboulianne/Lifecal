@@ -11,9 +11,10 @@ import {
 } from "../../health/health.js";
 import { fmt, getLanguage, t } from "../../i18n/index.js";
 import { foodName } from "../../health/food-names.js";
+import { MENU_KINDS, allDishes, dishName, dishWarnings, findDish, isSavedWeek, weekDays, weekPlan, weekStartOf } from "../../health/menus.js";
 
-const TABS = ["journal", "foods", "program"];
-const TAB_ICONS = { journal: "📓", foods: "🥦", program: "🗓️" };
+const TABS = ["journal", "menus", "foods", "program"];
+const TAB_ICONS = { journal: "📓", menus: "🍽️", foods: "🥦", program: "🗓️" };
 const STATUS_ICONS = { ok: "✅", unknown: "❓", react: "❌" };
 const WHERE_ICONS = { nose: "👃", mouth: "👄", both: "👃👄" };
 const KIND_ICONS = { breakfast: "🥣", lunch: "🥪", dinner: "🍽️", snack: "🍎", drink: "☕" };
@@ -59,7 +60,7 @@ function drinkRow(health, d) {
 
 // Choix des aliments du repas, comme la liste personnalisée d'épicerie : les plus souvent mangés,
 // puis les groupes à ouvrir ; un toucher coche l'aliment ; ajout rapide dans chaque groupe.
-function foodPicker(health, picked) {
+function foodPicker(health, picked, { quickAdd = true } = {}) {
   const item = (f) => `<label class="hl-pick-item is-${f.level}" data-search="${esc(searchOf(f))}">
     <input type="checkbox" name="foods" value="${esc(f.id)}" ${picked.has(f.id) ? "checked" : ""}><span>${esc(fname(f))}</span></label>`;
   const frequent = frequentFoods(health);
@@ -74,10 +75,10 @@ function foodPicker(health, picked) {
       return `<details class="hl-group" data-group="${g}" ${n ? "open" : ""}>
         <summary><span>${t(`health.group.${g}`)}</span><span class="hint hl-group-count">${n ? `✓ ${n} · ` : ""}${list.length}</span></summary>
         <div class="hl-pick-list">${list.map(item).join("")}</div>
-        <div class="hl-pick-add">
+        ${quickAdd ? `<div class="hl-pick-add">
           <input data-role="hl-new-food" data-group="${g}" placeholder="${esc(t("health.meal.newFood"))}" autocomplete="off">
           <button type="button" class="btn soft" data-action="health-pick-add" data-group="${g}">＋ ${t("health.foods.addButton")}</button>
-        </div>
+        </div>` : ""}
       </details>`;
     }).join("")}
   </div>`;
@@ -277,6 +278,62 @@ function programTab(health, today) {
     <div class="actions start"><button type="button" class="btn link" data-action="health-program-stop">${t("health.program.stop")}</button></div>`;
 }
 
+// ---- Menus de la semaine ----
+
+const dayLabel = (iso) => fmt.longDate(parseISODate(iso));
+
+function menusTab(health, ui, today) {
+  const start = ui.menuWeek ?? weekStartOf(today);
+  const days = weekDays(start);
+  const plan = weekPlan(health, start);
+  const phase = currentPhase(health.program, today);
+  const dishes = allDishes(health);
+  const option = (d, selected) => `<option value="${esc(d.id)}" ${selected ? "selected" : ""}>${esc(dishName(d, getLanguage()))}</option>`;
+  const slot = (iso, i, kind) => {
+    const dish = findDish(health, plan[i][kind]);
+    const warn = dish ? dishWarnings(health, dish) : [];
+    const same = dishes.filter((d) => d.kind === kind);
+    const others = dishes.filter((d) => d.kind !== kind);
+    return `<div class="hl-slot ${warn.length ? "has-warning" : ""}">
+      <label class="hl-slot-kind">${KIND_ICONS[kind]} ${t(`health.kind.${kind}`)}
+        <select data-action="health-slot" data-day="${i}" data-kind="${kind}">
+          <option value="">${t("health.menu.none")}</option>
+          ${same.map((d) => option(d, d.id === plan[i][kind])).join("")}
+          <optgroup label="${esc(t("health.menu.otherDishes"))}">${others.map((d) => option(d, d.id === plan[i][kind])).join("")}</optgroup>
+        </select></label>
+      ${dish ? `<div class="hl-chips">${dish.foods.map((id) => health.foods.find((f) => f.id === id)).filter(Boolean).map(foodChip).join("")}</div>` : ""}
+      ${warn.length ? `<p class="hl-warn">⚠️ ${t("health.menu.warning", { foods: warn.map(fname).join(", ") })}</p>` : ""}
+      ${dish && iso <= today ? `<button type="button" class="btn link" data-action="health-slot-eat" data-date="${iso}" data-day="${i}" data-kind="${kind}">✓ ${t("health.menu.ate")}</button>` : ""}
+    </div>`;
+  };
+  return `<div class="hl-week-nav">
+      <button type="button" class="btn soft" data-action="health-week" data-shift="-1" aria-label="${esc(t("health.menu.prev"))}">‹</button>
+      <strong>${t("health.menu.weekOf", { date: fmt.dayMonth(parseISODate(start)) })}</strong>
+      <button type="button" class="btn soft" data-action="health-week" data-shift="1" aria-label="${esc(t("health.menu.next"))}">›</button>
+      ${start !== weekStartOf(today) ? `<button type="button" class="btn link" data-action="health-week" data-shift="0">${t("health.menu.thisWeek")}</button>` : ""}
+    </div>
+    <p class="hint">${t(phase?.id === "calm" && !phase.upcoming ? "health.menu.hintCalm" : "health.menu.hint")}</p>
+    <div class="actions start">
+      <button type="button" class="btn primary" data-action="health-week-grocery">🛒 ${t("health.menu.grocery")}</button>
+      ${isSavedWeek(health, start) ? `<button type="button" class="btn link" data-action="health-week-reset">↺ ${t("health.menu.reset")}</button>` : ""}
+    </div>
+    <div class="hl-week">${days.map((iso, i) => `<article class="hl-day-card ${iso === today ? "is-today" : ""}">
+      <h3>${esc(dayLabel(iso))}</h3>
+      ${MENU_KINDS.map((k) => slot(iso, i, k)).join("")}
+    </article>`).join("")}</div>
+    <details class="house-new hl-dish-new">
+      <summary>＋ ${t("health.menu.addDish")}</summary>
+      <form class="form hl-form" data-role="health-dish">
+        <div class="row">
+          <label>${t("health.menu.dishName")} <input name="name" required autocomplete="off"></label>
+          <label>${t("health.meal.kind")} <select name="kind">${MENU_KINDS.map((k) => `<option value="${k}">${KIND_ICONS[k]} ${t(`health.kind.${k}`)}</option>`).join("")}</select></label>
+        </div>
+        <fieldset class="hl-foods-field"><legend>${t("health.meal.foods")}</legend>${foodPicker(health, new Set(), { quickAdd: false })}</fieldset>
+        <div class="actions start"><button type="submit" class="btn primary">${t("health.save")}</button></div>
+      </form>
+    </details>`;
+}
+
 export const healthPage = {
   id: "health",
   title: () => t("nav.health"),
@@ -285,7 +342,8 @@ export const healthPage = {
     const tab = TABS.includes(healthUi.tab) ? healthUi.tab : "journal";
     const d = new Date();
     const now = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    const body = tab === "foods" ? foodsTab(health) : tab === "program" ? programTab(health, today) : journalTab(health, healthUi, today, now);
+    const body = tab === "foods" ? foodsTab(health) : tab === "program" ? programTab(health, today)
+      : tab === "menus" ? menusTab(health, healthUi, today) : journalTab(health, healthUi, today, now);
     return `<div class="page health">
       <nav class="segmented hl-tabs" aria-label="${esc(t("nav.health"))}">${TABS.map((x) => `<button type="button" data-action="health-tab" data-tab="${x}"
         class="${x === tab ? "active" : ""}" aria-pressed="${x === tab}">${TAB_ICONS[x]} ${t(`health.tab.${x}`)}</button>`).join("")}</nav>

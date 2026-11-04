@@ -1631,3 +1631,22 @@ img.house-step-file { background: var(--pale); }
   .hl-calm, .hl-hint-badge.is-tolerated { background: #1c3326; color: #7fd19d; }
   .hl-hint-badge.is-suspect { background: #3d211e; color: #f19a8f; }
 }
+/* Santé : menus de la semaine */
+.hl-week-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hl-week-nav strong { font-size: 1.05rem; color: var(--navy); }
+.hl-week { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.hl-day-card { display: grid; gap: 8px; align-content: start; padding: 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); min-width: 0; }
+.hl-day-card.is-today { border: 2px solid var(--orange); }
+.hl-day-card h3 { margin: 0; font-size: 1rem; color: var(--navy); }
+.hl-slot { display: grid; gap: 4px; padding: 8px; border-radius: 8px; background: var(--pale); }
+.hl-slot.has-warning { background: #fff4ee; }
+.hl-slot-kind { display: grid; gap: 4px; font-size: 0.8rem; font-weight: 700; color: var(--navy); }
+.hl-slot-kind select { width: 100%; min-height: 40px; font-size: 15px; font-weight: 400; }
+.hl-slot .btn.link { justify-self: start; padding: 0; min-height: 32px; }
+.hl-warn { margin: 0; font-size: 0.8rem; color: #b13b12; }
+@media (prefers-color-scheme: dark) {
+  .hl-slot { background: #232c37; }
+  .hl-slot.has-warning { background: #3d211e; }
+  .hl-day-card h3, .hl-week-nav strong, .hl-slot-kind { color: #9fb7d6; }
+  .hl-warn { color: #f19a8f; }
+}

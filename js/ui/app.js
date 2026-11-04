@@ -6,7 +6,7 @@
 // L'état est reflété dans l'adresse pour que le bouton « retour » fonctionne.
 
 import { MODULES, MODULE_IDS, moduleLabel } from "../config/modules.js";
-import { isISODate, parseISODate, toISODate, todayISO } from "../core/dates.js";
+import { addDays, isISODate, parseISODate, toISODate, todayISO } from "../core/dates.js";
 import { $, esc } from "../core/dom.js";
 import { currentStreak } from "../data/habit-stats.js";
 import { FREQ, doneInWeek, yearlyDate } from "../data/recurrence.js";
@@ -45,6 +45,7 @@ import { housePage } from "./pages/house.js";
 import { healthPage } from "./pages/health.js";
 import * as Health from "../health/health.js";
 import { foodName } from "../health/food-names.js";
+import * as Menus from "../health/menus.js";
 import { houseSteps } from "./components/house-steps.js";
 import * as House from "../house/house.js";
 import * as HouseTx from "../house/house-texts.js";
@@ -1095,6 +1096,44 @@ export class App {
       el.before(row);
       row.querySelector("select").focus();
     },
+    // Menus de la semaine : changer de semaine, revenir au menu proposé, liste d'épicerie, « je l'ai mangé »
+    "health-week": (el) => {
+      const shift = Number(el.dataset.shift);
+      const current = this.healthUi.menuWeek ?? Menus.weekStartOf(todayISO());
+      const menuWeek = shift === 0 ? Menus.weekStartOf(todayISO()) : toISODate(addDays(parseISODate(current), 7 * shift));
+      this.healthUi = { ...this.healthUi, menuWeek };
+      this.#renderKeepingScroll();
+    },
+    "health-week-reset": () => {
+      const start = this.healthUi.menuWeek ?? Menus.weekStartOf(todayISO());
+      return this.#updateHealth(Menus.resetWeek(this.repo.health(), start));
+    },
+    "health-week-grocery": async () => {
+      const start = this.healthUi.menuWeek ?? Menus.weekStartOf(todayISO());
+      const lang = getLanguage();
+      let list = this.repo.grocery().list;
+      const before = list.length;
+      for (const f of Menus.weekFoods(this.repo.health(), start)) list = addToList(list, foodName(f, lang));
+      const added = list.length - before;
+      if (!added) return toast(t("health.menu.groceryNone"));
+      await this.#updateGrocery({ list });
+      toast(t("health.menu.groceryAdded", { count: added }));
+    },
+    "health-slot-eat": async (el) => {
+      const health = this.repo.health();
+      const start = this.healthUi.menuWeek ?? Menus.weekStartOf(todayISO());
+      const dish = Menus.findDish(health, Menus.weekPlan(health, start)[Number(el.dataset.day)][el.dataset.kind]);
+      if (!dish) return;
+      const kind = el.dataset.kind;
+      const date = el.dataset.date;
+      // L'heure qu'il est si c'est bien ce repas-là maintenant, sinon l'heure habituelle de ce repas
+      const usual = { breakfast: "07:30", lunch: "12:00", dinner: "18:00", snack: "15:00" }[kind];
+      const time = date === todayISO() && Health.mealKindAt(nowHM()) === kind ? nowHM() : usual;
+      const { health: next, meal } = Health.addMeal(health, { date, time, kind, foods: dish.foods, text: Menus.dishName(dish, getLanguage()) });
+      if (!meal) return;
+      await this.#updateHealth(next);
+      toast(t("health.menu.logged"));
+    },
     // « Aucune réaction » confirmé pour un repas (ou retiré)
     "health-meal-calm": async (el) => {
       const calm = el.dataset.value === "true";
@@ -1637,6 +1676,10 @@ export class App {
       await this.#updateData(trip.id, { places: toggleVisited(getPlaces(trip), el.dataset.entry) });
       return;
     }
+    if (el.dataset.action === "health-slot") {
+      const start = this.healthUi.menuWeek ?? Menus.weekStartOf(todayISO());
+      return this.#updateHealth(Menus.setSlot(this.repo.health(), start, Number(el.dataset.day), el.dataset.kind, el.value || null));
+    }
     if (el.dataset.action === "health-react-start" && el.value) {
       return this.#updateHealth(Health.updateReaction(this.repo.health(), el.dataset.id, { time: el.value }));
     }
@@ -1646,7 +1689,7 @@ export class App {
       el.form.elements.kind.value = Health.mealKindAt(el.value);
     }
     // Repas : un aliment coché l'est partout (souvent mangés + son groupe) ; le résumé suit
-    if (el.name === "foods" && el.form?.dataset.role === "health-meal") return this.#syncFoodPicker(el);
+    if (el.name === "foods" && ["health-meal", "health-dish"].includes(el.form?.dataset.role)) return this.#syncFoodPicker(el);
     if (el.dataset.action === "house-photo" && el.files?.[0]) return this.#addHousePhoto(el.dataset.id, el.files[0]);
     if (el.dataset.action === "house-step-media" && el.files?.length) return this.#addStepMedia(el.dataset.list, el.dataset.entry, [...el.files]);
     if (el.dataset.action === "house-step-note") {
@@ -1949,6 +1992,12 @@ export class App {
         if (!added.food) return toast(t("health.errors.food"));
         await this.#updateHealth(added.health);
         return toast(t("health.foodAdded", { name: added.food.name }));
+      }
+      case "health-dish": {
+        const added = Menus.addDish(health, { name: get("name"), kind: get("kind"), foods: f.getAll("foods").map(String) });
+        if (!added.dish) return toast(t("health.menu.errors.dish"));
+        await this.#updateHealth(added.health);
+        return toast(t("health.menu.dishAdded", { name: added.dish.name }));
       }
       case "health-start":
         await this.#updateHealth(Health.startProgram(health, get("start") || todayISO()));
