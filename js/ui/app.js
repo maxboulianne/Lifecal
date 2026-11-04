@@ -46,6 +46,7 @@ import * as Health from "../health/health.js";
 import { foodName } from "../health/food-names.js";
 import { houseSteps } from "./components/house-steps.js";
 import * as House from "../house/house.js";
+import * as HouseTx from "../house/house-texts.js";
 import { CUSTOM_TASK, dayOfMonth, rangeDates, timesheetPage } from "./pages/timesheet.js";
 import { addTask, getTask, removeTask, taskUseCount, updateTask } from "../timesheet/tasks.js";
 import { normalizeTime, parsePause, setPresence } from "../timesheet/presence.js";
@@ -212,6 +213,21 @@ export class App {
     this.repo = repo;
     this.triggers = triggers;
     this.storageLabel = storageLabel; // clé de traduction
+    // Rappels calculés (Maison, Santé) : titres dans la langue affichée
+    repo.localize = (item) => this.#localizeOccurrence(item);
+  }
+
+  #localizeOccurrence(item) {
+    const lang = getLanguage();
+    const houseTask = item.data?.house && this.repo.house().tasks.find((x) => x.id === item.data.house.taskId);
+    if (houseTask) return { ...item, title: HouseTx.taskTitle(houseTask, lang) };
+    const key = item.data?.health?.key;
+    if (!key) return item;
+    if (key.startsWith("test-")) {
+      const food = this.repo.health().foods.find((f) => f.id === key.slice(5));
+      return food ? { ...item, title: t("health.cal.test", { food: foodName(food, lang) }) } : item;
+    }
+    return { ...item, title: t(`health.cal.${key}`) };
   }
 
   start() {
@@ -1150,7 +1166,7 @@ export class App {
     "house-done": async (el) => {
       const task = this.repo.house().tasks.find((x) => x.id === el.dataset.id);
       await this.#updateHouse(House.markDone(this.repo.house(), el.dataset.id, todayISO(), { consume: true }));
-      if (task) toast(t("house.doneToast", { title: task.title }));
+      if (task) toast(t("house.doneToast", { title: HouseTx.taskTitle(task, getLanguage()) }));
     },
     "house-edit": (el) => {
       this.houseUi = { ...this.houseUi, editing: el.dataset.id, focus: null, purchasing: null };
@@ -1194,12 +1210,14 @@ export class App {
     "house-to-list": async (el) => {
       const s = this.repo.house().supplies.find((x) => x.id === el.dataset.id);
       if (!s) return;
-      const qty = [s.qty !== null ? fmt.decimal(s.qty) : "", s.unit, s.model ? `(${s.model})` : ""].filter(Boolean).join(" ");
+      const lang = getLanguage();
+      const name = HouseTx.supplyName(s, lang);
+      const qty = [s.qty !== null ? fmt.decimal(s.qty) : "", HouseTx.supplyUnit(s, lang), s.model ? `(${s.model})` : ""].filter(Boolean).join(" ");
       const list = this.repo.grocery().list;
-      const next = addToList(list, s.name, qty);
+      const next = addToList(list, name, qty);
       if (next === list) return toast(t("house.supply.alreadyListed"));
       await this.#updateGrocery({ list: next });
-      toast(t("house.supply.listed", { name: s.name }));
+      toast(t("house.supply.listed", { name }));
     },
     "house-new": () => {
       this.houseUi = { ...this.houseUi, editing: this.houseUi.editing === "new" ? null : "new" };
@@ -1997,8 +2015,13 @@ export class App {
     const f = new FormData(form);
     const get = (k) => String(f.get(k) ?? "").trim();
     const amount = (k) => (get(k) ? readNumber(get(k)) ?? (get(k) === "0" ? 0 : null) : null);
+    const old = this.repo.house().supplies.find((x) => x.id === form.dataset.id);
+    const lang = getLanguage();
+    const keep = (value, stored, shown) => (old && value === shown ? stored : value);
     const fields = {
-      name: get("name"), description: get("description"), model: get("model"), qty: amount("qty"), unit: get("unit"),
+      name: keep(get("name"), old?.name, old && HouseTx.supplyName(old, lang)),
+      description: keep(get("description"), old?.description, old && HouseTx.supplyDescription(old, lang)),
+      model: get("model"), qty: amount("qty"), unit: keep(get("unit"), old?.unit, old && HouseTx.supplyUnit(old, lang)),
       store: get("store"), url: get("url"), stock: amount("stock"), tasks: f.getAll("tasks").map(String),
     };
     let house = this.repo.house();
@@ -2064,7 +2087,14 @@ export class App {
       toast(t("house.errors.schedule"));
       return form.elements.date1.focus();
     }
-    const fields = { title: get("title"), zone: get("zone"), note: get("note"), schedule };
+    // Texte traduit laissé tel quel : on garde le texte de départ (il suivra la langue)
+    const old = this.repo.house().tasks.find((x) => x.id === form.dataset.id);
+    const lang = getLanguage();
+    const keep = (value, stored, shown) => (old && value === shown ? stored : value);
+    const fields = {
+      title: keep(get("title"), old?.title, old && HouseTx.taskTitle(old, lang)), zone: get("zone"),
+      note: keep(get("note"), old?.note, old && HouseTx.taskNote(old, lang)), schedule,
+    };
     let house = this.repo.house();
     const id = form.dataset.id;
     if (id) {

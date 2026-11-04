@@ -1189,4 +1189,8 @@ export default {
   "health.stats.suspect": "Watch",
   "health.stats.legend": "🍽️ taken · ✅ no reaction · 😮‍💨 with reaction. “Seems tolerated”: 3 times or more without reaction, never with.",
   "health.calmSaved": "Recorded: no reaction.",
+  "health.cal.observe": "Phase 1 — observe",
+  "health.cal.calm": "Phase 2 — calm",
+  "health.cal.reintro": "Phase 3 — reintroduce",
+  "health.cal.test": "Reintroduce “{food}”",
 };

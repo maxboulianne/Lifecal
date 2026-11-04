@@ -4,14 +4,22 @@
 import { parseISODate } from "../../core/dates.js";
 import { esc } from "../../core/dom.js";
 import { ZONES, listState, supplyOverview, taskSupplies, zoneOverview } from "../../house/house.js";
-import { fmt, t } from "../../i18n/index.js";
+import { fmt, getLanguage, t } from "../../i18n/index.js";
+import * as Tx from "../../house/house-texts.js";
 
 const GROUPS = ["overdue", "soon", "later", "unknown"];
 const ZONE_ICONS = { inside: "🛋️", outside: "🌳" };
 const TABS = [...ZONES, "supplies"];
 const TAB_ICONS = { ...ZONE_ICONS, supplies: "🧰" };
 const num = (n) => (n === null || n === undefined ? "" : fmt.decimal(n));
-const qtyText = (s) => [num(s.qty), s.unit].filter(Boolean).join(" ");
+// Textes de départ dans la langue affichée (ce qui a été modifié reste tel quel)
+const L = () => getLanguage();
+const title = (task) => Tx.taskTitle(task, L());
+const note = (task) => Tx.taskNote(task, L());
+const sname = (s) => Tx.supplyName(s, L());
+const sdesc = (s) => Tx.supplyDescription(s, L());
+const sunit = (s) => Tx.supplyUnit(s, L());
+const qtyText = (s) => [num(s.qty), sunit(s)].filter(Boolean).join(" ");
 // Photo d'une fourniture (dans le stockage des fichiers) : chargée après l'affichage
 const photo = (id, cls = "house-photo") => `<img class="${cls}" data-house-photo="${esc(id)}" alt="">`;
 const thisYear = (today) => today.slice(0, 4);
@@ -29,7 +37,7 @@ function taskForm(task, zone, today) {
   const s = task?.schedule ?? { kind: "every", months: 12 };
   const dateOf = (i) => (s.kind === "dates" && s.dates[i] ? `${thisYear(today)}-${s.dates[i]}` : "");
   return `<form class="form house-form" data-role="house-task" data-id="${esc(task?.id ?? "")}">
-    <label>${t("house.form.title")} <input name="title" value="${esc(task?.title ?? "")}" required autocomplete="off"></label>
+    <label>${t("house.form.title")} <input name="title" value="${esc(task ? title(task) : "")}" required autocomplete="off"></label>
     <div class="row">
       <label>${t("house.form.zone")} <select name="zone">${ZONES.map((z) => `<option value="${z}" ${(task?.zone ?? zone) === z ? "selected" : ""}>${ZONE_ICONS[z]} ${t(`house.tab.${z}`)}</option>`).join("")}</select></label>
       <label>${t("house.form.kind")} <select name="kind">
@@ -43,7 +51,7 @@ function taskForm(task, zone, today) {
     </div>
     <p class="hint">${t("house.form.kindHint")}</p>
     <label>${t("house.form.last")} <input name="lastDone" type="date" value="${esc(task?.lastDone ?? "")}" max="${today}"></label>
-    <label>${t("house.form.note")} <textarea name="note" rows="2">${esc(task?.note ?? "")}</textarea></label>
+    <label>${t("house.form.note")} <textarea name="note" rows="2">${esc(task ? note(task) : "")}</textarea></label>
     ${task?.history.length ? `<div class="house-history"><strong>${t("house.history", { count: task.history.length })}</strong>
       <ul>${[...task.history].reverse().map((d) => `<li>✓ ${esc(fmt.date(parseISODate(d)))}</li>`).join("")}</ul></div>` : ""}
     <div class="actions start">
@@ -61,12 +69,12 @@ function taskCard({ task, next, days, status }, ui, today, house) {
   const due = next ? `<span class="house-due">${t("house.due", { date: fmt.dayMonth(parseISODate(next)) })} · ${esc(fmt.inDays(days))}</span>` : "";
   return `<li class="house-task is-${status} ${ui.focus === task.id ? "is-focus" : ""}" id="house-task-${esc(task.id)}">
     <div class="house-task-main">
-      <strong>${esc(task.title)}</strong>
+      <strong>${esc(title(task))}</strong>
       <span class="hint">↻ ${esc(scheduleText(task.schedule))} · ${task.lastDone ? esc(t("house.last", { date: fmt.date(parseISODate(task.lastDone)) })) : t("house.never")}</span>
       ${due}
-      ${task.note ? `<span class="house-note">${esc(task.note)}</span>` : ""}
+      ${task.note ? `<span class="house-note">${esc(note(task))}</span>` : ""}
       ${supplies.length ? `<div class="house-needs">🧰 ${t("house.needs")} ${supplies.map((s) => `<button type="button" class="house-need ${s.stock !== null && s.stock < (s.qty ?? 1) ? "is-short" : ""}" data-action="house-supply-open" data-id="${esc(s.id)}">
-        ${s.photos[0] ? photo(s.photos[0], "house-thumb") : ""}<span>${esc([num(s.qty), s.unit && s.qty !== null ? "×" : "", s.name].filter(Boolean).join(" "))}${s.model ? ` · ${esc(s.model)}` : ""}${s.stock !== null ? ` · ${esc(t("house.stockShort", { n: num(s.stock) }))}` : ""}</span></button>`).join("")}</div>` : ""}
+        ${s.photos[0] ? photo(s.photos[0], "house-thumb") : ""}<span>${esc([num(s.qty), s.unit && s.qty !== null ? "×" : "", sname(s)].filter(Boolean).join(" "))}${s.model ? ` · ${esc(s.model)}` : ""}${s.stock !== null ? ` · ${esc(t("house.stockShort", { n: num(s.stock) }))}` : ""}</span></button>`).join("")}</div>` : ""}
       ${status === "unknown" ? `<label class="house-last">${t("house.form.last")}
         <input type="date" data-action="house-last" data-id="${esc(task.id)}" max="${today}"></label>` : ""}
     </div>
@@ -82,13 +90,13 @@ function listBlock(house, list, ui, today) {
   const done = listState(house, list.id, today);
   const count = list.entries.filter((e) => done[e.id]).length;
   return `<details class="house-list" id="house-list-${esc(list.id)}" ${ui.openList === list.id ? "open" : ""}>
-    <summary><span>${esc(list.title)}</span><span class="house-count ${count === list.entries.length && count ? "is-complete" : ""}">${count}/${list.entries.length}</span></summary>
+    <summary><span>${esc(Tx.listTitle(list, L()))}</span><span class="house-count ${count === list.entries.length && count ? "is-complete" : ""}">${count}/${list.entries.length}</span></summary>
     <div class="actions start">
       <button type="button" class="btn primary" data-action="house-steps" data-list="${esc(list.id)}" data-index="${Math.max(0, list.entries.findIndex((e) => !done[e.id]))}">▶ ${t("house.steps.start")}</button>
     </div>
     <ul class="checklist">${list.entries.map((e, i) => `<li>
       <label><input type="checkbox" data-action="house-check" data-list="${esc(list.id)}" data-entry="${esc(e.id)}" ${done[e.id] ? "checked" : ""}>
-        <span>${esc(e.text)}</span></label>
+        <span>${esc(Tx.entryText(e, L()))}</span></label>
       <button type="button" class="house-step-open" data-action="house-steps" data-list="${esc(list.id)}" data-index="${i}" aria-label="${esc(t("house.steps.open"))}">
         ${e.figure ? "🖼️" : ""}${e.media.length ? `📷${e.media.length}` : ""}${e.note ? "📝" : ""}<span>›</span></button>
       <button type="button" class="check-remove" data-action="house-entry-remove" data-list="${esc(list.id)}" data-entry="${esc(e.id)}" aria-label="${esc(t("house.remove"))}">×</button>
@@ -106,12 +114,12 @@ function listBlock(house, list, ui, today) {
 function supplyForm(s, house, today) {
   const inTasks = new Set(s?.tasks ?? []);
   return `<form class="form house-form" data-role="house-supply" data-id="${esc(s?.id ?? "")}">
-    <label>${t("house.supply.name")} <input name="name" value="${esc(s?.name ?? "")}" required autocomplete="off"></label>
-    <label>${t("house.supply.description")} <textarea name="description" rows="2">${esc(s?.description ?? "")}</textarea></label>
+    <label>${t("house.supply.name")} <input name="name" value="${esc(s ? sname(s) : "")}" required autocomplete="off"></label>
+    <label>${t("house.supply.description")} <textarea name="description" rows="2">${esc(s ? sdesc(s) : "")}</textarea></label>
     <div class="row">
       <label>${t("house.supply.model")} <input name="model" value="${esc(s?.model ?? "")}" autocomplete="off" placeholder="${esc(t("house.supply.modelHint"))}"></label>
       <label>${t("house.supply.qty")} <input name="qty" inputmode="decimal" value="${esc(num(s?.qty))}" autocomplete="off"></label>
-      <label>${t("house.supply.unit")} <input name="unit" value="${esc(s?.unit ?? "")}" autocomplete="off" placeholder="${esc(t("house.supply.unitHint"))}"></label>
+      <label>${t("house.supply.unit")} <input name="unit" value="${esc(s ? sunit(s) : "")}" autocomplete="off" placeholder="${esc(t("house.supply.unitHint"))}"></label>
     </div>
     <div class="row">
       <label>${t("house.supply.store")} <input name="store" value="${esc(s?.store ?? "")}" autocomplete="off"></label>
@@ -120,7 +128,7 @@ function supplyForm(s, house, today) {
     </div>
     <details class="house-links"><summary>${t("house.supply.tasks", { count: inTasks.size })}</summary>
       ${ZONES.map((z) => `<p class="hint">${ZONE_ICONS[z]} ${t(`house.tab.${z}`)}</p>${house.tasks.filter((x) => x.zone === z).map((x) => `<label class="house-link">
-        <input type="checkbox" name="tasks" value="${esc(x.id)}" ${inTasks.has(x.id) ? "checked" : ""}> <span>${esc(x.title)}</span></label>`).join("")}`).join("")}
+        <input type="checkbox" name="tasks" value="${esc(x.id)}" ${inTasks.has(x.id) ? "checked" : ""}> <span>${esc(title(x))}</span></label>`).join("")}`).join("")}
     </details>
     <div class="actions start">
       <button type="submit" class="btn primary">${t("house.save")}</button>
@@ -147,7 +155,7 @@ function purchaseForm(s, today) {
 
 function supplyCard({ supply: s, tasks, next, status, last }, ui, today, house) {
   if (ui.editing === s.id) return `<li class="house-supply is-editing" id="house-supply-${esc(s.id)}">${supplyForm(s, house, today)}</li>`;
-  const purchaseLine = (p) => [fmt.date(parseISODate(p.date)), p.qty !== null ? `${num(p.qty)} ${s.unit}`.trim() : "", p.price !== null ? fmt.money(p.price) : "", p.store].filter(Boolean).join(" · ");
+  const purchaseLine = (p) => [fmt.date(parseISODate(p.date)), p.qty !== null ? `${num(p.qty)} ${sunit(s)}`.trim() : "", p.price !== null ? fmt.money(p.price) : "", p.store].filter(Boolean).join(" · ");
   return `<li class="house-supply is-${status} ${ui.focus === s.id ? "is-focus" : ""}" id="house-supply-${esc(s.id)}">
     <div class="house-supply-top">
       <div class="house-photos">
@@ -156,9 +164,9 @@ function supplyCard({ supply: s, tasks, next, status, last }, ui, today, house) 
           <input type="file" accept="image/*" data-action="house-photo" data-id="${esc(s.id)}" hidden></label>
       </div>
       <div class="house-supply-main">
-        <strong>${esc(s.name)}</strong>
+        <strong>${esc(sname(s))}</strong>
         ${status !== "ok" ? `<span class="house-flag">${t(`house.supply.status.${status}`)}</span>` : ""}
-        ${s.description ? `<span class="house-note">${esc(s.description)}</span>` : ""}
+        ${s.description ? `<span class="house-note">${esc(sdesc(s))}</span>` : ""}
         <dl class="house-facts">
           ${s.model ? `<div><dt>${t("house.supply.model")}</dt><dd>${esc(s.model)}</dd></div>` : ""}
           ${qtyText(s) ? `<div><dt>${t("house.supply.qtyEach")}</dt><dd>${esc(qtyText(s))}</dd></div>` : ""}
@@ -168,7 +176,7 @@ function supplyCard({ supply: s, tasks, next, status, last }, ui, today, house) 
           ${next ? `<div><dt>${t("house.supply.nextUse")}</dt><dd>${esc(fmt.dayMonth(parseISODate(next.next)))} · ${esc(fmt.inDays(next.days))}</dd></div>` : ""}
           ${last ? `<div><dt>${t("house.supply.lastPurchase")}</dt><dd>${esc(purchaseLine(last))}</dd></div>` : ""}
         </dl>
-        ${tasks.length ? `<span class="hint">↻ ${esc(tasks.map((x) => x.title).join(" · "))}</span>` : ""}
+        ${tasks.length ? `<span class="hint">↻ ${esc(tasks.map(title).join(" · "))}</span>` : ""}
       </div>
     </div>
     <div class="house-task-actions">

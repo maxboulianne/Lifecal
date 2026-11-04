@@ -1189,4 +1189,8 @@ export default {
   "health.stats.suspect": "Beobachten",
   "health.stats.legend": "🍽️ gegessen · ✅ ohne Reaktion · 😮‍💨 mit Reaktion. „Scheint verträglich“: 3-mal oder öfter ohne Reaktion, nie mit.",
   "health.calmSaved": "Erfasst: keine Reaktion.",
+  "health.cal.observe": "Phase 1 — beobachten",
+  "health.cal.calm": "Phase 2 — beruhigen",
+  "health.cal.reintro": "Phase 3 — wieder einführen",
+  "health.cal.test": "„{food}“ wieder einführen",
 };

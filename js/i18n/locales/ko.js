@@ -1186,4 +1186,8 @@ export default {
   "health.stats.suspect": "주의",
   "health.stats.legend": "🍽️ 먹음 · ✅ 반응 없음 · 😮‍💨 반응 있음. «괜찮은 것 같음»: 반응 없이 3번 이상, 반응은 한 번도 없음.",
   "health.calmSaved": "기록됨: 반응 없음.",
+  "health.cal.observe": "1단계 — 관찰",
+  "health.cal.calm": "2단계 — 진정",
+  "health.cal.reintro": "3단계 — 다시 먹기",
+  "health.cal.test": "«{food}» 다시 먹기",
 };

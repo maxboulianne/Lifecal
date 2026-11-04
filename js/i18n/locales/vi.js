@@ -1186,4 +1186,8 @@ export default {
   "health.stats.suspect": "Cần theo dõi",
   "health.stats.legend": "🍽️ đã dùng · ✅ không phản ứng · 😮‍💨 có phản ứng. «Có vẻ chịu được»: 3 lần trở lên không phản ứng, chưa lần nào có.",
   "health.calmSaved": "Đã ghi: không phản ứng.",
+  "health.cal.observe": "Giai đoạn 1 — quan sát",
+  "health.cal.calm": "Giai đoạn 2 — làm dịu",
+  "health.cal.reintro": "Giai đoạn 3 — ăn lại",
+  "health.cal.test": "Ăn lại «{food}»",
 };

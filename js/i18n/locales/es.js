@@ -1189,4 +1189,8 @@ export default {
   "health.stats.suspect": "A vigilar",
   "health.stats.legend": "🍽️ tomado · ✅ sin reacción · 😮‍💨 con reacción. «Parece tolerado»: 3 veces o más sin reacción, nunca con.",
   "health.calmSaved": "Anotado: sin reacción.",
+  "health.cal.observe": "Fase 1 — observar",
+  "health.cal.calm": "Fase 2 — calmar",
+  "health.cal.reintro": "Fase 3 — reintroducir",
+  "health.cal.test": "Reintroducir «{food}»",
 };
