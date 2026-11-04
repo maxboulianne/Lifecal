@@ -704,7 +704,7 @@ export default {
   "ts.presenceCol.logged": "Logged (h)",
   "ts.presenceCol.gap": "Gap (h)",
   "ts.pinFirst": "Always first on the invoice",
-  "ts.projectShowDesc": "Always show the task description on the invoice (even if the general option is off)",
+  "ts.projectShowName": "Always show the project name on the invoice (even if the general option is off)",
   "ts.monthly": "Repeat every month, on day {day}",
   "ts.monthlyList": { one: "{count} monthly expense", other: "{count} monthly expenses" },
   "ts.monthlyDay": "day {day} of every month",
