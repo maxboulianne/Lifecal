@@ -31,6 +31,7 @@ export const subtitleOf = (labels, d) => (d?.sample ? `${labels.subtitle}  ·  $
 
 export const INVOICE_LABELS = {
   statutory: "statutory holiday",
+  week: "Semaine / Week",
   statutoryLine: "Statutory holiday (Quebec)",
   title: "FACTURE",
   subtitle: "INVOICE",
@@ -134,7 +135,8 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "", sam
     const line = {
       // Le nom du projet, le code et la description de la tâche paraissent selon les options choisies.
       date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), label: projectLabel(p, business),
-      taskCode: business.showTaskCodes ? e.taskCode : "", description: business.showTaskDescription ? e.task : "",
+      taskCode: business.showTaskCodes ? e.taskCode : "", description: business.showTaskDescription || p?.showDescription ? e.task : "",
+      showDescription: Boolean(business.showTaskDescription || p?.showDescription),
       taskDescription: e.task, work: e.work, hours: e.hours, overtime: e.overtime, rate, amount: round2(e.hours * (rate ?? 0)),
     };
     return { ...line, kind: "hours", code: e.taskCode, text: lineDescription(line) };
@@ -174,6 +176,18 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "", sam
     }
   }
   days.sort((a, b) => a.date.localeCompare(b.date));
+  // Total des heures de chaque jour (bande du jour) et sous-total de chaque semaine (après son dernier jour)
+  const weekOf = (iso) => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toDateString(); };
+  for (const day of days) day.hours = round2(day.lines.filter((l) => l.kind !== "expense").reduce((s, l) => s + l.hours, 0));
+  days.forEach((day, i) => {
+    if (days[i + 1] && weekOf(days[i + 1].date) === weekOf(day.date)) return;
+    const week = days.filter((x) => weekOf(x.date) === weekOf(day.date));
+    const hoursLines = week.flatMap((x) => x.lines.filter((l) => l.kind !== "expense"));
+    day.weekEnd = {
+      from: week[0].date, to: day.date,
+      hours: round2(hoursLines.reduce((s, l) => s + l.hours, 0)), amount: round2(hoursLines.reduce((s, l) => s + l.amount, 0)),
+    };
+  });
   const noExpenses = () => Object.fromEntries(EXPENSE_CATEGORIES.map((c) => [c, 0]));
   const projects = [...new Set([...lines, ...expenseLines].map((l) => l.project))].sort(order);
   const summary = projects.map((project) => {
@@ -251,6 +265,11 @@ const STYLES = {
   day: { font: font(9, C.navy, { b: true }), fill: C.light, border: { left: { style: "thick", color: C.orange } }, align: { h: "left", v: "center" } },
   dayFill: { fill: C.light },
   weekday: { font: font(8.5, C.gray, { b: true }), fill: C.light, align: { h: "left", v: "center" } },
+  dayHours: { font: font(9, C.navy, { b: true }), fill: C.light, numFmt: '0.00" HR"', align: { h: "right", v: "center" } },
+  weekHours: { font: font(9, C.navy, { b: true }), fill: C.head, border: { top: { style: "medium", color: C.navy }, bottom: { style: "medium", color: C.navy } }, numFmt: FORMATS.hours, align: { h: "right", v: "center" } },
+  weekUnit: { font: font(8.5, C.navy, { b: true }), fill: C.head, border: { top: { style: "medium", color: C.navy }, bottom: { style: "medium", color: C.navy } }, align: { h: "center", v: "center" } },
+  weekLabel: { font: font(8.5, C.navy, { b: true }), fill: C.head, border: { top: { style: "medium", color: C.navy }, bottom: { style: "medium", color: C.navy } }, align: { h: "left", v: "center" } },
+  weekMoney: { font: font(9, C.navy, { b: true }), fill: C.head, border: { top: { style: "medium", color: C.navy }, bottom: { style: "medium", color: C.navy } }, numFmt: MONEY, align: { h: "right", v: "center" } },
   qty: { font: font(9, C.ink), border: under(), numFmt: FORMATS.hours, align: { h: "right", v: "center" } },
   unit: { font: font(8.5, C.gray), border: under(), align: { h: "center", v: "center" } },
   price: { font: font(9, C.ink), border: under(), numFmt: MONEY, align: { h: "right", v: "center" } },
@@ -314,8 +333,9 @@ function hoursLineFormula(h, line, b) {
   const project = `Heures!C${h}${nameSuffix ? `&"${nameSuffix}"` : ""}`;
   const code = `Heures!D${h}`;
   const desc = `Heures!E${h}`;
-  const task = b.showTaskCodes && b.showTaskDescription ? `IF(${code}="",${desc},IF(${desc}="",${code},${code}&" : "&${desc}))`
-    : b.showTaskCodes ? code : b.showTaskDescription ? desc : "";
+  const showDesc = line.showDescription ?? b.showTaskDescription; // exception possible par projet
+  const task = b.showTaskCodes && showDesc ? `IF(${code}="",${desc},IF(${desc}="",${code},${code}&" : "&${desc}))`
+    : b.showTaskCodes ? code : showDesc ? desc : "";
   return `${project}${task ? `&IF(${task}="","","  —  "&${task})` : ""}&IF(Heures!F${h}="","","  —  "&Heures!F${h})&IF(Heures!H${h}="${OVERTIME}","  (${L.overtime})","")`;
 }
 
@@ -499,15 +519,24 @@ export function invoiceSheets(ts, options) {
   merge("D", "J");
   let source = 2; // ligne correspondante dans « Heures »
   let feeRow = 2; // ligne correspondante dans « Frais »
+  let weekBands = []; // cellules « heures du jour » de la semaine
+  let weekAmounts = []; // montants des lignes d'heures de la semaine
   for (const day of d.days) {
     r = row(18);
+    const band = r;
+    const bandRow = at();
+    const dayHours = []; // cellules d'heures du jour (colonne A)
     r[0] = { v: day.date, s: "day" };
-    fill(r, 1, 2, "dayFill");
-    merge("A", "C");
+    fill(r, 1, 1, "dayFill");
+    merge("A", "B");
     r[3] = { v: day.weekday, s: "weekday" };
     fill(r, 4, 10, "weekday");
     merge("D", "K");
     for (const l of day.lines) {
+      if (l.kind !== "expense") {
+        dayHours.push(`A${at() + 1}`);
+        weekAmounts.push(`K${at() + 1}`);
+      }
       // Congé férié non travaillé : 0 h, sans ligne dans l'onglet Heures
       if (l.kind === "holiday") {
         r = row(16.5);
@@ -544,6 +573,22 @@ export function invoiceSheets(ts, options) {
       fill(r, 4, 9, "lineBorder");
       merge("D", "J");
       r[10] = { f: `A${at()}*C${at()}`, v: l.amount, s: "lineTotal" };
+    }
+    // Total des heures du jour, dans la bande du jour
+    band[2] = { f: dayHours.length ? `SUM(${dayHours.join(",")})` : "0", v: day.hours, s: "dayHours" };
+    weekBands.push(`C${bandRow}`);
+    // Sous-total de la semaine, après son dernier jour
+    if (day.weekEnd) {
+      r = row(18);
+      r[0] = { f: `SUM(${weekBands.join(",")})`, v: day.weekEnd.hours, s: "weekHours" };
+      r[1] = { v: "HR", s: "weekUnit" };
+      r[2] = { v: "", s: "weekUnit" };
+      r[3] = { v: `${L.week} · ${day.weekEnd.from} — ${day.weekEnd.to}`, s: "weekLabel" };
+      fill(r, 4, 9, "weekLabel");
+      merge("D", "J");
+      r[10] = { f: weekAmounts.length ? `SUM(${weekAmounts.join(",")})` : "0", v: day.weekEnd.amount, s: "weekMoney" };
+      weekBands = [];
+      weekAmounts = [];
     }
   }
   row();

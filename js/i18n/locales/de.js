@@ -704,6 +704,7 @@ export default {
   "ts.presenceCol.logged": "Erfasst (h)",
   "ts.presenceCol.gap": "Differenz (h)",
   "ts.pinFirst": "Immer zuerst auf der Rechnung",
+  "ts.projectShowDesc": "Aufgabenbeschreibung immer auf der Rechnung zeigen (auch wenn die allgemeine Option aus ist)",
   "ts.monthly": "Jeden Monat wiederholen, am {day}.",
   "ts.monthlyList": { one: "{count} monatliche Ausgabe", other: "{count} monatliche Ausgaben" },
   "ts.monthlyDay": "am {day}. jedes Monats",

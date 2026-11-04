@@ -125,6 +125,7 @@ export function invoicePdf(d, { logo = null, measure } = {}) {
     page.rect(M, y, RIGHT - M, 16, { fill: C.light });
     page.rect(M, y, 3, 16, { fill: C.orange });
     page.text(day.date, M + 8, y + 11.5, { size: 9, bold: true, color: C.navy });
+    page.text(`${hours(day.hours)} HR`, col.price, y + 11.5, { size: 9, bold: true, color: C.navy, align: "right" });
     page.text(day.weekday, col.desc, y + 11.5, { size: 8.5, bold: true, color: C.gray });
     y += 16;
     for (const l of day.lines) {
@@ -139,6 +140,19 @@ export function invoicePdf(d, { logo = null, measure } = {}) {
       page.text(moneyDash(l.amount), col.total, y + 10.5, { size: 8.5, bold: true, color: C.ink, align: "right" });
       y += h;
       page.line(M, y, RIGHT, y, { color: C.line });
+    }
+    // Sous-total de la semaine, après son dernier jour
+    if (day.weekEnd) {
+      const w = day.weekEnd;
+      room(20);
+      page.rect(M, y + 2, RIGHT - M, 16, { fill: C.head });
+      page.line(M, y + 2, RIGHT, y + 2, { color: C.navy, width: 1.2 });
+      page.line(M, y + 18, RIGHT, y + 18, { color: C.navy, width: 1.2 });
+      page.text(hours(w.hours), col.qty, y + 13.5, { size: 9, bold: true, color: C.navy, align: "right" });
+      page.text("HR", col.unit, y + 13.5, { size: 8, bold: true, color: C.navy, align: "center" });
+      page.text(`${L.week} · ${w.from} — ${w.to}`, col.desc, y + 13.5, { size: 8.5, bold: true, color: C.navy });
+      page.text(money(w.amount), col.total, y + 13.5, { size: 9, bold: true, color: C.navy, align: "right" });
+      y += 22;
     }
   }
   y += 16;

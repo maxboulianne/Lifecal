@@ -1117,6 +1117,9 @@ body.player-open { overflow: hidden; }
 .inv-strong { font-weight: 700; }
 .inv-day td { background: var(--light); color: var(--gray); font-weight: 700; border-bottom: none; padding: 5px 6px; }
 .inv-day td:first-child { color: var(--navy); border-left: 4px solid var(--orange); }
+.inv-day td.inv-day-hours { color: var(--navy); white-space: nowrap; }
+.inv-week td { background: var(--head); color: var(--navy); font-weight: 700; border-top: 2px solid var(--navy); border-bottom: 2px solid var(--navy); padding: 5px 6px; }
+.inv-week td.inv-unit { color: var(--navy); }
 .inv-section { color: var(--navy); font-weight: 700; font-size: 11px; border-bottom: 1px solid var(--navy); padding-bottom: 2px; margin-bottom: 0 !important; }
 .inv-summary { width: 100%; margin-bottom: 16px; }
 .inv-summary thead th { background: var(--head); color: var(--navy); font-size: 10.5px; padding: 5px 4px; line-height: 1.2; }
