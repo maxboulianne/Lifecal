@@ -86,3 +86,16 @@ test("Santé : rappels dans le calendrier du dépôt", async () => {
   await repo.updateHealth(startProgram(repo.health(), "2026-11-03"));
   assert.ok(repo.onDate("2026-11-17").some((i) => i.id === "health:calm:2026-11-17"));
 });
+
+test("Santé : heures de début et de fin des réactions, aliments souvent mangés", async () => {
+  const { reactionEnd, minutesBetween, frequentFoods } = await import("../js/health/health.js");
+  assert.equal(reactionEnd({ time: "12:40", minutes: 12 }), "12:52");
+  assert.equal(reactionEnd({ time: "23:55", minutes: 10 }), "00:05");
+  assert.equal(reactionEnd({ time: "12:40", minutes: null }), null);
+  assert.equal(minutesBetween("12:40", "12:52"), 12);
+  assert.equal(minutesBetween("23:55", "00:05"), 10);
+  assert.equal(minutesBetween("12:40", ""), null);
+  let h = emptyHealth();
+  for (const text of ["Poulet et riz", "Poulet et brocoli", "Poulet"]) h = addMeal(h, { date: "2026-11-04", time: "12:00", text }).health;
+  assert.deepEqual(frequentFoods(h).map((f) => f.name).slice(0, 1), ["Poulet"]);
+});

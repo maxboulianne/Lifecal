@@ -1155,4 +1155,11 @@ export default {
   "nudge.health.reintro": "Salud: empieza la fase 3. Elige el primer alimento a reintroducir.",
   "nudge.health.result": "Salud: terminó la prueba de «{food}». ¿Tolerado o no?",
   "nudge.health.next": "Salud: ¿listo para probar el siguiente alimento?",
+  "health.meal.start": "Hora de inicio de la comida",
+  "health.meal.foods": "Alimentos de la comida",
+  "health.meal.noneYet": "Ningún alimento elegido: tócalos en los grupos de abajo.",
+  "health.meal.frequent": "Comidos a menudo",
+  "health.meal.newFood": "Otro alimento…",
+  "health.react.start": "Inicio",
+  "health.react.end": "Fin (vacío si sigue)",
 };

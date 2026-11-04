@@ -1587,3 +1587,25 @@ img.house-step-file { background: var(--pale); }
   .hl-choice.is-small button.active { background: #2f3b4a; }
 }
 @media (min-width: 760px) { .hl-foods { grid-template-columns: 1fr 1fr; } }
+/* Santé : choix des aliments du repas (comme la liste personnalisée d'épicerie) */
+.hl-foods-field { margin: 0; padding: 0; border: none; display: grid; gap: 8px; }
+.hl-foods-field > legend { font-weight: 600; margin-bottom: 4px; }
+.hl-picker { display: grid; gap: 8px; }
+.hl-picked { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--pale); color: var(--navy); font-weight: 600; }
+.hl-group { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 10px; }
+.hl-group > summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 600; color: var(--navy); }
+.hl-group.is-frequent { border-color: var(--navy); }
+.hl-group .hl-pick-list { padding-bottom: 10px; }
+.hl-pick-item { min-height: 40px; padding: 4px 12px; font-size: 0.95rem; }
+.hl-pick-add { display: flex; gap: 8px; padding-bottom: 10px; }
+.hl-pick-add input { flex: 1; min-width: 0; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; }
+.hl-reaction-tools { display: inline-flex; align-items: center; gap: 4px; }
+.hl-start-edit { display: flex; align-items: center; gap: 8px; color: #1f2937; }
+@media (prefers-color-scheme: dark) {
+  .hl-picked { background: #2f3b4a; color: #cfdced; }
+  .hl-group > summary { color: #9fb7d6; }
+}
+.hl-pick-item { position: relative; }
+.hl-pick-item input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.hl-pick-item:has(input:focus-visible) { outline: 3px solid #e0491a; outline-offset: 2px; }
+.hl-pick-item:has(input:checked) span::before { content: "✓ "; }

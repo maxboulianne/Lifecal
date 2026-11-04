@@ -243,6 +243,12 @@ export class App {
     this.#listenSwipe();
     // Flèches du clavier (iPad avec clavier, ordinateur) : jour, semaine, mois ou année d'avant ou d'après.
     document.addEventListener("keydown", (e) => {
+      // Santé : Entrée dans « nouvel aliment » l'ajoute, sans enregistrer le repas
+      if (e.key === "Enter" && e.target.dataset?.role === "hl-new-food") {
+        e.preventDefault();
+        e.target.closest(".hl-pick-add")?.querySelector("[data-action=health-pick-add]")?.click();
+        return;
+      }
       // Entrée dans un champ d'heure : valider (comme fermer la roulette)
       if (e.key === "Enter" && savesOnClose(e.target)) {
         e.preventDefault();
@@ -260,6 +266,14 @@ export class App {
       if (filter) {
         const q = e.target.value.trim().toLowerCase();
         for (const el of document.querySelectorAll(filter)) el.hidden = Boolean(q) && !el.dataset.search.includes(q);
+        // Les groupes qui contiennent un aliment trouvé s'ouvrent
+        if (filter === ".hl-pick-item") {
+          for (const group of document.querySelectorAll(".hl-group")) {
+            const any = [...group.querySelectorAll(".hl-pick-item")].some((x) => !x.hidden);
+            group.hidden = Boolean(q) && !any;
+            if (q && any) group.open = true;
+          }
+        }
       }
       if (e.target.dataset.journal) this.#scheduleJournalSave();
       if (e.target.dataset.role === "grocery-search") this.#filterPrices(e.target.value);
@@ -1026,11 +1040,11 @@ export class App {
       toast(t("health.reactStopped"));
     },
     "health-meal-new": () => {
-      this.healthUi = { ...this.healthUi, editing: this.healthUi.editing === "new-meal" ? null : "new-meal", reacting: null };
+      this.healthUi = { ...this.healthUi, editing: this.healthUi.editing === "new-meal" ? null : "new-meal", reacting: null, draft: null };
       this.#renderKeepingScroll();
     },
     "health-meal-edit": (el) => {
-      this.healthUi = { ...this.healthUi, editing: el.dataset.id, reacting: null };
+      this.healthUi = { ...this.healthUi, editing: el.dataset.id, reacting: null, draft: null };
       this.#renderKeepingScroll();
     },
     "health-meal-remove": async (el) => {
@@ -1039,12 +1053,38 @@ export class App {
       await this.#updateHealth(Health.removeMeal(this.repo.health(), el.dataset.id));
     },
     "health-cancel": () => {
-      this.healthUi = { ...this.healthUi, editing: null, reacting: null };
+      this.healthUi = { ...this.healthUi, editing: null, reacting: null, reactionEditing: null, draft: null };
       this.#renderKeepingScroll();
     },
     "health-reaction-new": (el) => {
       this.healthUi = { ...this.healthUi, reacting: this.healthUi.reacting === el.dataset.id ? null : el.dataset.id, editing: null };
       this.#renderKeepingScroll();
+    },
+    "health-reaction-edit": (el) => {
+      this.healthUi = { ...this.healthUi, reactionEditing: el.dataset.id, reacting: null, editing: null };
+      this.#renderKeepingScroll();
+    },
+    // Nouvel aliment ajouté pendant qu'on note le repas : ce qui est déjà saisi est gardé, et l'aliment est coché
+    "health-pick-add": async (el) => {
+      const form = el.closest("form");
+      const input = $(`[data-role=hl-new-food][data-group="${el.dataset.group}"]`, form);
+      const name = input?.value.trim();
+      if (!name) return input?.focus();
+      const f = new FormData(form);
+      const get = (k) => String(f.get(k) ?? "").trim();
+      const added = Health.addFood(this.repo.health(), { name, level: "limit", group: el.dataset.group });
+      const existing = this.repo.health().foods.find((x) => x.name.toLowerCase() === name.toLowerCase());
+      const id = added.food?.id ?? existing?.id;
+      this.healthUi = {
+        ...this.healthUi,
+        draft: {
+          mealId: form.dataset.id ?? "", date: get("date"), time: get("time"), kind: get("kind"), text: get("text"), drink: get("drink"), note: get("note"),
+          spicy: f.has("spicy"), hot: f.has("hot"), foods: [...new Set([...f.getAll("foods").map(String), ...(id ? [id] : [])])],
+        },
+      };
+      if (added.food) await this.#updateHealth(added.health);
+      else this.#renderKeepingScroll();
+      toast(t("health.foodAdded", { name }));
     },
     "health-reaction-remove": (el) => {
       if (!confirm(t("health.confirmRemoveReaction"))) return;
@@ -1552,6 +1592,11 @@ export class App {
       await this.#updateData(trip.id, { places: toggleVisited(getPlaces(trip), el.dataset.entry) });
       return;
     }
+    if (el.dataset.action === "health-react-start" && el.value) {
+      return this.#updateHealth(Health.updateReaction(this.repo.health(), el.dataset.id, { time: el.value }));
+    }
+    // Repas : un aliment coché l'est partout (souvent mangés + son groupe) ; le résumé suit
+    if (el.name === "foods" && el.form?.dataset.role === "health-meal") return this.#syncFoodPicker(el);
     if (el.dataset.action === "house-photo" && el.files?.[0]) return this.#addHousePhoto(el.dataset.id, el.files[0]);
     if (el.dataset.action === "house-step-media" && el.files?.length) return this.#addStepMedia(el.dataset.list, el.dataset.entry, [...el.files]);
     if (el.dataset.action === "house-step-note") {
@@ -1790,6 +1835,22 @@ export class App {
 
   // ---- Mes heures --------------------------------------------------------
 
+  #syncFoodPicker(el) {
+    const form = el.form;
+    for (const box of form.querySelectorAll(`input[name=foods][value="${CSS.escape(el.value)}"]`)) box.checked = el.checked;
+    const foods = this.repo.health().foods;
+    const picked = [...new Set([...form.querySelectorAll("input[name=foods]:checked")].map((x) => x.value))];
+    const names = picked.map((id) => foods.find((f) => f.id === id)?.name).filter(Boolean);
+    const summary = $("[data-role=hl-picked]", form);
+    if (summary) summary.textContent = names.length ? `✓ ${names.join(", ")}` : t("health.meal.noneYet");
+    for (const group of form.querySelectorAll(".hl-group[data-group]")) {
+      const boxes = [...group.querySelectorAll("input[name=foods]")];
+      const n = boxes.filter((x) => x.checked).length;
+      const count = $(".hl-group-count", group);
+      if (count) count.textContent = `${n ? `✓ ${n} · ` : ""}${boxes.length}`;
+    }
+  }
+
   async #updateHealth(health) {
     const top = window.scrollY;
     await this.repo.updateHealth(health);
@@ -1815,17 +1876,22 @@ export class App {
           if (!added.meal) return toast(t("health.errors.meal"));
           health = added.health;
         }
-        this.healthUi = { ...this.healthUi, editing: null };
+        this.healthUi = { ...this.healthUi, editing: null, draft: null };
         await this.#updateHealth(health);
         return toast(t("health.mealSaved"));
       }
       case "health-reaction": {
-        const meal = health.meals.find((m) => m.id === form.dataset.meal);
-        health = Health.addReaction(health, {
-          date: meal?.date ?? todayISO(), time: meal?.time ?? "", mealId: meal?.id ?? null,
-          where: get("where"), intensity: Number(get("intensity")), minutes: get("minutes") === "" ? null : Number(get("minutes")),
-        });
-        this.healthUi = { ...this.healthUi, reacting: null };
+        // Début et fin : la durée se calcule ; sans fin, la réaction reste « en cours »
+        const fields = {
+          where: get("where"), intensity: Number(get("intensity")), time: get("start"),
+          minutes: get("end") ? Health.minutesBetween(get("start"), get("end")) : null,
+        };
+        if (form.dataset.id) health = Health.updateReaction(health, form.dataset.id, fields);
+        else {
+          const meal = health.meals.find((m) => m.id === form.dataset.meal);
+          health = Health.addReaction(health, { ...fields, date: meal?.date ?? todayISO(), mealId: meal?.id ?? null });
+        }
+        this.healthUi = { ...this.healthUi, reacting: null, reactionEditing: null };
         return this.#updateHealth(health);
       }
       case "health-food": {
