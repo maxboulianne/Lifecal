@@ -9,7 +9,7 @@
 // Les données (calendrier, journal…) ne passent jamais par ici : elles
 // restent dans le stockage du navigateur.
 
-const CACHE = "lifecal-v43";
+const CACHE = "lifecal-v44";
 const NETWORK_TIMEOUT_MS = 4000;
 
 // Le minimum pour ouvrir l'app hors ligne ; le reste des fichiers

@@ -4,7 +4,8 @@
 //
 // Rangé dans le document : health = { foods, meals, reactions, program }
 //   aliment  : { id, key, name, group, level: "good"|"limit"|"avoid", status: "unknown"|"ok"|"react" }
-//   repas    : { id, date, time, kind, foods: [foodIds], text, drink, spicy, hot, note }
+//   repas    : { id, date, time, kind, foods: [foodIds], drinks: [{ foodId, brand }], text, drink, spicy, hot, note,
+//                calm: true si « aucune réaction » est confirmé (pendant et après le repas) }
 //   réaction : { id, date, time, mealId, where: "nose"|"mouth"|"both", intensity: 1..5, minutes, note }
 //   programme : { start: date|null, observeDays, calmDays, testDays, tests: [{ foodId, start, result: "ok"|"react"|null }] }
 //
@@ -104,7 +105,7 @@ function normalizeMeal(m, foodIds) {
   if (!foods.length && !drinks.length && !str(m.text) && !str(m.drink)) return null;
   return {
     id: str(m.id) || newId(), date: m.date, time: HM.test(m.time) ? m.time : "", kind: MEAL_KINDS.includes(m.kind) ? m.kind : "snack",
-    foods, drinks, text: str(m.text), drink: str(m.drink), spicy: Boolean(m.spicy), hot: Boolean(m.hot), note: str(m.note),
+    foods, drinks, text: str(m.text), drink: str(m.drink), spicy: Boolean(m.spicy), hot: Boolean(m.hot), note: str(m.note), calm: Boolean(m.calm),
   };
 }
 
@@ -193,7 +194,8 @@ export function recentMeal(health, date, time, withinMinutes = 90) {
 export function startReaction(health, { date, time, where = "nose", intensity = 3 }) {
   const meal = recentMeal(health, date, time);
   const reaction = normalizeReaction({ id: newId(), date, time, mealId: meal?.id ?? null, where, intensity, minutes: null }, new Set(health.meals.map((m) => m.id)));
-  return { health: { ...health, reactions: [...health.reactions, reaction].sort(byWhen) }, reaction };
+  const meals = meal ? health.meals.map((m) => (m.id === meal.id ? { ...m, calm: false } : m)) : health.meals;
+  return { health: { ...health, meals, reactions: [...health.reactions, reaction].sort(byWhen) }, reaction };
 }
 
 export function updateReaction(health, id, fields) {
@@ -231,11 +233,40 @@ export function stopReaction(health, id, date, time) {
   return updateReaction(health, id, { minutes });
 }
 
-// Réaction notée après coup pour un repas (où, intensité, durée)
+// Réaction notée après coup pour un repas (où, intensité, durée) ; le repas n'est plus « sans réaction »
 export function addReaction(health, fields) {
   const ids = new Set(health.meals.map((m) => m.id));
   const reaction = normalizeReaction({ ...fields, id: newId() }, ids);
-  return reaction ? { ...health, reactions: [...health.reactions, reaction].sort(byWhen) } : health;
+  if (!reaction) return health;
+  const meals = reaction.mealId ? health.meals.map((m) => (m.id === reaction.mealId ? { ...m, calm: false } : m)) : health.meals;
+  return { ...health, meals, reactions: [...health.reactions, reaction].sort(byWhen) };
+}
+
+// « Aucune réaction » confirmé pour un repas (ou retiré)
+export function setMealCalm(health, id, calm = true) {
+  if (calm && health.reactions.some((r) => r.mealId === id)) return health; // une réaction est notée : pas « sans réaction »
+  return { ...health, meals: health.meals.map((m) => (m.id === id ? { ...m, calm: Boolean(calm) } : m)) };
+}
+
+// Aliments et boissons d'un repas (pour les bilans)
+export const mealItems = (m) => [...new Set([...m.foods, ...(m.drinks ?? []).map((d) => d.foodId).filter(Boolean)])];
+
+// Bilan par aliment ou boisson : nombre de fois pris, dont sans réaction confirmé et avec réaction.
+// « Semble toléré » : pris au moins 3 fois sans réaction, jamais avec ; « suspect » : au moins 2 réactions.
+export function foodStats(health) {
+  const reacted = new Set(health.reactions.map((r) => r.mealId).filter(Boolean));
+  const stats = new Map();
+  for (const m of health.meals) {
+    for (const id of mealItems(m)) {
+      const s = stats.get(id) ?? { eaten: 0, calm: 0, reacted: 0 };
+      s.eaten++;
+      if (reacted.has(m.id)) s.reacted++;
+      else if (m.calm) s.calm++;
+      stats.set(id, s);
+    }
+  }
+  for (const s of stats.values()) s.hint = s.calm >= 3 && !s.reacted ? "tolerated" : s.reacted >= 2 ? "suspect" : null;
+  return stats;
 }
 
 export const removeReaction = (health, id) => ({ ...health, reactions: health.reactions.filter((r) => r.id !== id) });
@@ -342,5 +373,6 @@ export function weekSummary(health, today) {
   const avg = list.length ? Math.round((list.reduce((s, r) => s + r.intensity, 0) / list.length) * 10) / 10 : null;
   const timed = list.filter((r) => r.minutes !== null);
   const minutes = timed.length ? Math.round(timed.reduce((s, r) => s + r.minutes, 0) / timed.length) : null;
-  return { reactions: list.length, meals, intensity: avg, minutes };
+  const calm = health.meals.filter((m) => m.date >= from && m.date <= today && m.calm).length;
+  return { reactions: list.length, meals, calm, intensity: avg, minutes };
 }

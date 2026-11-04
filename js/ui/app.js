@@ -1077,6 +1077,12 @@ export class App {
       el.before(row);
       row.querySelector("select").focus();
     },
+    // « Aucune réaction » confirmé pour un repas (ou retiré)
+    "health-meal-calm": async (el) => {
+      const calm = el.dataset.value === "true";
+      await this.#updateHealth(Health.setMealCalm(this.repo.health(), el.dataset.id, calm));
+      if (calm) toast(t("health.calmSaved"));
+    },
     "health-reaction-edit": (el) => {
       this.healthUi = { ...this.healthUi, reactionEditing: el.dataset.id, reacting: null, editing: null };
       this.#renderKeepingScroll();
@@ -1096,7 +1102,7 @@ export class App {
         ...this.healthUi,
         draft: {
           mealId: form.dataset.id ?? "", date: get("date"), time: get("time"), kind: get("kind"), text: get("text"), drink: get("drink"), note: get("note"),
-          spicy: f.has("spicy"), hot: f.has("hot"), foods: [...new Set([...f.getAll("foods").map(String), ...(id ? [id] : [])])], drinks: drinksFromForm(f),
+          spicy: f.has("spicy"), hot: f.has("hot"), calm: f.has("calm"), foods: [...new Set([...f.getAll("foods").map(String), ...(id ? [id] : [])])], drinks: drinksFromForm(f),
         },
       };
       if (added.food) await this.#updateHealth(added.health);
@@ -1612,6 +1618,11 @@ export class App {
     if (el.dataset.action === "health-react-start" && el.value) {
       return this.#updateHealth(Health.updateReaction(this.repo.health(), el.dataset.id, { time: el.value }));
     }
+    // Repas : l'heure du début choisit le repas (déjeuner, dîner, souper…), sauf s'il a été choisi à la main
+    if (el.form?.dataset.role === "health-meal" && el.name === "kind") el.form.dataset.kindTouched = "1";
+    if (el.form?.dataset.role === "health-meal" && el.name === "time" && el.value && !el.form.dataset.kindTouched) {
+      el.form.elements.kind.value = Health.mealKindAt(el.value);
+    }
     // Repas : un aliment coché l'est partout (souvent mangés + son groupe) ; le résumé suit
     if (el.name === "foods" && el.form?.dataset.role === "health-meal") return this.#syncFoodPicker(el);
     if (el.dataset.action === "house-photo" && el.files?.[0]) return this.#addHousePhoto(el.dataset.id, el.files[0]);
@@ -1885,7 +1896,7 @@ export class App {
       case "health-meal": {
         const fields = {
           date: get("date"), time: get("time"), kind: get("kind"), text: get("text"), drink: get("drink"), note: get("note"),
-          spicy: f.has("spicy"), hot: f.has("hot"), foods: f.getAll("foods").map(String), drinks: drinksFromForm(f),
+          spicy: f.has("spicy"), hot: f.has("hot"), calm: f.has("calm"), foods: f.getAll("foods").map(String), drinks: drinksFromForm(f),
         };
         if (form.dataset.id) health = Health.updateMeal(health, form.dataset.id, fields);
         else {

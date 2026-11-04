@@ -1618,3 +1618,16 @@ img.house-step-file { background: var(--pale); }
 .hl-drink-more { justify-self: start; }
 .hl-drink-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; }
 @media (prefers-color-scheme: dark) { .hl-drink-row { background: #232c37; } }
+/* Santé : repas sans réaction, bilan par aliment */
+.hl-calm { margin: 0; padding: 4px 10px; border-radius: 8px; background: #e5f2ea; color: #2f7a4b; font-weight: 600; }
+.hl-calm .btn.link { font-weight: 400; }
+.hl-calm-btn { background: #2f7a4b; border-color: #2f7a4b; color: #fff; }
+.hl-meal.is-calm { border-left-color: #2f7a4b; }
+.hl-stats { display: block; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hl-hint-badge { display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+.hl-hint-badge.is-tolerated { background: #e5f2ea; color: #2f7a4b; }
+.hl-hint-badge.is-suspect { background: #fde7df; color: #b13b12; }
+@media (prefers-color-scheme: dark) {
+  .hl-calm, .hl-hint-badge.is-tolerated { background: #1c3326; color: #7fd19d; }
+  .hl-hint-badge.is-suspect { background: #3d211e; color: #f19a8f; }
+}

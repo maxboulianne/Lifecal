@@ -7,7 +7,7 @@
 import { addDays, parseISODate, toISODate } from "../../core/dates.js";
 import { esc } from "../../core/dom.js";
 import {
-  DRINK_CATEGORIES, GROUPS, LEVELS, MEAL_KINDS, WHERE, drinkOptions, currentPhase, currentTest, frequentFoods, journal, mealKindAt, ongoingReaction, programPhases, reactionEnd, toTest, weekSummary,
+  DRINK_CATEGORIES, GROUPS, LEVELS, MEAL_KINDS, WHERE, drinkOptions, currentPhase, currentTest, foodStats, frequentFoods, journal, mealKindAt, ongoingReaction, programPhases, reactionEnd, toTest, weekSummary,
 } from "../../health/health.js";
 import { fmt, t } from "../../i18n/index.js";
 
@@ -99,6 +99,7 @@ function mealForm(health, meal, today, now, draft = null) {
     <div class="hl-flags">
       <label><input type="checkbox" name="spicy" ${m.spicy ? "checked" : ""}> 🌶️ ${t("health.meal.spicy")}</label>
       <label><input type="checkbox" name="hot" ${m.hot ? "checked" : ""}> 🔥 ${t("health.meal.hot")}</label>
+      <label><input type="checkbox" name="calm" ${m.calm ? "checked" : ""}> ✅ ${t("health.meal.calm")}</label>
     </div>
     <fieldset class="hl-foods-field"><legend>${t("health.meal.foods")}</legend>${foodPicker(health, picked)}</fieldset>
     <p class="hint">${t("health.meal.autoHint")}</p>
@@ -156,22 +157,26 @@ function journalTab(health, ui, today, now) {
     ${ui.editing === "new-meal" ? mealForm(health, null, today, now, ui.draft) : ""}
     <section class="hl-summary">
       <div><span class="hl-value">${w.meals}</span><span>${t("health.sum.meals")}</span></div>
+      <div><span class="hl-value">${w.calm}</span><span>${t("health.sum.calm")}</span></div>
       <div><span class="hl-value">${w.reactions}</span><span>${t("health.sum.reactions")}</span></div>
       <div><span class="hl-value">${w.intensity ?? "–"}</span><span>${t("health.sum.intensity")}</span></div>
       <div><span class="hl-value">${w.minutes ?? "–"}</span><span>${t("health.sum.minutes")}</span></div>
     </section>
     ${days.length ? days.map((d) => `<section class="hl-day">
       <h2>${esc(day(d.date))}</h2>
-      <ul class="hl-meals">${d.meals.map(({ meal: m, reactions }) => ui.editing === m.id ? `<li class="hl-meal is-editing">${mealForm(health, m, today, now, ui.draft)}</li>` : `<li class="hl-meal ${reactions.length ? "has-reaction" : ""}">
+      <ul class="hl-meals">${d.meals.map(({ meal: m, reactions }) => ui.editing === m.id ? `<li class="hl-meal is-editing">${mealForm(health, m, today, now, ui.draft)}</li>` : `<li class="hl-meal ${reactions.length ? "has-reaction" : m.calm ? "is-calm" : ""}">
         <div class="hl-meal-head"><strong>${KIND_ICONS[m.kind]} ${t(`health.kind.${m.kind}`)}</strong><span class="hint">${esc(hm(m.time))}${m.spicy ? " · 🌶️" : ""}${m.hot ? " · 🔥" : ""}</span></div>
         ${m.foods.length ? `<div class="hl-chips">${m.foods.map((id) => health.foods.find((f) => f.id === id)).filter(Boolean).map(foodChip).join("")}</div>` : ""}
         ${m.text ? `<p>${esc(m.text)}</p>` : ""}${m.drinks?.length ? `<p class="hl-drink-line">🥤 ${m.drinks.map((d) => {
           const f = health.foods.find((x) => x.id === d.foodId);
           return `<span class="hl-chip is-${f?.level ?? "limit"}">${esc(f ? f.name : d.brand)}${f && d.brand ? ` — ${esc(d.brand)}` : ""}</span>`;
         }).join(" ")}</p>` : ""}${m.drink ? `<p class="hint">☕ ${esc(m.drink)}</p>` : ""}${m.note ? `<p class="hint">📝 ${esc(m.note)}</p>` : ""}
-        ${reactions.length ? `<ul class="hl-reactions">${reactions.map((r) => reactionLine(r, ui, m)).join("")}</ul>` : `<p class="hint">${t("health.noReaction")}</p>`}
+        ${reactions.length ? `<ul class="hl-reactions">${reactions.map((r) => reactionLine(r, ui, m)).join("")}</ul>`
+          : m.calm ? `<p class="hl-calm">✅ ${t("health.calm")} <button type="button" class="btn link" data-action="health-meal-calm" data-id="${esc(m.id)}" data-value="false">${t("health.undo")}</button></p>`
+          : `<p class="hint">${t("health.noReactionYet")}</p>`}
         ${ui.reacting === m.id ? reactionForm(m.id, null, m.time) : ""}
         <div class="actions start">
+          ${!reactions.length && !m.calm ? `<button type="button" class="btn hl-calm-btn" data-action="health-meal-calm" data-id="${esc(m.id)}" data-value="true">✅ ${t("health.calm")}</button>` : ""}
           <button type="button" class="btn soft" data-action="health-reaction-new" data-id="${esc(m.id)}">＋ ${t("health.addReaction")}</button>
           <button type="button" class="btn link" data-action="health-meal-edit" data-id="${esc(m.id)}">${t("health.edit")}</button>
         </div>
@@ -181,15 +186,23 @@ function journalTab(health, ui, today, now) {
 }
 
 function foodsTab(health) {
+  const stats = foodStats(health);
+  const statLine = (f) => {
+    const s = stats.get(f.id);
+    if (!s) return "";
+    return `<span class="hl-stats" title="${esc(t("health.stats.title"))}">🍽️ ${s.eaten} · ✅ ${s.calm} · 😮‍💨 ${s.reacted}</span>
+      ${s.hint && f.status === "unknown" ? `<span class="hl-hint-badge is-${s.hint}">${t(`health.stats.${s.hint}`)}</span>` : ""}`;
+  };
   return `<div class="hl-food-tools">
       <input type="search" class="hl-food-search" data-action="health-food-filter" placeholder="${esc(t("health.foods.search"))}" autocomplete="off">
       <p class="hint">${t("health.foods.legend")}</p>
+      <p class="hint">${t("health.stats.legend")}</p>
     </div>
     ${LEVELS.map((level) => `<section class="hl-level is-${level}">
       <h2>${t(`health.level.${level}`)}</h2>
       <p class="hint">${t(`health.levelHint.${level}`)}</p>
       <ul class="hl-foods">${health.foods.filter((f) => f.level === level).map((f) => `<li class="hl-food is-${f.status}" data-search="${esc(f.name.toLowerCase())}">
-        <span class="hl-food-name">${esc(f.name)} <span class="hint">· ${t(`health.group.${f.group}`)}</span></span>
+        <span class="hl-food-name">${esc(f.name)} <span class="hint">· ${t(`health.group.${f.group}`)}</span>${statLine(f)}</span>
         <span class="hl-choice is-small" role="group" aria-label="${esc(f.name)}">${["ok", "unknown", "react"].map((s) => `<button type="button" class="${f.status === s ? "active" : ""}" aria-pressed="${f.status === s}"
           data-action="health-food-status" data-id="${esc(f.id)}" data-value="${s}" title="${esc(t(`health.status.${s}`))}">${STATUS_ICONS[s]}</button>`).join("")}</span>
         <button type="button" class="hl-icon" data-action="health-food-list" data-id="${esc(f.id)}" aria-label="${esc(t("health.toList"))}" title="${esc(t("health.toList"))}">🛒</button>
