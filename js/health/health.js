@@ -175,6 +175,28 @@ export function updateReaction(health, id, fields) {
   return { ...health, reactions: health.reactions.map((r) => (r.id === id ? normalizeReaction({ ...r, ...fields, id }, ids) ?? r : r)) };
 }
 
+// Heure de fin d'une réaction (début + durée), « 12:52 » ; null tant qu'elle dure
+export function reactionEnd(r) {
+  if (!r.time || r.minutes === null) return null;
+  const t = (Number(r.time.slice(0, 2)) * 60 + Number(r.time.slice(3)) + r.minutes) % 1440;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+}
+
+// Durée en minutes entre deux heures (fin après minuit : le lendemain)
+export function minutesBetween(start, end) {
+  if (!HM.test(start) || !HM.test(end)) return null;
+  const a = Number(start.slice(0, 2)) * 60 + Number(start.slice(3));
+  const b = Number(end.slice(0, 2)) * 60 + Number(end.slice(3));
+  return (b - a + 1440) % 1440;
+}
+
+// Aliments les plus souvent mangés (les plus fréquents d'abord), pour les choisir plus vite
+export function frequentFoods(health, limit = 12) {
+  const count = new Map();
+  for (const m of health.meals) for (const id of m.foods) count.set(id, (count.get(id) ?? 0) + 1);
+  return [...count].sort((a, b) => b[1] - a[1]).map(([id]) => health.foods.find((f) => f.id === id)).filter(Boolean).slice(0, limit);
+}
+
 // Fin de la réaction : durée depuis son début
 export function stopReaction(health, id, date, time) {
   const r = health.reactions.find((x) => x.id === id);

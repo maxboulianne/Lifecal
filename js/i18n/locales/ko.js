@@ -1152,4 +1152,11 @@ export default {
   "nudge.health.reintro": "건강: 3단계가 시작됩니다. 다시 먹을 첫 음식을 고르세요.",
   "nudge.health.result": "건강: «{food}» 시험이 끝났습니다. 괜찮았나요?",
   "nudge.health.next": "건강: 다음 음식을 시험할 준비가 되었나요?",
+  "health.meal.start": "식사 시작 시간",
+  "health.meal.foods": "이번 식사의 음식",
+  "health.meal.noneYet": "아직 고른 음식이 없습니다: 아래 그룹에서 눌러 고르세요.",
+  "health.meal.frequent": "자주 먹는 음식",
+  "health.meal.newFood": "다른 음식…",
+  "health.react.start": "시작",
+  "health.react.end": "끝 (계속 중이면 비워 두기)",
 };

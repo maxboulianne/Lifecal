@@ -1152,4 +1152,11 @@ export default {
   "nudge.health.reintro": "Sức khỏe: bắt đầu giai đoạn 3. Chọn món đầu tiên để ăn lại.",
   "nudge.health.result": "Sức khỏe: đã thử xong «{food}». Chịu được không?",
   "nudge.health.next": "Sức khỏe: sẵn sàng thử món tiếp theo?",
+  "health.meal.start": "Giờ bắt đầu bữa ăn",
+  "health.meal.foods": "Thực phẩm của bữa ăn",
+  "health.meal.noneYet": "Chưa chọn món nào: chạm vào chúng trong các nhóm bên dưới.",
+  "health.meal.frequent": "Hay ăn",
+  "health.meal.newFood": "Món khác…",
+  "health.react.start": "Bắt đầu",
+  "health.react.end": "Kết thúc (để trống nếu vẫn còn)",
 };
