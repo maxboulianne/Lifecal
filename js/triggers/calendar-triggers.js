@@ -6,11 +6,12 @@ import { addDays, diffDays, parseISODate, startOfWeek, toISODate } from "../core
 import { isCancelled } from "../data/item.js";
 import { FREQ, doneInWeek, occurrencesBetween } from "../data/recurrence.js";
 import { getChecklist, progress } from "../data/checklist.js";
-import { fmt, getLanguage } from "../i18n/index.js";
+import { fmt, getLanguage, t } from "../i18n/index.js";
 import { kindIcon, reminderPhase, upcomingEvents } from "../events/events.js";
 import { dueSoon } from "../house/house.js";
 import { currentPhase, currentTest, toTest } from "../health/health.js";
 import { foodName } from "../health/food-names.js";
+import { holidayOn } from "../timesheet/holidays.js";
 
 const upcoming = (items, today, moduleId, maxDays) =>
   items
@@ -177,6 +178,7 @@ export const timesheetReminder = {
     const day = parseISODate(today).getDay();
     if (day === 0 || day === 6) return [];
     if (!timesheet.projects.some((p) => !p.archived)) return [];
+    if (holidayOn(today)) return []; // congé férié : rien à noter (voir holidayToday)
     if (timesheet.entries.some((e) => e.date === today)) return [];
     return [
       {
@@ -241,6 +243,21 @@ export const healthReminder = {
   },
 };
 
+// Congé férié du Québec aujourd'hui (en semaine) : un rappel doux, qui ouvre Mes heures
+export const holidayToday = {
+  id: "conge-ferie",
+  kind: "calendar",
+  evaluate({ today }) {
+    const h = holidayOn(today);
+    const day = parseISODate(today).getDay();
+    if (!h || day === 0 || day === 6) return [];
+    return [{
+      id: `conge-ferie:${today}`, tone: "soft", icon: "⚜️", messageKey: "nudge.holiday", params: { name: t(`holiday.${h.key}`) }, itemIds: [],
+      actionKey: "nudge.timesheetAction", action: "open-timesheet",
+    }];
+  },
+};
+
 // Le dimanche, si la dernière copie des données date de plus d'un mois
 // (ou n'existe pas) : un rappel doux d'en faire une. Les données ne vivent
 // que sur l'appareil ; une copie les met à l'abri.
@@ -269,5 +286,5 @@ export const backupReminder = {
 };
 
 export const calendarTriggers = [
-  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, timesheetReminder, houseReminder, healthReminder, backupReminder,
+  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, timesheetReminder, houseReminder, healthReminder, holidayToday, backupReminder,
 ];

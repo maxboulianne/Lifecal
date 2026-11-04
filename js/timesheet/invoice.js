@@ -12,6 +12,7 @@ import { addDays, parseISODate, toISODate } from "../core/dates.js";
 import { FORMATS } from "../export/xlsx.js";
 import { getClient, getProject, periodEntries, projectOrder, rateFor, TPS_RATE, TVQ_RATE } from "./timesheet.js";
 import { EXPENSE_CATEGORY, expenseText, expenseTotal, expenseUnitPrice, isMileage, periodExpenses } from "./expenses.js";
+import { HOLIDAY_EN, holidaysBetween } from "./holidays.js";
 
 export const EXPENSE_CATEGORIES = ["hotel", "food", "material", "phone", "transport"];
 // Nom court de chaque colonne de frais (onglets « Frais » et « Par projet »)
@@ -29,6 +30,8 @@ export const SAMPLE_MARK = "EXEMPLE / SAMPLE";
 export const subtitleOf = (labels, d) => (d?.sample ? `${labels.subtitle}  ·  ${SAMPLE_MARK}` : labels.subtitle);
 
 export const INVOICE_LABELS = {
+  statutory: "statutory holiday",
+  statutoryLine: "Statutory holiday (Quebec)",
   title: "FACTURE",
   subtitle: "INVOICE",
   number: "No facture / Invoice #",
@@ -155,6 +158,22 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "", sam
     date: day, weekday: `${weekdayFr(day)} / ${weekdayEn(day)}`,
     lines: [...expenseLines.filter((l) => l.date === day), ...lines.filter((l) => l.date === day)],
   }));
+  // Congés fériés du Québec (lundi au vendredi) : le nom en anglais ; sans heures, une ligne à 0 h
+  const clientRate = rateFor(ts.projects.find((p) => p.clientId === clientId && !p.archived) ?? null, false);
+  for (const h of holidaysBetween(from, to)) {
+    const name = HOLIDAY_EN[h.key];
+    const day = days.find((x) => x.date === h.date);
+    if (day) {
+      day.weekday = `${day.weekday} — ${name} (${L.statutory})`;
+      day.holiday = h.key;
+    } else {
+      days.push({
+        date: h.date, weekday: `${weekdayFr(h.date)} / ${weekdayEn(h.date)} — ${name}`, holiday: h.key,
+        lines: [{ kind: "holiday", date: h.date, hours: 0, rate: clientRate, amount: 0, text: `${name} — ${L.statutoryLine}` }],
+      });
+    }
+  }
+  days.sort((a, b) => a.date.localeCompare(b.date));
   const noExpenses = () => Object.fromEntries(EXPENSE_CATEGORIES.map((c) => [c, 0]));
   const projects = [...new Set([...lines, ...expenseLines].map((l) => l.project))].sort(order);
   const summary = projects.map((project) => {
@@ -489,6 +508,18 @@ export function invoiceSheets(ts, options) {
     fill(r, 4, 10, "weekday");
     merge("D", "K");
     for (const l of day.lines) {
+      // Congé férié non travaillé : 0 h, sans ligne dans l'onglet Heures
+      if (l.kind === "holiday") {
+        r = row(16.5);
+        r[0] = { v: 0, s: "qty" };
+        r[1] = { v: "HR", s: "unit" };
+        r[2] = { v: l.rate ?? 0, s: "price" };
+        r[3] = { v: l.text, s: "desc" };
+        fill(r, 4, 9, "lineBorder");
+        merge("D", "J");
+        r[10] = { f: `A${at()}*C${at()}`, v: 0, s: "lineTotal" };
+        continue;
+      }
       if (l.kind === "expense") {
         const f = feeRow++;
         r = row(16.5);

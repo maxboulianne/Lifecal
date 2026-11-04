@@ -222,6 +222,7 @@ export class App {
 
   #localizeOccurrence(item) {
     const lang = getLanguage();
+    if (item.data?.holiday) return { ...item, title: t("holiday.title", { name: t(`holiday.${item.data.holiday}`) }) };
     const houseTask = item.data?.house && this.repo.house().tasks.find((x) => x.id === item.data.house.taskId);
     if (houseTask) return { ...item, title: HouseTx.taskTitle(houseTask, lang) };
     const key = item.data?.health?.key;
@@ -554,6 +555,13 @@ export class App {
   #detailDate = null; // date de l'occurrence affichée (fête qui revient chaque année)
 
   openItem(id, date) {
+    // Congé férié : ouvrir Mes heures à cette date
+    if (String(id).startsWith("holiday:")) {
+      this.timesheetDate = id.split(":")[2];
+      if (this.page === "timesheet") this.render();
+      else this.openPage("timesheet");
+      return;
+    }
     // Rappel du programme Santé (calculé) : ouvrir la page Santé sur le programme
     if (String(id).startsWith("health:")) {
       this.healthUi = { ...this.healthUi, tab: "program", editing: null, reacting: null };

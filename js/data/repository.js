@@ -11,6 +11,7 @@ import { STATUS, compareItems, createItem, normalizeItem, validateItem } from ".
 import { occurrencesBetween } from "./recurrence.js";
 import { houseOccurrences } from "../house/house.js";
 import { healthOccurrences } from "../health/health.js";
+import { holidaysBetweenAll } from "../timesheet/holidays.js";
 import { SCHEMA_VERSION, emptyDocument, migrate, readLegacy } from "./migrations.js";
 
 export class ValidationError extends Error {
@@ -71,8 +72,15 @@ export class Repository extends Emitter {
   between(fromISO, toISO) {
     const house = houseOccurrences(this.#doc.house, fromISO, toISO, toISODate(this.clock()));
     const health = healthOccurrences(this.#doc.health, fromISO, toISO);
+    // Congés fériés du Québec (calculés), dans le module des fêtes
+    const holidays = holidaysBetweenAll(fromISO, toISO).map((h) => ({
+      id: `holiday:${h.key}:${h.date}`, title: h.key, module: "evenement", date: h.date, time: "", place: "", lat: null, lng: null,
+      done: false, status: "active", notes: "", recurrence: null, data: { holiday: h.key }, source: { provider: "holiday", externalId: h.key, etag: null },
+      createdAt: null, updatedAt: null,
+    }));
     // Titres des rappels calculés dans la langue affichée (fourni par l'interface)
-    const local = this.localize ? [...house, ...health].map((i) => this.localize(i)) : [...house, ...health];
+    const computed = [...house, ...health, ...holidays];
+    const local = this.localize ? computed.map((i) => this.localize(i)) : computed;
     return [...occurrencesBetween(this.#doc.items, fromISO, toISO), ...local].sort(compareItems);
   }
 
