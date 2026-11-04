@@ -57,7 +57,7 @@ function lineTable(d) {
         : `<tr><td class="num">${hours(l.hours)}</td><td class="inv-unit">HR</td><td class="num">${moneyDash(l.rate)}</td>`) + `
         <td class="inv-desc">${esc(l.text)}</td><td class="num inv-strong">${moneyDash(l.amount)}</td></tr>`).join("")}
       ${day.weekEnd ? `<tr class="inv-week"><td class="num">${hours(day.weekEnd.hours)}</td><td class="inv-unit">HR</td><td></td>
-        <td class="inv-desc">${L.week} · ${esc(day.weekEnd.from)} – ${esc(day.weekEnd.to)}</td><td class="num">${money(day.weekEnd.amount)}</td></tr>` : ""}`).join("")}
+        <td class="inv-desc">${L.week} · ${esc(day.weekEnd.from)} — ${esc(day.weekEnd.to)}</td><td class="num">${money(day.weekEnd.amount)}</td></tr>` : ""}`).join("")}
     </tbody>
   </table>`;
 }

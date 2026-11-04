@@ -150,7 +150,7 @@ export function invoicePdf(d, { logo = null, measure } = {}) {
       page.line(M, y + 18, RIGHT, y + 18, { color: C.navy, width: 1.2 });
       page.text(hours(w.hours), col.qty, y + 13.5, { size: 9, bold: true, color: C.navy, align: "right" });
       page.text("HR", col.unit, y + 13.5, { size: 8, bold: true, color: C.navy, align: "center" });
-      page.text(`${L.week} · ${w.from} – ${w.to}`, col.desc, y + 13.5, { size: 8.5, bold: true, color: C.navy });
+      page.text(`${L.week} · ${w.from} — ${w.to}`, col.desc, y + 13.5, { size: 8.5, bold: true, color: C.navy });
       page.text(money(w.amount), col.total, y + 13.5, { size: 9, bold: true, color: C.navy, align: "right" });
       y += 22;
     }

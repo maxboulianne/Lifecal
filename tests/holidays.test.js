@@ -68,3 +68,22 @@ test("Facture : total des heures de chaque jour et sous-total de chaque semaine"
   assert.deepEqual(day("2026-10-16").weekEnd, { from: "2026-10-12", to: "2026-10-16", hours: 14, amount: 952 });
   assert.deepEqual(day("2026-10-19").weekEnd, { from: "2026-10-19", to: "2026-10-19", hours: 5, amount: 340 });
 });
+
+test("Facture : description de la tâche affichée pour un seul projet (exception)", () => {
+  const ts = normalizeTimesheet({
+    ...emptyTimesheet(),
+    business: { showTaskDescription: false },
+    clients: [{ id: "c", name: "Client Test" }],
+    projects: [{ id: "a", number: "P-100", clientId: "c", rate: 68, showDescription: true }, { id: "b", number: "P-200", clientId: "c", rate: 68 }],
+    entries: [
+      { date: "2026-10-13", projectId: "a", hours: 2, taskCode: "QA01", task: "Inspection" },
+      { date: "2026-10-13", projectId: "b", hours: 3, taskCode: "QA01", task: "Inspection" },
+    ],
+  });
+  assert.equal(ts.projects[0].showDescription, true);
+  assert.equal(ts.projects[1].showDescription, false);
+  const d = invoiceData(ts, { from: "2026-10-13", to: "2026-10-13", clientId: "c", number: "T-3", date: "2026-10-14" });
+  const text = (code) => d.days[0].lines.find((l) => l.project === code).text;
+  assert.match(text("P-100"), /Inspection/);
+  assert.doesNotMatch(text("P-200"), /Inspection/);
+});

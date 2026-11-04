@@ -723,6 +723,7 @@ export default {
   "ts.presenceCol.logged": "Notées (h)",
   "ts.presenceCol.gap": "Écart (h)",
   "ts.pinFirst": "Toujours en premier sur la facture",
+  "ts.projectShowDesc": "Toujours afficher la description de la tâche sur la facture (même si l'option générale est décochée)",
   "ts.monthly": "Répéter chaque mois, le {day} du mois",
   "ts.monthlyList": { one: "{count} dépense mensuelle", other: "{count} dépenses mensuelles" },
   "ts.monthlyDay": "le {day} de chaque mois",

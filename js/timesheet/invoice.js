@@ -135,7 +135,8 @@ export function invoiceData(ts, { from, to, clientId, number, date, po = "", sam
     const line = {
       // Le nom du projet, le code et la description de la tâche paraissent selon les options choisies.
       date: e.date, weekday: weekdayFr(e.date), project: projectKey(p), label: projectLabel(p, business),
-      taskCode: business.showTaskCodes ? e.taskCode : "", description: business.showTaskDescription ? e.task : "",
+      taskCode: business.showTaskCodes ? e.taskCode : "", description: business.showTaskDescription || p?.showDescription ? e.task : "",
+      showDescription: Boolean(business.showTaskDescription || p?.showDescription),
       taskDescription: e.task, work: e.work, hours: e.hours, overtime: e.overtime, rate, amount: round2(e.hours * (rate ?? 0)),
     };
     return { ...line, kind: "hours", code: e.taskCode, text: lineDescription(line) };
@@ -332,8 +333,9 @@ function hoursLineFormula(h, line, b) {
   const project = `Heures!C${h}${nameSuffix ? `&"${nameSuffix}"` : ""}`;
   const code = `Heures!D${h}`;
   const desc = `Heures!E${h}`;
-  const task = b.showTaskCodes && b.showTaskDescription ? `IF(${code}="",${desc},IF(${desc}="",${code},${code}&" : "&${desc}))`
-    : b.showTaskCodes ? code : b.showTaskDescription ? desc : "";
+  const showDesc = line.showDescription ?? b.showTaskDescription; // exception possible par projet
+  const task = b.showTaskCodes && showDesc ? `IF(${code}="",${desc},IF(${desc}="",${code},${code}&" : "&${desc}))`
+    : b.showTaskCodes ? code : showDesc ? desc : "";
   return `${project}${task ? `&IF(${task}="","","  —  "&${task})` : ""}&IF(Heures!F${h}="","","  —  "&Heures!F${h})&IF(Heures!H${h}="${OVERTIME}","  (${L.overtime})","")`;
 }
 
@@ -581,7 +583,7 @@ export function invoiceSheets(ts, options) {
       r[0] = { f: `SUM(${weekBands.join(",")})`, v: day.weekEnd.hours, s: "weekHours" };
       r[1] = { v: "HR", s: "weekUnit" };
       r[2] = { v: "", s: "weekUnit" };
-      r[3] = { v: `${L.week} · ${day.weekEnd.from} – ${day.weekEnd.to}`, s: "weekLabel" };
+      r[3] = { v: `${L.week} · ${day.weekEnd.from} — ${day.weekEnd.to}`, s: "weekLabel" };
       fill(r, 4, 9, "weekLabel");
       merge("D", "J");
       r[10] = { f: weekAmounts.length ? `SUM(${weekAmounts.join(",")})` : "0", v: day.weekEnd.amount, s: "weekMoney" };

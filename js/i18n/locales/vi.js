@@ -701,6 +701,7 @@ export default {
   "ts.presenceCol.logged": "Đã ghi (giờ)",
   "ts.presenceCol.gap": "Chênh lệch (giờ)",
   "ts.pinFirst": "Luôn đứng đầu trên hóa đơn",
+  "ts.projectShowDesc": "Luôn hiện mô tả công việc trên hóa đơn (kể cả khi tùy chọn chung đang tắt)",
   "ts.monthly": "Lặp lại mỗi tháng, vào ngày {day}",
   "ts.monthlyList": { one: "{count} chi phí hằng tháng", other: "{count} chi phí hằng tháng" },
   "ts.monthlyDay": "ngày {day} hằng tháng",
