@@ -1213,4 +1213,11 @@ export default {
   "health.menu.logged": "Refeição registrada no seu diário.",
   "health.menu.errors.dish": "Dê um nome ao prato.",
   "health.menu.dishAdded": "Prato adicionado: {name}",
+  "settings.backup": "Cópia completa (com fotos e vídeos)",
+  "settings.backupHint": "Um único arquivo com todos os seus dados e todos os arquivos do aparelho: recibos, comprovantes, fotos de suprimentos, fotos e vídeos da piscina. Salve em Arquivos, iCloud ou no computador; «Importar uma cópia» restaura em qualquer aparelho.",
+  "settings.exportJson": "Só dados (arquivo JSON leve, sem fotos nem vídeos)",
+  "settings.backupWorking": { one: "Preparando a cópia ({count} arquivo)…", other: "Preparando a cópia ({count} arquivos)…" },
+  "settings.backupDone": { one: "Cópia pronta, com {count} foto ou arquivo.", other: "Cópia pronta, com {count} fotos e arquivos." },
+  "settings.backupFailed": "Não foi possível preparar a cópia. Tente de novo; com muitos vídeos, libere um pouco de espaço.",
+  "settings.restored": "Cópia restaurada: seus dados e {files} fotos ou arquivos.",
 };

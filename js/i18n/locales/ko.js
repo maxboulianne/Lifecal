@@ -1210,4 +1210,11 @@ export default {
   "health.menu.logged": "일지에 식사를 기록했습니다.",
   "health.menu.errors.dish": "요리 이름을 입력하세요.",
   "health.menu.dishAdded": "요리 추가됨: {name}",
+  "settings.backup": "전체 백업 (사진과 동영상 포함)",
+  "settings.backupHint": "모든 데이터와 기기의 모든 파일(영수증, 증빙, 소모품 사진, 수영장 사진과 동영상)을 담은 파일 하나입니다. 파일 앱, iCloud 또는 컴퓨터에 저장하세요. «사본 가져오기»로 어느 기기에서든 복원할 수 있습니다.",
+  "settings.exportJson": "데이터만 (가벼운 JSON 파일, 사진·동영상 제외)",
+  "settings.backupWorking": { one: "백업 준비 중 (파일 {count}개)…", other: "백업 준비 중 (파일 {count}개)…" },
+  "settings.backupDone": { one: "백업 준비 완료, 사진·파일 {count}개 포함.", other: "백업 준비 완료, 사진·파일 {count}개 포함." },
+  "settings.backupFailed": "백업을 준비하지 못했습니다. 다시 시도하세요. 동영상이 많다면 저장 공간을 조금 확보하세요.",
+  "settings.restored": "백업 복원 완료: 데이터와 사진·파일 {files}개.",
 };

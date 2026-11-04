@@ -1213,4 +1213,11 @@ export default {
   "health.menu.logged": "Mahlzeit im Tagebuch erfasst.",
   "health.menu.errors.dish": "Gib dem Gericht einen Namen.",
   "health.menu.dishAdded": "Gericht hinzugefügt: {name}",
+  "settings.backup": "Vollständige Sicherung (mit Fotos und Videos)",
+  "settings.backupHint": "Eine Datei mit all deinen Daten und allen Dateien des Geräts: Belege, Nachweise, Materialfotos, Fotos und Videos vom Pool. Speichere sie in Dateien, iCloud oder auf dem Computer; „Kopie importieren“ stellt sie auf jedem Gerät wieder her.",
+  "settings.exportJson": "Nur Daten (leichte JSON-Datei, ohne Fotos und Videos)",
+  "settings.backupWorking": { one: "Sicherung wird vorbereitet ({count} Datei)…", other: "Sicherung wird vorbereitet ({count} Dateien)…" },
+  "settings.backupDone": { one: "Sicherung bereit, mit {count} Foto oder Datei.", other: "Sicherung bereit, mit {count} Fotos und Dateien." },
+  "settings.backupFailed": "Die Sicherung konnte nicht vorbereitet werden. Versuche es erneut; bei vielen Videos etwas Speicher freigeben.",
+  "settings.restored": "Sicherung wiederhergestellt: deine Daten und {files} Fotos oder Dateien.",
 };
