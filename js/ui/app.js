@@ -42,10 +42,12 @@ import { geocode } from "../travel/geocode.js";
 import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisited, cachedHotels, cachedSuggestions, destQuery, getDest, hotelsKey, suggestionsKey } from "../travel/trip.js";
 import { settingsPage } from "./pages/settings.js";
 import { housePage } from "./pages/house.js";
-import { healthPage } from "./pages/health.js";
+import { analysisName, healthPage } from "./pages/health.js";
 import * as Health from "../health/health.js";
 import { foodName } from "../health/food-names.js";
 import * as Menus from "../health/menus.js";
+import { analyzeFoods, periodOf } from "../health/analysis.js";
+import { PDF_LANGUAGES, healthReportPdf } from "../health/report-pdf.js";
 import { houseSteps } from "./components/house-steps.js";
 import * as House from "../house/house.js";
 import * as HouseTx from "../house/house-texts.js";
@@ -1058,6 +1060,26 @@ export class App {
     "health-tab": (el) => {
       this.healthUi = { ...this.healthUi, tab: el.dataset.tab, editing: null, reacting: null };
       this.render();
+    },
+    "health-an-period": (el) => {
+      this.healthUi = { ...this.healthUi, analysisDays: Number(el.dataset.days) };
+      this.#renderKeepingScroll();
+    },
+    // Rapport PDF pour le médecin (en anglais si la langue affichée n'a pas de police latine)
+    "health-report-pdf": async () => {
+      const health = this.repo.health();
+      const today = todayISO();
+      const days = [30, 90, 0].includes(this.healthUi.analysisDays) ? this.healthUi.analysisDays : 30;
+      const shown = getLanguage();
+      if (!PDF_LANGUAGES.includes(shown)) setLanguage("en");
+      let bytes;
+      try {
+        const a = analyzeFoods(health, periodOf(health, today, days));
+        bytes = healthReportPdf(health, a, { nameOf: (id) => analysisName(health, id), today, measure: this.#measure() });
+      } finally {
+        if (getLanguage() !== shown) setLanguage(shown);
+      }
+      await this.#shareFile(new File([bytes], `LifeCal-${t("health.rep.file")}-${today}.pdf`, { type: PDF_TYPE }));
     },
     // Un toucher pendant le repas : la réaction commence maintenant (rattachée au repas en cours)
     "health-react-now": async () => {

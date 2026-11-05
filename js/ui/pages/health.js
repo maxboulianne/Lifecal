@@ -2,6 +2,7 @@
 //   Journal   — « Je réagis maintenant », repas notés, réactions de chaque repas
 //   Aliments  — à privilégier / à limiter / à éviter, avec le statut personnel de chacun
 //   Programme — 3 phases : observer, calmer, réintroduire (un aliment à la fois)
+//   Analyse   — aliments suspects, aliments tolérés, tendances, rapport PDF pour le médecin
 // Couleurs des documents Maxxam. Aucun avis médical.
 
 import { addDays, parseISODate, toISODate } from "../../core/dates.js";
@@ -11,10 +12,11 @@ import {
 } from "../../health/health.js";
 import { fmt, getLanguage, t } from "../../i18n/index.js";
 import { foodName } from "../../health/food-names.js";
+import { FLAG_HOT, FLAG_SPICY, PERIODS, TIME_SLOTS, analyzeFoods, periodOf } from "../../health/analysis.js";
 import { MENU_KINDS, allDishes, dishName, dishWarnings, findDish, isSavedWeek, weekDays, weekPlan, weekStartOf } from "../../health/menus.js";
 
-const TABS = ["journal", "menus", "foods", "program"];
-const TAB_ICONS = { journal: "📓", menus: "🍽️", foods: "🥦", program: "🗓️" };
+const TABS = ["journal", "menus", "foods", "program", "analysis"];
+const TAB_ICONS = { journal: "📓", menus: "🍽️", foods: "🥦", program: "🗓️", analysis: "📊" };
 const STATUS_ICONS = { ok: "✅", unknown: "❓", react: "❌" };
 const WHERE_ICONS = { nose: "👃", mouth: "👄", both: "👃👄" };
 const KIND_ICONS = { breakfast: "🥣", lunch: "🥪", dinner: "🍽️", snack: "🍎", drink: "☕" };
@@ -278,6 +280,89 @@ function programTab(health, today) {
     <div class="actions start"><button type="button" class="btn link" data-action="health-program-stop">${t("health.program.stop")}</button></div>`;
 }
 
+// ---- Analyse des aliments suspects ----
+
+// Nom d'un élément analysé : aliment, boisson, ou particularité du repas (épicé, très chaud)
+export function analysisName(health, id) {
+  if (id === FLAG_SPICY) return `🌶️ ${t("health.meal.spicy")}`;
+  if (id === FLAG_HOT) return `🔥 ${t("health.meal.hot")}`;
+  const f = health.foods.find((x) => x.id === id);
+  return f ? fname(f) : "?";
+}
+
+function analysisRow(health, x) {
+  const pct = Math.round(x.rate * 100);
+  const f = health.foods.find((y) => y.id === x.id);
+  const details = [
+    t("health.an.reactedOf", { n: x.reacted, count: x.eaten }),
+    x.intensity !== null ? t("health.an.intensityOf", { n: fmt.decimal(x.intensity) }) : "",
+    x.delay !== null ? t("health.an.delayOf", { n: x.delay }) : "",
+  ].filter(Boolean).join(" · ");
+  return `<li class="hl-an-item">
+    <div class="hl-an-head"><strong>${esc(analysisName(health, x.id))}</strong>${f && f.status !== "unknown" ? ` <span class="hint">${STATUS_ICONS[f.status]} ${t(`health.status.${f.status}`)}</span>` : ""}<span class="hl-an-pct">${pct} %</span></div>
+    <div class="hl-an-bar" role="img" aria-label="${esc(t("health.an.rateLabel", { pct }))}" title="${esc(details)}"><span style="width:${Math.max(2, pct)}%"></span></div>
+    <p class="hint">${esc(details)}</p>
+    ${f && f.status === "unknown" ? `<button type="button" class="btn link" data-action="health-food-status" data-id="${esc(f.id)}" data-value="react">❌ ${t("health.an.markReact")}</button>` : ""}
+  </li>`;
+}
+
+function analysisTab(health, ui, today) {
+  const days = PERIODS.includes(ui.analysisDays) ? ui.analysisDays : 30;
+  const a = analyzeFoods(health, periodOf(health, today, days));
+  const x = a.totals;
+  const maxWeek = Math.max(1, ...a.weeks.map((w) => w.reactions));
+  const maxSlot = Math.max(1, ...Object.values(a.slots));
+  const tile = (value, label) => `<div><span class="hl-value">${value ?? "–"}</span><span>${label}</span></div>`;
+  return `<nav class="segmented hl-period" aria-label="${esc(t("health.an.period"))}">${PERIODS.map((d) => `<button type="button" data-action="health-an-period" data-days="${d}"
+      class="${d === days ? "active" : ""}" aria-pressed="${d === days}">${d ? t("health.an.days", { n: d }) : t("health.an.all")}</button>`).join("")}</nav>
+    <p class="hint">${esc(fmt.date(parseISODate(a.from)))} → ${esc(fmt.date(parseISODate(a.to)))}</p>
+    <section class="hl-summary">
+      ${tile(x.meals, t("health.an.meals"))}
+      ${tile(x.reactedMeals, t("health.an.reactedMeals"))}
+      ${tile(x.reactions, t("health.an.reactions"))}
+      ${tile(x.intensity === null ? null : fmt.decimal(x.intensity), t("health.sum.intensity"))}
+      ${tile(x.minutes, t("health.sum.minutes"))}
+      ${tile(x.delay, t("health.an.delay"))}
+    </section>
+    ${a.enough ? `<p class="hint">${t("health.an.baseline", { pct: Math.round(a.baseline * 100) })}</p>` : `<p class="hl-an-note">ℹ️ ${t("health.an.notEnough")}</p>`}
+    <div class="actions start"><button type="button" class="btn primary" data-action="health-report-pdf">📄 ${t("health.an.pdf")}</button></div>
+    <section class="hl-an-block is-suspect">
+      <h2>${t("health.an.suspects")}</h2>
+      <p class="hint">${t("health.an.suspectsHint")}</p>
+      ${a.suspects.length ? `<ul class="hl-an-list">${a.suspects.map((s) => analysisRow(health, s)).join("")}</ul>` : `<p>${t("health.an.noSuspect")}</p>`}
+    </section>
+    ${a.watch.length ? `<details class="hl-an-block is-watch"><summary><strong>${t("health.an.watch")}</strong> <span class="hint">(${a.watch.length})</span></summary>
+      <p class="hint">${t("health.an.watchHint")}</p>
+      <ul class="hl-an-list">${a.watch.map((s) => analysisRow(health, s)).join("")}</ul></details>` : ""}
+    <section class="hl-an-block is-safe">
+      <h2>${t("health.an.safe")}</h2>
+      <p class="hint">${t("health.an.safeHint")}</p>
+      ${a.safe.length ? `<div class="hl-chips">${a.safe.map((s) => `<span class="hl-chip is-good" title="${esc(t("health.an.safeOf", { n: s.calm, count: s.eaten }))}">✅ ${esc(analysisName(health, s.id))} · ${s.calm}</span>`).join("")}</div>`
+        : `<p>${t("health.an.noSafe")}</p>`}
+    </section>
+    <section class="hl-an-block">
+      <h2>${t("health.an.trends")}</h2>
+      <h3>${t("health.an.perWeek")}</h3>
+      <div class="hl-an-weeks" role="img" aria-label="${esc(t("health.an.perWeek"))}">${a.weeks.map((w) => `<div class="hl-an-week" title="${esc(`${short(w.from)} : ${t("health.an.weekTip", { n: w.reactions, meals: w.meals })}`)}">
+        <span class="hl-an-count">${w.reactions || ""}</span><span class="hl-an-col" style="height:${Math.round((w.reactions / maxWeek) * 100)}%"></span><span class="hl-an-label">${esc(short(w.from))}</span></div>`).join("")}</div>
+      <h3>${t("health.an.timeOfDay")}</h3>
+      <ul class="hl-an-slots">${TIME_SLOTS.map((s) => `<li><span>${t(`health.an.slot.${s}`)}</span>
+        <span class="hl-an-bar is-navy"><span style="width:${Math.round((a.slots[s] / maxSlot) * 100)}%"></span></span><strong>${a.slots[s]}</strong></li>`).join("")}</ul>
+      <p class="hint">${WHERE.map((w) => `${WHERE_ICONS[w]} ${t(`health.where.${w}`)} : ${a.where[w]}`).join(" · ")}</p>
+    </section>
+    ${a.notable.length ? `<section class="hl-an-block">
+      <h2>${t("health.an.notable")}</h2>
+      <ul class="hl-an-meals">${a.notable.map(({ meal: m, reactions }) => `<li>
+        <div class="hl-meal-head"><strong>${esc(short(m.date))} · ${KIND_ICONS[m.kind]} ${t(`health.kind.${m.kind}`)}</strong><span class="hint">${esc(hm(m.time))}</span></div>
+        <p>${esc([...m.foods, ...(m.drinks ?? []).map((d) => d.foodId).filter(Boolean)].map((id) => analysisName(health, id)).concat(m.text && !m.foods.length ? [m.text] : []).join(", ") || "–")}${m.spicy ? " · 🌶️" : ""}${m.hot ? " · 🔥" : ""}</p>
+        <ul class="hl-reactions">${reactions.map((r) => {
+          const end = reactionEnd(r);
+          return `<li class="hl-reaction"><span>${WHERE_ICONS[r.where]} ${t(`health.where.${r.where}`)} · <strong>${r.intensity}/5</strong>${r.time ? ` · ${esc(hm(r.time))}${end ? ` → ${esc(hm(end))}` : ""}` : ""}</span></li>`;
+        }).join("")}</ul>
+      </li>`).join("")}</ul>
+    </section>` : ""}`;
+}
+
 // ---- Menus de la semaine ----
 
 const dayLabel = (iso) => fmt.longDate(parseISODate(iso));
@@ -343,10 +428,11 @@ export const healthPage = {
     const d = new Date();
     const now = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     const body = tab === "foods" ? foodsTab(health) : tab === "program" ? programTab(health, today)
-      : tab === "menus" ? menusTab(health, healthUi, today) : journalTab(health, healthUi, today, now);
+      : tab === "menus" ? menusTab(health, healthUi, today) : tab === "analysis" ? analysisTab(health, healthUi, today)
+      : journalTab(health, healthUi, today, now);
     return `<div class="page health">
       <nav class="segmented hl-tabs" aria-label="${esc(t("nav.health"))}">${TABS.map((x) => `<button type="button" data-action="health-tab" data-tab="${x}"
-        class="${x === tab ? "active" : ""}" aria-pressed="${x === tab}">${TAB_ICONS[x]} ${t(`health.tab.${x}`)}</button>`).join("")}</nav>
+        class="${x === tab ? "active" : ""}" aria-pressed="${x === tab}"><span class="hl-tab-icon" aria-hidden="true">${TAB_ICONS[x]}</span><span>${t(`health.tab.${x}`)}</span></button>`).join("")}</nav>
       ${body}
       <details class="hl-disclaimer"><summary>⚕️ ${t("health.disclaimer")}</summary><p>${t("health.redFlags")}</p></details>
     </div>`;
