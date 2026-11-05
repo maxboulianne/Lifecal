@@ -1523,6 +1523,9 @@ img.house-step-file { background: var(--pale); }
 /* ---- Santé : réactions aux aliments (couleurs des documents Maxxam) ---- */
 .health { --navy: #2c4a6e; --orange: #e0491a; --pale: #eef2f7; --amber: #b7791f; display: grid; gap: 14px; }
 .hl-tabs button.active { background: var(--navy); color: #fff; }
+.hl-tabs { width: 100%; box-sizing: border-box; }
+.hl-tabs button { flex: 1 1 0; min-width: 0; padding: 5px 2px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.78rem; line-height: 1.15; overflow-wrap: break-word; }
+.hl-tab-icon { font-size: 1.15rem; line-height: 1; }
 .hl-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .hl-actions .btn { flex: 1 1 220px; min-height: 56px; font-size: 1.05rem; }
 .health .btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
@@ -1662,4 +1665,40 @@ img.house-step-file { background: var(--pale); }
   .ts-holiday { background: #232c37; color: #e6ebf1; }
   .ts-holiday strong { color: #9fb7d6; }
   .ts-holiday.is-worked { background: #3d211e; }
+}
+
+/* Santé : analyse des aliments suspects */
+.hl-period { justify-self: start; }
+.hl-period button.active { background: var(--navy); color: #fff; }
+.hl-an-note { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--pale); color: var(--navy); }
+.hl-an-block { display: grid; gap: 6px; }
+.hl-an-block h2 { margin: 12px 0 0; padding-bottom: 3px; border-bottom: 1px solid var(--navy); color: var(--navy); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.hl-an-block.is-suspect h2 { color: #b13b12; border-color: #b13b12; }
+.hl-an-block.is-safe h2 { color: #2f7a4b; border-color: #2f7a4b; }
+.hl-an-block h3 { margin: 8px 0 2px; font-size: 0.85rem; color: var(--muted); }
+.hl-an-block p { margin: 0; }
+details.hl-an-block > summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; gap: 6px; color: var(--orange); }
+.hl-an-list, .hl-an-meals, .hl-an-slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.hl-an-item { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.hl-an-item .btn.link { justify-self: start; padding: 0; min-height: 32px; }
+.hl-an-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.hl-an-pct { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hl-an-bar { display: block; height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; }
+.hl-an-bar > span { display: block; height: 100%; border-radius: 4px; background: #c2410c; }
+.hl-an-bar.is-navy > span { background: var(--navy); }
+.hl-an-weeks { display: flex; align-items: flex-end; gap: 4px; height: 130px; padding: 6px 0 0; overflow-x: auto; }
+.hl-an-week { flex: 1 0 30px; display: grid; grid-template-rows: auto 1fr auto; align-items: end; justify-items: center; height: 100%; }
+.hl-an-col { width: 70%; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--navy); }
+.hl-an-count { font-size: 0.75rem; font-weight: 700; color: var(--ink); }
+.hl-an-label { font-size: 0.68rem; color: var(--muted); white-space: nowrap; padding-top: 3px; border-top: 1px solid var(--line); width: 100%; text-align: center; }
+.hl-an-slots li { display: grid; grid-template-columns: minmax(90px, 9em) 1fr 2.2em; align-items: center; gap: 8px; }
+.hl-an-slots strong { text-align: right; font-variant-numeric: tabular-nums; }
+.hl-an-meals > li { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); display: grid; gap: 4px; }
+@media (prefers-color-scheme: dark) {
+  .hl-an-block h2 { color: #9fb7d6; border-color: #9fb7d6; }
+  .hl-an-block.is-suspect h2 { color: #f19a8f; border-color: #f19a8f; }
+  .hl-an-block.is-safe h2 { color: #7fd19d; border-color: #7fd19d; }
+  .hl-an-note { background: #2f3b4a; color: #cfdced; }
+  .hl-an-bar > span { background: #f08a5d; }
+  .hl-an-bar.is-navy > span, .hl-an-col { background: #9fb7d6; }
 }
