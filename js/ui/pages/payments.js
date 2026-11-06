@@ -1,4 +1,5 @@
-// Page « Paiements » : les échéances du mois (entreprise et personnelles), celles en retard,
+// Page « Finances » : onglets Paiements et Budget (voir budget.js).
+// Onglet « Paiements » : les échéances du mois (entreprise et personnelles), celles en retard,
 // « ✓ Payé » avec le montant réel, la liste des paiements à faire (ajout, modification, historique)
 // et des modèles prêts (DAS, TPS/TVQ, sa paie aux 2 semaines…).
 
@@ -7,6 +8,8 @@ import { esc } from "../../core/dom.js";
 import { fmt, t } from "../../i18n/index.js";
 import { FREQS, KINDS, SCOPES, TEMPLATES, dueDates, history, overdue, schedule, totals } from "../../payments/payments.js";
 import { taxReportData } from "../../timesheet/tax-report.js";
+import { paymentCategory } from "../../budget/budget.js";
+import { budgetTab, categoryName } from "./budget.js";
 import { quarterOf, shiftQuarter } from "../../timesheet/taxes.js";
 
 const SCOPE_ICONS = { business: "🏢", personal: "🏠" };
@@ -91,7 +94,7 @@ function dueRow(row, ui, estimate, today) {
   </li>`;
 }
 
-function paymentForm(p, draft, today) {
+function paymentForm(p, draft, today, budget) {
   const v = p ?? draft ?? { name: "", scope: "personal", kind: "bill", freq: "monthly", start: today, lastDay: false, amount: null, auto: false, remindDays: 3, note: "" };
   const opt = (list, cur, prefix) => list.map((x) => `<option value="${x}" ${x === cur ? "selected" : ""}>${t(`${prefix}.${x}`)}</option>`).join("");
   return `<form class="form pay-edit" data-role="pay-edit" data-id="${esc(p?.id ?? "")}">
@@ -112,6 +115,10 @@ function paymentForm(p, draft, today) {
       <label>${t("pay.remind")} <select name="remindDays">${REMIND.map((n) => `<option value="${n}" ${n === v.remindDays ? "selected" : ""}>${n ? t("pay.remindDays", { count: n }) : t("pay.remindSameDay")}</option>`).join("")}</select></label>
     </div>
     <label class="switch"><input type="checkbox" name="auto" ${v.auto ? "checked" : ""}><span>🔁 ${t("pay.auto")}</span></label>
+    ${budget ? `<label>${t("pay.budgetCategory")} <select name="budgetCategory">
+      <option value="">${esc(t("pay.budgetAuto", { name: categoryName(budget.categories.find((c) => c.id === paymentCategory(budget, { ...v, budgetCategory: "" }))) }))}</option>
+      ${budget.categories.map((c) => `<option value="${esc(c.id)}" ${c.id === v.budgetCategory ? "selected" : ""}>${c.icon} ${esc(categoryName(c))}</option>`).join("")}
+    </select></label>` : ""}
     <label>${t("pay.note")} <input name="note" value="${esc(v.note)}" autocomplete="off"></label>
     <div class="actions start">
       <button type="submit" class="btn primary">${t("pay.save")}</button>
@@ -121,8 +128,8 @@ function paymentForm(p, draft, today) {
   </form>`;
 }
 
-function paymentLine(payments, p, ui, today, estimate) {
-  if (ui.editing === p.id) return `<li class="pay-item is-editing">${paymentForm(p, null, today)}</li>`;
+function paymentLine(payments, p, ui, today, estimate, budget) {
+  if (ui.editing === p.id) return `<li class="pay-item is-editing">${paymentForm(p, null, today, budget)}</li>`;
   const next = dueDates(p, today, toISODate(addDays(parseISODate(today), 400)))[0];
   const amount = p.amount !== null ? fmt.money(p.amount) : next ? expectedText({ payment: p, due: next.due }, estimate) : t("pay.variable");
   const past = history(payments, p.id);
@@ -149,6 +156,8 @@ export const paymentsPage = {
   title: () => t("nav.payments"),
   render({ repo, today, paymentsUi = {} }) {
     const payments = repo.payments();
+    const budget = repo.budget();
+    const tab = paymentsUi.tab === "budget" ? "budget" : "payments";
     const ts = repo.timesheet();
     const estimate = taxEstimator(ts);
     const key = paymentsUi.month ?? monthKey(today);
@@ -160,13 +169,18 @@ export const paymentsPage = {
     const ui = paymentsUi;
     const tile = (value, label) => `<div><span class="pay-value">${value}</span><span>${label}</span></div>`;
     const empty = !payments.list.length;
-    return `<div class="page payments">
-      <div class="pay-month-nav">
+    const tabs = `<nav class="segmented pay-tabs" aria-label="${esc(t("nav.payments"))}">${["payments", "budget"].map((x) => `<button type="button" data-action="pay-tab" data-tab="${x}"
+      class="${x === tab ? "active" : ""}" aria-pressed="${x === tab}">${x === "payments" ? "💳" : "📊"} ${t(`pay.tab.${x}`)}</button>`).join("")}</nav>`;
+    const monthNav = `<div class="pay-month-nav">
         <button type="button" class="btn soft" data-action="pay-month" data-shift="-1" aria-label="${esc(t("pay.prevMonth"))}">‹</button>
         <strong>${esc(fmt.monthYear(parseISODate(from)))}</strong>
         <button type="button" class="btn soft" data-action="pay-month" data-shift="1" aria-label="${esc(t("pay.nextMonth"))}">›</button>
         ${key !== monthKey(today) ? `<button type="button" class="btn link" data-action="pay-month" data-shift="0">${t("pay.thisMonth")}</button>` : ""}
-      </div>
+      </div>`;
+    if (tab === "budget") return `<div class="page payments">${tabs}${monthNav}${budgetTab({ budget, payments, ui, today, month: key })}</div>`;
+    return `<div class="page payments">
+      ${tabs}
+      ${monthNav}
       ${empty ? `<p class="pay-intro">${t("pay.intro")}</p>` : `<section class="pay-summary">
         ${tile(fmt.money(sum.planned), t("pay.sum.planned"))}
         ${tile(fmt.money(sum.paid), t("pay.sum.paid"))}
@@ -182,9 +196,9 @@ export const paymentsPage = {
         <h2>${t("pay.mine")}</h2>
         ${SCOPES.map((s) => {
           const list = payments.list.filter((p) => p.scope === s);
-          return list.length ? `<h3>${SCOPE_ICONS[s]} ${t(`pay.scope.${s}`)}</h3><ul class="pay-list">${list.map((p) => paymentLine(payments, p, ui, today, estimate)).join("")}</ul>` : "";
+          return list.length ? `<h3>${SCOPE_ICONS[s]} ${t(`pay.scope.${s}`)}</h3><ul class="pay-list">${list.map((p) => paymentLine(payments, p, ui, today, estimate, budget)).join("")}</ul>` : "";
         }).join("")}
-        ${ui.editing === "new" ? paymentForm(null, ui.draft, today) : `<div class="actions start">
+        ${ui.editing === "new" ? paymentForm(null, ui.draft, today, budget) : `<div class="actions start">
           <button type="button" class="btn primary" data-action="pay-new">＋ ${t("pay.add")}</button>
         </div>
         <p class="hint">${t("pay.templatesHint")}</p>

@@ -1753,3 +1753,57 @@ details.hl-an-block > summary { cursor: pointer; min-height: 40px; display: flex
   .pay-state.is-late { background: #3d211e; color: #f19a8f; }
   .pay-state.is-soon { background: #3a2f17; color: #f0c46a; }
 }
+
+/* Finances : onglets, et Budget (prévu et réel par catégorie) */
+.pay-tabs { justify-self: start; }
+.pay-tabs button.active { background: var(--navy); color: #fff; }
+.bg-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px; border-radius: var(--radius); background: var(--navy); color: #fff; }
+@media (min-width: 640px) { .bg-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.bg-tile { display: grid; gap: 2px; }
+.bg-tile-label { font-size: 0.82rem; color: #dbe4ef; }
+.bg-tile strong { font-size: 1.25rem; color: #ffb08f; font-variant-numeric: tabular-nums; }
+.bg-tile.is-negative strong { color: #ff9a8a; }
+.bg-tile-planned { font-size: 0.78rem; color: #c9d4e2; }
+.bg-import { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.bg-group { display: grid; gap: 6px; }
+.bg-group > h2 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 8px 0 0; padding-bottom: 3px; border-bottom: 1px solid var(--navy); color: var(--navy); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.bg-group > h2 span { text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.bg-group.is-todo > h2 { color: #b45309; border-color: #b45309; }
+.bg-cats, .bg-lines, .bg-cat-edit { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bg-cat { display: grid; gap: 4px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.bg-cat.is-over { border-color: #e7a38c; }
+.bg-cat-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; width: 100%; min-height: 36px; padding: 0; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.bg-cat-figures { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bg-bar { display: block; height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; }
+.bg-bar > span { display: block; height: 100%; border-radius: 4px; background: var(--navy); }
+.bg-cat.is-over .bg-bar > span { background: #c2410c; }
+.bg-bar.is-income > span { background: #2f7a4b; }
+.bg-over { margin: 0; font-size: 0.82rem; font-weight: 600; color: #b13b12; }
+.bg-line { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 8px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
+.bg-group.is-todo .bg-line { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.bg-line-desc { overflow-wrap: anywhere; }
+.bg-line-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bg-line-amount.is-in { color: #2f7a4b; }
+.bg-line-tools { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.bg-line-tools select { flex: 1; min-width: 0; min-height: 36px; }
+.bg-line-tools select.is-todo { border-color: #b45309; }
+.bg-kind { display: inline-flex; gap: 4px; }
+.bg-kind label { display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border-radius: 9px; cursor: pointer; }
+.bg-kind label:has(input:checked) { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+.bg-settings { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 0 12px; }
+.bg-settings > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; color: var(--navy); }
+.bg-settings[open] { padding-bottom: 12px; display: grid; gap: 8px; }
+.bg-settings h3 { margin: 6px 0 0; font-size: 0.85rem; color: var(--muted); }
+.bg-cat-edit li { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) 6.5em auto; gap: 6px; align-items: center; }
+.bg-cat-edit input { min-width: 0; min-height: 38px; }
+.bg-cat-edit input[inputmode=decimal] { text-align: right; }
+.bg-transfers > summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; color: var(--muted); font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  .bg-group > h2, .bg-settings > summary { color: #9fb7d6; border-color: #9fb7d6; }
+  .bg-group.is-todo > h2 { color: #f0c46a; border-color: #f0c46a; }
+  .bg-bar > span { background: #9fb7d6; }
+  .bg-bar.is-income > span, .bg-line-amount.is-in { color: #7fd19d; }
+  .bg-bar.is-income > span { background: #7fd19d; }
+  .bg-over { color: #f19a8f; }
+  .bg-cat.is-over .bg-bar > span { background: #f08a5d; }
+}
