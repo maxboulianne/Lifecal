@@ -6,7 +6,7 @@
 import { addDays, parseISODate, toISODate } from "../../core/dates.js";
 import { esc } from "../../core/dom.js";
 import { fmt, t } from "../../i18n/index.js";
-import { FREQS, KINDS, SCOPES, TEMPLATES, dueDates, history, overdue, schedule, totals } from "../../payments/payments.js";
+import { FREQS, KINDS, PROVIDERS, SCOPES, TEMPLATES, dueDates, history, overdue, schedule, totals } from "../../payments/payments.js";
 import { taxReportData } from "../../timesheet/tax-report.js";
 import { paymentCategory } from "../../budget/budget.js";
 import { budgetTab, categoryName } from "./budget.js";
@@ -80,7 +80,7 @@ function dueRow(row, ui, estimate, today) {
     : `<span class="pay-state is-${row.state}">${fmt.inDays(row.days)}</span>`;
   return `<li class="pay-row is-${row.state}" id="pay-${esc(key)}">
     <div class="pay-row-head">
-      <span class="pay-name">${SCOPE_ICONS[p.scope]} ${KIND_ICONS[p.kind]} <strong>${esc(p.name)}</strong></span>
+      <span class="pay-name">${SCOPE_ICONS[p.scope]} ${KIND_ICONS[p.kind]} <strong>${esc(p.name)}</strong>${p.provider ? ` <span class="pay-provider">${esc(p.provider)}</span>` : ""}</span>
       <span class="pay-amount">${esc(row.paid?.amount != null ? fmt.money(row.paid.amount) : expectedText(row, estimate))}</span>
     </div>
     <div class="pay-row-meta">
@@ -95,11 +95,15 @@ function dueRow(row, ui, estimate, today) {
 }
 
 function paymentForm(p, draft, today, budget) {
-  const v = p ?? draft ?? { name: "", scope: "personal", kind: "bill", freq: "monthly", start: today, lastDay: false, amount: null, auto: false, remindDays: 3, note: "" };
+  const v = p ?? draft ?? { name: "", provider: "", scope: "personal", kind: "bill", freq: "monthly", start: today, lastDay: false, amount: null, auto: false, remindDays: 3, note: "" };
   const opt = (list, cur, prefix) => list.map((x) => `<option value="${x}" ${x === cur ? "selected" : ""}>${t(`${prefix}.${x}`)}</option>`).join("");
   return `<form class="form pay-edit" data-role="pay-edit" data-id="${esc(p?.id ?? "")}">
     <h2>${p ? t("pay.editTitle") : t("pay.addTitle")}</h2>
-    <label>${t("pay.name")} <input name="name" value="${esc(v.name)}" required autocomplete="off" placeholder="${esc(t("pay.nameHint"))}"></label>
+    <div class="row">
+      <label>${t("pay.name")} <input name="name" value="${esc(v.name)}" required autocomplete="off" placeholder="${esc(t("pay.nameHint"))}"></label>
+      <label>${t("pay.provider")} <input name="provider" value="${esc(v.provider ?? "")}" list="pay-providers" autocomplete="off" placeholder="${esc(t("pay.providerHint"))}"></label>
+    </div>
+    <datalist id="pay-providers">${PROVIDERS.map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist>
     <div class="row">
       <label>${t("pay.scopeLabel")} <select name="scope">${SCOPES.map((s) => `<option value="${s}" ${s === v.scope ? "selected" : ""}>${SCOPE_ICONS[s]} ${t(`pay.scope.${s}`)}</option>`).join("")}</select></label>
       <label>${t("pay.kindLabel")} <select name="kind">${opt(KINDS, v.kind, "pay.kind")}</select></label>
@@ -137,7 +141,7 @@ function paymentLine(payments, p, ui, today, estimate, budget) {
   const yearTotal = past.filter((x) => x.due.startsWith(year)).reduce((s, x) => s + (x.amount ?? 0), 0);
   return `<li class="pay-item ${p.active ? "" : "is-off"}">
     <div class="pay-row-head">
-      <span class="pay-name">${KIND_ICONS[p.kind]} <strong>${esc(p.name)}</strong></span>
+      <span class="pay-name">${KIND_ICONS[p.kind]} <strong>${esc(p.name)}</strong>${p.provider ? ` <span class="pay-provider">${esc(p.provider)}</span>` : ""}</span>
       <span class="pay-amount">${esc(amount)}</span>
     </div>
     <p class="hint">${t(`pay.freq.${p.freq}`)}${p.lastDay ? ` · ${t("pay.lastDayShort")}` : ""}${p.auto ? ` · 🔁 ${t("pay.autoShort")}` : ""}${next ? ` · ${t("pay.next", { date: date(next.due) })}` : ""}</p>

@@ -79,3 +79,21 @@ test("Paiements : modèles (DAS, TPS/TVQ) et calendrier", () => {
   assert.deepEqual(migrate({ schemaVersion: 4, items: [] }).payments, { list: [], paid: [] });
   assert.equal(migrate({ schemaVersion: 4, items: [], payments: pay }).payments.list[0].name, "Bell");
 });
+
+test("Paiements : le fournisseur s'affiche avec le nom (calendrier, budget)", async () => {
+  const { paymentLabel } = await import("../js/payments/payments.js");
+  const { emptyBudget, paymentCategory, monthActuals } = await import("../js/budget/budget.js");
+  let pay = add(normalizePayments({}), { name: "Internet et télé", provider: "Bell", kind: "bill", freq: "monthly", start: "2026-11-12", amount: 95 });
+  pay = add(pay, { name: "Électricité", provider: "Hydro-Québec", kind: "bill", freq: "monthly", start: "2026-11-20" });
+  const [net, hydro] = pay.list;
+  assert.equal(net.provider, "Bell");
+  assert.equal(paymentLabel(net), "Internet et télé — Bell");
+  assert.equal(paymentLabel({ name: "Loyer", provider: "" }), "Loyer");
+  assert.equal(paymentOccurrences(pay, "2026-11-01", "2026-11-30", "2026-11-06")[0].title, "Internet et télé — Bell");
+  // Le fournisseur aide à choisir la catégorie du budget
+  assert.equal(paymentCategory(emptyBudget(), net), "c-phone");
+  assert.equal(paymentCategory(emptyBudget(), hydro), "c-electricity");
+  pay = markPaid(pay, net.id, "2026-11-12", { date: "2026-11-12" });
+  const m = monthActuals(emptyBudget(), "2026-11", [{ payment: net, paid: pay.paid[0] }]);
+  assert.equal(m.rows.find((r) => r.category.id === "c-phone").lines[0].description, "Internet et télé — Bell");
+});

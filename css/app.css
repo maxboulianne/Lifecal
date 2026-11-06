@@ -1807,3 +1807,5 @@ details.hl-an-block > summary { cursor: pointer; min-height: 40px; display: flex
   .bg-over { color: #f19a8f; }
   .bg-cat.is-over .bg-bar > span { background: #f08a5d; }
 }
+.pay-provider { font-weight: 500; color: var(--muted); }
+.pay-provider::before { content: "· "; }

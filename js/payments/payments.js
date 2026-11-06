@@ -5,7 +5,7 @@
 // dans le code).
 //
 // Rangé dans le document : payments = { list, paid }
-//   paiement : { id, name, scope: "business"|"personal", kind, freq, start: date de la première échéance,
+//   paiement : { id, name (ex. « Internet et télé »), provider (fournisseur, ex. « Bell »), scope: "business"|"personal", kind, freq, start: date de la première échéance,
 //                lastDay: true = le dernier jour du mois, amount: nombre ou null (variable), auto: prélèvement
 //                automatique, remindDays, note, active, budgetCategory }
 //   payé     : { id, paymentId, due: échéance, date: payé le, amount, note }
@@ -34,11 +34,22 @@ function money(v) {
 
 export const emptyPayments = () => ({ list: [], paid: [] });
 
+// Nom affiché : « Internet et télé — Bell » (le fournisseur, s'il est noté)
+export const paymentLabel = (p) => (p?.provider ? `${p.name} — ${p.provider}` : p?.name ?? "");
+
+// Fournisseurs courants au Québec, proposés pendant la saisie (on peut en écrire un autre)
+export const PROVIDERS = [
+  "Bell", "Vidéotron", "Virgin Plus", "Fido", "Rogers", "Telus", "Koodo", "Fizz", "Freedom Mobile", "Public Mobile", "Cogeco", "Ebox",
+  "Hydro-Québec", "Énergir", "Desjardins", "Banque TD", "Banque Nationale", "RBC", "BMO", "Banque Scotia", "CIBC", "Tangerine",
+  "American Express", "Capital One", "Intact Assurance", "Beneva", "Belairdirect", "Promutuel", "La Capitale",
+  "Agence du revenu du Canada", "Revenu Québec", "Netflix", "Spotify", "Disney+", "Crave",
+];
+
 function normalizePayment(p) {
   if (!p || !str(p.name) || !ISO.test(p.start)) return null;
   const remind = Number(p.remindDays);
   return {
-    id: str(p.id) || newId(), name: str(p.name), scope: SCOPES.includes(p.scope) ? p.scope : "personal",
+    id: str(p.id) || newId(), name: str(p.name), provider: str(p.provider), scope: SCOPES.includes(p.scope) ? p.scope : "personal",
     kind: KINDS.includes(p.kind) ? p.kind : "other", freq: FREQS.includes(p.freq) ? p.freq : "monthly", start: p.start,
     lastDay: Boolean(p.lastDay), amount: money(p.amount), auto: Boolean(p.auto),
     remindDays: Number.isInteger(remind) && remind >= 0 && remind <= 30 ? remind : 3, note: str(p.note), active: p.active !== false,
@@ -129,7 +140,7 @@ export function schedule(payments, from, to, today) {
       out.push({ payment: p, due, paid, days, state });
     }
   }
-  return out.sort((a, b) => a.due.localeCompare(b.due) || a.payment.name.localeCompare(b.payment.name));
+  return out.sort((a, b) => a.due.localeCompare(b.due) || paymentLabel(a.payment).localeCompare(paymentLabel(b.payment)));
 }
 
 // Totaux d'une liste d'échéances : prévu (montants connus), payé, reste, nombre de montants variables
@@ -207,15 +218,15 @@ const QUARTER_NEXT = [1, 4, 7, 10]; // mois qui suivent la fin de chaque trimest
 
 // key : clé de traduction du nom ; le reste pré-remplit le formulaire
 export const TEMPLATES = [
-  { key: "dasFederal", scope: "business", kind: "das", freq: "monthly", start: (today) => nextInMonths(today, ALL, 15) },
-  { key: "dasQuebec", scope: "business", kind: "das", freq: "quarterly", start: (today) => nextInMonths(today, QUARTER_NEXT, 15) },
-  { key: "salesTax", scope: "business", kind: "salesTax", freq: "quarterly", lastDay: true, start: (today) => nextInMonths(today, QUARTER_NEXT, "last") },
+  { key: "dasFederal", scope: "business", kind: "das", freq: "monthly", provider: "Agence du revenu du Canada", start: (today) => nextInMonths(today, ALL, 15) },
+  { key: "dasQuebec", scope: "business", kind: "das", freq: "quarterly", provider: "Revenu Québec", start: (today) => nextInMonths(today, QUARTER_NEXT, 15) },
+  { key: "salesTax", scope: "business", kind: "salesTax", freq: "quarterly", lastDay: true, provider: "Revenu Québec", start: (today) => nextInMonths(today, QUARTER_NEXT, "last") },
   { key: "myPay", scope: "business", kind: "pay", freq: "biweekly", start: (today) => today },
   { key: "businessCard", scope: "business", kind: "card", freq: "monthly", start: (today) => today },
   { key: "creditCard", scope: "personal", kind: "card", freq: "monthly", start: (today) => today },
   { key: "phone", scope: "personal", kind: "bill", freq: "monthly", start: (today) => today },
   { key: "internet", scope: "personal", kind: "bill", freq: "monthly", start: (today) => today },
-  { key: "electricity", scope: "personal", kind: "bill", freq: "monthly", start: (today) => today },
+  { key: "electricity", scope: "personal", kind: "bill", freq: "monthly", provider: "Hydro-Québec", start: (today) => today },
   { key: "housing", scope: "personal", kind: "loan", freq: "monthly", start: (today) => nextInMonths(today, ALL, 1) },
   { key: "insurance", scope: "personal", kind: "bill", freq: "monthly", start: (today) => today },
 ];
@@ -225,7 +236,7 @@ export const TEMPLATES = [
 export function paymentOccurrences(payments, from, to, today) {
   if (!payments?.list?.length) return [];
   return schedule(payments, from, to, today).map(({ payment: p, due, paid }) => ({
-    id: `payment:${p.id}:${due}`, title: p.name, module: PAYMENT_MODULE, date: due, time: "", place: "", lat: null, lng: null,
+    id: `payment:${p.id}:${due}`, title: paymentLabel(p), module: PAYMENT_MODULE, date: due, time: "", place: "", lat: null, lng: null,
     done: Boolean(paid), status: "active", notes: "", recurrence: null, data: { payment: { id: p.id, due } },
     source: { provider: "payment", externalId: p.id, etag: null }, createdAt: null, updatedAt: null,
   }));

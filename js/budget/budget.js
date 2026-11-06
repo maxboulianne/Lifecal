@@ -16,6 +16,7 @@
 
 import { newId } from "../data/item.js";
 import { merchantKey } from "../timesheet/purchases.js";
+import { paymentLabel } from "../payments/payments.js";
 
 export const GROUPS = ["income", "fixed", "variable", "savings", "transfer"];
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,6 +60,14 @@ const KEYWORDS = [
   ["travel", /AIR CANADA|AIR TRANSAT|WESTJET|PORTER|SUNWING|EXPEDIA|BOOKING|AIRBNB|H[ÔO]TEL|HOTEL|MARRIOTT|HILTON/i],
   ["leisure", /\bSAQ\b|CIN[ÉE]MA|CINEPLEX|BILLET|TICKETMASTER|SPORT|GYM|\bSKI\b|GOLF|MUS[ÉE]E/i],
   ["shopping", /AMAZON|AMZN|WINNERS|SIMONS|BEST BUY|APPLE STORE|SPORT CHEK|ARDENE|H&M|UNIQLO|LA MAISON SIMONS/i],
+];
+
+// Noms de paiements (pas des relevés : « PAIEMENT INTERNET » y désigne un paiement fait en ligne)
+const PAYMENT_NAMES = [
+  ["phone", /INTERNET|T[ÉE]L[ÉE]|\bTV\b|CELL|PHONE|MOBILE|HANDY|CELULAR|ĐIỆN THOẠI|인터넷|휴대폰/i],
+  ["electricity", /[ÉE]LECTRICIT|CHAUFFAGE|ELECTRIC|ELETRICIDADE|STROM|HEAT|ĐIỆN|전기/i],
+  ["housing", /LOYER|HYPOTH|RENT|MORTGAGE|ALQUILER|ALUGUEL|MIETE|TIỀN THUÊ|월세/i],
+  ["insurance", /ASSURANCE|INSURANCE|SEGURO|VERSICHERUNG|BẢO HIỂM|보험/i],
 ];
 
 export function emptyBudget() {
@@ -180,8 +189,10 @@ export function paymentCategory(budget, p) {
   // Paiement de carte : sans relevé importé, c'est la meilleure mesure des achats faits avec la carte
   // (avec les relevés, les achats sont classés un à un et ce paiement n'est plus compté)
   if (p.kind === "card") return ids.has(catId("cardPurchases")) ? catId("cardPurchases") : null;
-  const guess = suggestCategory({ ...budget, rules: {} }, p.name, 1);
+  const guess = suggestCategory({ ...budget, rules: {} }, `${p.name} ${p.provider ?? ""}`, 1);
   if (guess) return guess;
+  // Noms de paiements courants (dans toutes les langues de l'application)
+  for (const [key, re] of PAYMENT_NAMES) if (re.test(p.name) && ids.has(catId(key))) return catId(key);
   if (p.kind === "loan") return catId("housing");
   return ids.has(catId("misc")) ? catId("misc") : null;
 }
@@ -217,7 +228,7 @@ export function monthActuals(budget, month, paidRows = []) {
       const amount = paid?.amount ?? p.amount;
       if (!id || amount === null) continue;
       const cat = budget.categories.find((c) => c.id === id);
-      lines.push({ id: `pay-${p.id}-${paid.due}`, date: paid.date, amount: cat?.group === "income" ? -amount : amount, categoryId: id, description: p.name, from: "payment" });
+      lines.push({ id: `pay-${p.id}-${paid.due}`, date: paid.date, amount: cat?.group === "income" ? -amount : amount, categoryId: id, description: paymentLabel(p), from: "payment" });
     }
   }
   const byCat = new Map(budget.categories.map((c) => [c.id, { category: c, actual: 0, lines: [] }]));
