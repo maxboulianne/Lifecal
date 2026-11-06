@@ -12,7 +12,7 @@ import { dueSoon } from "../house/house.js";
 import { currentPhase, currentTest, toTest } from "../health/health.js";
 import { foodName } from "../health/food-names.js";
 import { holidayOn } from "../timesheet/holidays.js";
-import { dueSoon as paymentsDue } from "../payments/payments.js";
+import { dueSoon as paymentsDue, paymentLabel } from "../payments/payments.js";
 
 const upcoming = (items, today, moduleId, maxDays) =>
   items
@@ -273,7 +273,7 @@ export const paymentReminder = {
     const messageKey = due.length > 1 ? "nudge.payments" : first.days < 0 ? "nudge.paymentLate" : "nudge.paymentOne";
     return [{
       id: `paiement:${today}:${due.length}`, tone: late ? "info" : "soft", icon: "💳", messageKey,
-      params: { count: due.length, name: first.payment.name, when: fmt.inDays(Math.max(0, first.days)), amount },
+      params: { count: due.length, name: paymentLabel(first.payment), when: fmt.inDays(Math.max(0, first.days)), amount },
       itemIds: [], actionKey: "nudge.paymentsAction", action: "open-payments",
     }];
   },

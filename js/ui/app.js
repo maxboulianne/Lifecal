@@ -1315,7 +1315,7 @@ export class App {
       const tpl = Payments.TEMPLATES.find((x) => x.key === el.dataset.key);
       if (!tpl) return;
       const today = todayISO();
-      const draft = { name: t(`pay.tpl.${tpl.key}`), scope: tpl.scope, kind: tpl.kind, freq: tpl.freq, start: tpl.start(today), lastDay: Boolean(tpl.lastDay),
+      const draft = { name: t(`pay.tpl.${tpl.key}`), provider: tpl.provider ?? "", scope: tpl.scope, kind: tpl.kind, freq: tpl.freq, start: tpl.start(today), lastDay: Boolean(tpl.lastDay),
         amount: null, auto: false, remindDays: 3, note: "" };
       this.paymentsUi = { ...this.paymentsUi, editing: "new", paying: null, draft };
       this.#renderKeepingScroll();
@@ -1327,7 +1327,7 @@ export class App {
     },
     "pay-remove": async (el) => {
       const p = this.repo.payments().list.find((x) => x.id === el.dataset.id);
-      if (!p || !confirm(t("pay.confirmRemove", { name: p.name }))) return;
+      if (!p || !confirm(t("pay.confirmRemove", { name: Payments.paymentLabel(p) }))) return;
       this.paymentsUi = { ...this.paymentsUi, editing: null };
       await this.#updatePayments(Payments.removePayment(this.repo.payments(), p.id));
     },
@@ -2162,7 +2162,7 @@ export class App {
       const amount = get("amount");
       if (amount && Payments.parseAmount(amount) === null) return toast(t("pay.errors.amount"));
       const fields = {
-        name: get("name"), scope: get("scope"), kind: get("kind"), freq: get("freq"), start: get("start"), lastDay: f.has("lastDay"),
+        name: get("name"), provider: get("provider"), scope: get("scope"), kind: get("kind"), freq: get("freq"), start: get("start"), lastDay: f.has("lastDay"),
         amount: amount || null, auto: f.has("auto"), remindDays: Number(get("remindDays")), note: get("note"), budgetCategory: get("budgetCategory"),
       };
       if (form.dataset.id) payments = Payments.updatePayment(payments, form.dataset.id, fields);

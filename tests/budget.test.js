@@ -103,3 +103,12 @@ test("Budget : catégories ajoutées et retirées, données anciennes", () => {
   assert.equal(normalizeBudget(null).categories.length, emptyBudget().categories.length);
   assert.ok(migrate({ schemaVersion: 4, items: [] }).budget.categories.length > 10);
 });
+
+test("Budget : catégorie d'un paiement d'après son nom", () => {
+  const b = emptyBudget();
+  const p = (name) => ({ name, provider: "", scope: "personal", kind: "bill" });
+  assert.equal(paymentCategory(b, p("Internet et télé")), "c-phone");
+  assert.equal(paymentCategory(b, p("Électricité")), "c-electricity");
+  assert.equal(paymentCategory(b, p("Loyer")), "c-housing");
+  assert.equal(paymentCategory(b, p("Garderie")), "c-misc");
+});
