@@ -7,7 +7,7 @@
 // Rangé dans le document : payments = { list, paid }
 //   paiement : { id, name, scope: "business"|"personal", kind, freq, start: date de la première échéance,
 //                lastDay: true = le dernier jour du mois, amount: nombre ou null (variable), auto: prélèvement
-//                automatique, remindDays, note, active }
+//                automatique, remindDays, note, active, budgetCategory }
 //   payé     : { id, paymentId, due: échéance, date: payé le, amount, note }
 //
 // Échéances du gouvernement (DAS, TPS/TVQ) : un samedi, un dimanche ou un jour férié, elles passent
@@ -42,6 +42,7 @@ function normalizePayment(p) {
     kind: KINDS.includes(p.kind) ? p.kind : "other", freq: FREQS.includes(p.freq) ? p.freq : "monthly", start: p.start,
     lastDay: Boolean(p.lastDay), amount: money(p.amount), auto: Boolean(p.auto),
     remindDays: Number.isInteger(remind) && remind >= 0 && remind <= 30 ? remind : 3, note: str(p.note), active: p.active !== false,
+    budgetCategory: str(p.budgetCategory), // catégorie du budget (vide : choisie d'après le type et le nom)
   };
 }
 

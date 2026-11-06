@@ -45,6 +45,7 @@ import { housePage } from "./pages/house.js";
 import { analysisName, healthPage } from "./pages/health.js";
 import { paymentsPage } from "./pages/payments.js";
 import * as Payments from "../payments/payments.js";
+import * as Budget from "../budget/budget.js";
 import * as Health from "../health/health.js";
 import { foodName } from "../health/food-names.js";
 import * as Menus from "../health/menus.js";
@@ -256,6 +257,8 @@ export class App {
     // La liste des transactions personnelles reste ouverte (ou fermée) d'un affichage à l'autre
     document.addEventListener("toggle", (e) => {
       if (e.target.dataset?.role === "perso-all") this.taxUi = { ...this.taxUi, persoOpen: e.target.open };
+      if (e.target.classList?.contains("bg-settings")) this.paymentsUi = { ...this.paymentsUi, budgetSettings: e.target.open };
+      if (e.target.classList?.contains("bg-transfers")) this.paymentsUi = { ...this.paymentsUi, budgetTransfers: e.target.open };
       if (e.target.classList?.contains("house-list")) this.houseUi = { ...this.houseUi, openList: e.target.open ? e.target.id.replace("house-list-", "") : null };
     }, true);
     // Roulettes d'heure et de date (iPhone, iPad) : enregistrer quand on les referme.
@@ -1257,6 +1260,39 @@ export class App {
       this.paymentsUi = { ...this.paymentsUi, month, paying: null };
       this.#renderKeepingScroll();
     },
+    "pay-tab": (el) => {
+      this.paymentsUi = { ...this.paymentsUi, tab: el.dataset.tab, editing: null, paying: null, budgetAdding: false };
+      this.render();
+    },
+    "budget-add": () => {
+      this.paymentsUi = { ...this.paymentsUi, budgetAdding: !this.paymentsUi.budgetAdding };
+      this.#renderKeepingScroll();
+      if (this.paymentsUi.budgetAdding) requestAnimationFrame(() => document.querySelector("[data-role=budget-entry] [name=amount]")?.focus());
+    },
+    "budget-open": (el) => {
+      this.paymentsUi = { ...this.paymentsUi, budgetOpen: this.paymentsUi.budgetOpen === el.dataset.id ? null : el.dataset.id };
+      this.#renderKeepingScroll();
+    },
+    "budget-entry-remove": async (el) => {
+      if (!confirm(t("budget.confirmRemoveEntry"))) return;
+      await this.#updateBudget(Budget.removeEntry(this.repo.budget(), el.dataset.id));
+    },
+    "budget-cat-remove": async (el) => {
+      const budget = this.repo.budget();
+      const c = budget.categories.find((x) => x.id === el.dataset.id);
+      if (!c || !confirm(t("budget.confirmRemoveCategory", { name: c.name || t(`budget.cat.${c.key}`) }))) return;
+      await this.#updateBudget(Budget.removeCategory(budget, c.id));
+    },
+    // Budget prévu proposé d'après les paiements à montant connu (remplace les montants de ces catégories)
+    "budget-propose": async () => {
+      const budget = this.repo.budget();
+      const proposal = Budget.plannedFromPayments(budget, this.repo.payments());
+      if (!confirm(t("budget.confirmPropose", { count: Object.keys(proposal).length }))) return;
+      let next = budget;
+      for (const [id, amount] of Object.entries(proposal)) next = Budget.updateCategory(next, id, { planned: amount });
+      await this.#updateBudget(next);
+      toast(t("budget.proposed"));
+    },
     "pay-mark": (el) => {
       this.paymentsUi = { ...this.paymentsUi, paying: `${el.dataset.id}|${el.dataset.due}`, editing: null };
       this.#renderKeepingScroll();
@@ -1727,6 +1763,7 @@ export class App {
     // qu'elle soit refermée (focusout), sinon la page se redessine et la referme trop tôt.
     if (savesOnClose(el)) return;
     if (el.dataset.action?.startsWith("ts-")) return this.#onTimesheetChange(el);
+    if (el.dataset.action?.startsWith("budget-")) return this.#onBudgetChange(el);
     if (el.form?.dataset.role === "ts-expense") return this.#syncExpenseForm(el.form, el.name === "currency");
     // Facture du registre pour un client hors de l'application : écrire son nom
     if (el.form?.dataset.role === "ts-tax-invoice" && el.name === "clientId") {
@@ -1832,7 +1869,7 @@ export class App {
     if (e.target.dataset.role?.startsWith("ts-")) return this.#onTimesheetSubmit(e);
     if (e.target.dataset.role === "price-add") return this.#addPrice(e);
     if (e.target.dataset.role?.startsWith("health-")) return this.#onHealthSubmit(e);
-    if (e.target.dataset.role?.startsWith("pay-")) return this.#onPaymentsSubmit(e);
+    if (e.target.dataset.role?.startsWith("pay-") || e.target.dataset.role?.startsWith("budget-")) return this.#onPaymentsSubmit(e);
     if (e.target.dataset.role === "house-task") return this.#saveHouseTask(e);
     if (e.target.dataset.role === "house-supply") return this.#saveHouseSupply(e);
     if (e.target.dataset.role === "house-purchase") {
@@ -2047,6 +2084,67 @@ export class App {
     }
   }
 
+  async #updateBudget(budget) {
+    const top = window.scrollY;
+    await this.repo.updateBudget(budget);
+    window.scrollTo(0, top);
+  }
+
+  // Budget : changer la catégorie d'une opération, le nom ou le montant prévu d'une catégorie, importer un relevé
+  async #onBudgetChange(el) {
+    const budget = this.repo.budget();
+    const id = el.dataset.id;
+    switch (el.dataset.action) {
+      case "budget-entry-cat":
+        if (!el.value) return undefined;
+        return this.#updateBudget(Budget.setCategory(budget, id, el.value));
+      case "budget-planned": {
+        const v = el.value.trim();
+        const n = v === "" ? null : Budget.parseMoney(v);
+        if (v !== "" && n === null) return toast(t("pay.errors.amount"));
+        return this.#updateBudget(Budget.updateCategory(budget, id, { planned: n }));
+      }
+      case "budget-cat-name": {
+        const c = budget.categories.find((x) => x.id === id);
+        const v = el.value.trim();
+        if (!c || !v) return this.render();
+        // Nom de départ inchangé : il reste traduit selon la langue
+        const shown = c.key ? t(`budget.cat.${c.key}`) : "";
+        return this.#updateBudget(Budget.updateCategory(budget, id, { name: c.key && v === shown ? "" : v }));
+      }
+      case "budget-import": {
+        const files = [...(el.files ?? [])];
+        el.value = "";
+        if (files.length) await this.#importBudgetStatements(files);
+        return undefined;
+      }
+      default:
+        return undefined;
+    }
+  }
+
+  // Relevés Desjardins dans le budget : opérations ajoutées sans doublons, classées par commerce
+  async #importBudgetStatements(files) {
+    let budget = this.repo.budget();
+    let added = 0;
+    let skipped = 0;
+    const dates = [];
+    for (const file of files) {
+      const rows = await this.#readStatementRows(file);
+      if (!rows) continue;
+      const r = Budget.importRows(budget, rows);
+      budget = r.budget;
+      added += r.added;
+      skipped += r.skipped;
+      dates.push(...rows.map((row) => row.date));
+    }
+    if (!dates.length) return;
+    // Montrer le mois du relevé
+    this.paymentsUi = { ...this.paymentsUi, month: dates.sort()[Math.floor(dates.length / 2)].slice(0, 7) };
+    await this.#updateBudget(budget);
+    toast(t("tax.statementsImported", { count: added, skipped }));
+  }
+
   async #updatePayments(payments) {
     const top = window.scrollY;
     await this.repo.updatePayments(payments);
@@ -2065,7 +2163,7 @@ export class App {
       if (amount && Payments.parseAmount(amount) === null) return toast(t("pay.errors.amount"));
       const fields = {
         name: get("name"), scope: get("scope"), kind: get("kind"), freq: get("freq"), start: get("start"), lastDay: f.has("lastDay"),
-        amount: amount || null, auto: f.has("auto"), remindDays: Number(get("remindDays")), note: get("note"),
+        amount: amount || null, auto: f.has("auto"), remindDays: Number(get("remindDays")), note: get("note"), budgetCategory: get("budgetCategory"),
       };
       if (form.dataset.id) payments = Payments.updatePayment(payments, form.dataset.id, fields);
       else {
@@ -2076,6 +2174,21 @@ export class App {
       this.paymentsUi = { ...this.paymentsUi, editing: null, draft: null };
       await this.#updatePayments(payments);
       return toast(t("pay.saved"));
+    }
+    if (form.dataset.role === "budget-entry") {
+      if (Budget.parseMoney(get("amount")) === null) return toast(t("pay.errors.amount"));
+      if (!get("categoryId")) return toast(t("budget.errors.category"));
+      const r = Budget.addEntry(this.repo.budget(), { date: get("date"), amount: get("amount"), categoryId: get("categoryId"), description: get("description"), kind: get("kind") });
+      if (!r.entry) return toast(t("pay.errors.amount"));
+      this.paymentsUi = { ...this.paymentsUi, budgetAdding: false };
+      await this.#updateBudget(r.budget);
+      return toast(t("budget.saved"));
+    }
+    if (form.dataset.role === "budget-category") {
+      const r = Budget.addCategory(this.repo.budget(), { name: get("name"), group: get("group") });
+      if (!r.category) return undefined;
+      await this.#updateBudget(r.budget);
+      return toast(t("budget.categoryAdded"));
     }
     if (form.dataset.role === "pay-paid") {
       const amount = get("amount");
@@ -2700,6 +2813,42 @@ export class App {
     openModal(importPreview(items), { labelledBy: "tax-import-title" });
   }
 
+  // Opérations d'un relevé Desjardins (CSV de la Visa ou de la Caisse, PDF de la Visa), ou null.
+  // Un PDF est vérifié : ses achats lus doivent faire le « Total » imprimé sur le relevé.
+  async #readStatementRows(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let rows;
+    if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+      let lines;
+      try {
+        const { pdfLines } = await import("../scan/pdf-text.js");
+        lines = await pdfLines(bytes);
+      } catch (err) {
+        console.error(err);
+        toast(t("tax.pdfFailed"));
+        return null;
+      }
+      const pdf = parseDesjardinsVisaPdf(lines);
+      rows = pdf.rows;
+      if (rows.length && pdf.expected !== null && Math.abs(pdf.total - pdf.expected) > 0.005) {
+        toast(t("tax.pdfMismatch", { file: file.name, found: fmt.money(pdf.total), expected: fmt.money(pdf.expected) }));
+      }
+    } else {
+      let text;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch {
+        text = new TextDecoder("windows-1252").decode(bytes); // relevés Desjardins
+      }
+      rows = parseDesjardinsCsv(text);
+    }
+    if (!rows.length) {
+      toast(t("tax.statementUnknown", { file: file.name }));
+      return null;
+    }
+    return rows;
+  }
+
   // Relevés de Desjardins (CSV de la Visa ou de la Caisse, PDF de la Visa) : transactions
   // ajoutées et classées, sans doublons. Un PDF est vérifié : ses achats lus doivent faire
   // le « Total » imprimé sur le relevé.
@@ -2709,36 +2858,8 @@ export class App {
     let skipped = 0;
     const dates = [];
     for (const file of files) {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      let rows;
-      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-        let lines;
-        try {
-          const { pdfLines } = await import("../scan/pdf-text.js");
-          lines = await pdfLines(bytes);
-        } catch (err) {
-          console.error(err);
-          toast(t("tax.pdfFailed"));
-          continue;
-        }
-        const pdf = parseDesjardinsVisaPdf(lines);
-        rows = pdf.rows;
-        if (rows.length && pdf.expected !== null && Math.abs(pdf.total - pdf.expected) > 0.005) {
-          toast(t("tax.pdfMismatch", { file: file.name, found: fmt.money(pdf.total), expected: fmt.money(pdf.expected) }));
-        }
-      } else {
-        let text;
-        try {
-          text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-        } catch {
-          text = new TextDecoder("windows-1252").decode(bytes); // relevés Desjardins
-        }
-        rows = parseDesjardinsCsv(text);
-      }
-      if (!rows.length) {
-        toast(t("tax.statementUnknown", { file: file.name }));
-        continue;
-      }
+      const rows = await this.#readStatementRows(file);
+      if (!rows) continue;
       const r = addPurchases(ts, rows, { source: source === "perso" ? "perso" : undefined });
       ts = r.ts;
       added += r.added;

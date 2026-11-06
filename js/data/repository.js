@@ -213,6 +213,15 @@ export class Repository extends Emitter {
     return this.#doc.payments;
   }
 
+  budget() {
+    return this.#doc.budget;
+  }
+
+  async updateBudget(budget) {
+    this.#doc.budget = budget;
+    await this.#commit("budget", null);
+  }
+
   async updatePayments(payments) {
     this.#doc.payments = payments;
     await this.#commit("payments", null);
