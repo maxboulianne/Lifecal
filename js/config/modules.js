@@ -59,6 +59,13 @@ export const MODULES = {
     icon: "🩺",
     features: ["maintenance"],
   },
+  // Paiements à faire (entreprise et personnels) : échéances calculées depuis la page Paiements
+  paiement: {
+    id: "paiement",
+    color: "#a16207", // doré (l'argent)
+    icon: "💳",
+    features: ["maintenance"],
+  },
   journal: {
     id: "journal",
     color: "#64748b", // gris

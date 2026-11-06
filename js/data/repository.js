@@ -12,6 +12,7 @@ import { occurrencesBetween } from "./recurrence.js";
 import { houseOccurrences } from "../house/house.js";
 import { healthOccurrences } from "../health/health.js";
 import { holidaysBetweenAll } from "../timesheet/holidays.js";
+import { paymentOccurrences } from "../payments/payments.js";
 import { SCHEMA_VERSION, emptyDocument, migrate, readLegacy } from "./migrations.js";
 
 export class ValidationError extends Error {
@@ -79,7 +80,9 @@ export class Repository extends Emitter {
       createdAt: null, updatedAt: null,
     }));
     // Titres des rappels calculés dans la langue affichée (fourni par l'interface)
-    const computed = [...house, ...health, ...holidays];
+    // Échéances des paiements (module « paiement »)
+    const payments = paymentOccurrences(this.#doc.payments, fromISO, toISO, toISODate(this.clock()));
+    const computed = [...house, ...health, ...holidays, ...payments];
     const local = this.localize ? computed.map((i) => this.localize(i)) : computed;
     return [...occurrencesBetween(this.#doc.items, fromISO, toISO), ...local].sort(compareItems);
   }
@@ -202,6 +205,17 @@ export class Repository extends Emitter {
   async updateHealth(health) {
     this.#doc.health = health;
     await this.#commit("health", null);
+  }
+
+  // ---- Paiements à faire --------------------------------------------------------
+
+  payments() {
+    return this.#doc.payments;
+  }
+
+  async updatePayments(payments) {
+    this.#doc.payments = payments;
+    await this.#commit("payments", null);
   }
 
   async updateHouse(house) {

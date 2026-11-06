@@ -43,6 +43,8 @@ import { addPlace, getPlaces, located, removePlace, setPlaceCoords, toggleVisite
 import { settingsPage } from "./pages/settings.js";
 import { housePage } from "./pages/house.js";
 import { analysisName, healthPage } from "./pages/health.js";
+import { paymentsPage } from "./pages/payments.js";
+import * as Payments from "../payments/payments.js";
 import * as Health from "../health/health.js";
 import { foodName } from "../health/food-names.js";
 import * as Menus from "../health/menus.js";
@@ -175,6 +177,7 @@ const PAGES = {
   timesheet: timesheetPage,
   house: housePage,
   health: healthPage,
+  payments: paymentsPage,
   settings: settingsPage,
 };
 const JOURNAL_SAVE_DELAY = 700;
@@ -204,6 +207,7 @@ export class App {
   taxImport = null; // factures lues dans des fichiers Excel, en attente de confirmation
   houseUi = { tab: "inside", editing: null, focus: null, openList: null };
   healthUi = { tab: "journal", editing: null, reacting: null }; // page Santé : onglet, repas modifié, réaction ajoutée
+  paymentsUi = { month: null, editing: null, paying: null, draft: null }; // page Paiements : mois affiché, paiement modifié, échéance à payer
   houseStep = null; // procédure pas à pas ouverte : { listId, index } // page Maison : onglet, tâche modifiée ou mise en évidence
   taxUi = { persoOpen: false, persoQuery: "" }; // liste des transactions personnelles : ouverte, recherche
   receipt = null; // « Scanner un reçu » en cours : { date, slots, values, auto }
@@ -454,6 +458,7 @@ export class App {
         taxUi: this.taxUi,
         houseUi: this.houseUi,
         healthUi: this.healthUi,
+        paymentsUi: this.paymentsUi,
         storageLabel: this.storageLabel,
         count: this.repo.all().length,
       });
@@ -493,6 +498,8 @@ export class App {
         aria-label="${esc(t("nav.house"))}" title="${esc(t("nav.house"))}">🏠</button>
       <button type="button" class="icon-btn ${this.page === "health" ? "active" : ""}" data-action="open-health"
         aria-label="${esc(t("nav.health"))}" title="${esc(t("nav.health"))}">🩺</button>
+      <button type="button" class="icon-btn ${this.page === "payments" ? "active" : ""}" data-action="open-payments"
+        aria-label="${esc(t("nav.payments"))}" title="${esc(t("nav.payments"))}">💳</button>
       <button type="button" class="icon-btn ${this.page === "journal" ? "active" : ""}" data-action="open-journal"
         aria-label="${esc(t("nav.journal"))}" title="${esc(t("nav.journal"))}">📓</button>
       <button type="button" class="icon-btn ${this.page === "meditation" ? "active" : ""}" data-action="open-meditation"
@@ -542,6 +549,7 @@ export class App {
       timesheet: this.repo.timesheet(),
       house: this.repo.house(),
       health: this.repo.health(),
+      payments: this.repo.payments(),
       hour: new Date().getHours(),
     });
     this.#lastNudgeKey = nudges.map((n) => n.id).join("|");
@@ -562,6 +570,15 @@ export class App {
       this.timesheetDate = id.split(":")[2];
       if (this.page === "timesheet") this.render();
       else this.openPage("timesheet");
+      return;
+    }
+    // Échéance d'un paiement (calculée) : ouvrir la page Paiements sur ce mois, à cette échéance
+    if (String(id).startsWith("payment:")) {
+      const [, pid, due] = id.split(":");
+      this.paymentsUi = { ...this.paymentsUi, month: due.slice(0, 7), editing: null, paying: `${pid}|${due}` };
+      if (this.page === "payments") this.render();
+      else this.openPage("payments");
+      requestAnimationFrame(() => document.getElementById(`pay-${pid}|${due}`)?.scrollIntoView({ block: "center" }));
       return;
     }
     // Rappel du programme Santé (calculé) : ouvrir la page Santé sur le programme
@@ -1225,6 +1242,59 @@ export class App {
       return this.#updateHealth(Health.stopProgram(this.repo.health()));
     },
     // ---- Maison : entretiens et listes à cocher ----
+    // ---- Paiements à faire ----
+    "open-payments": () => {
+      this.paymentsUi = { ...this.paymentsUi, month: null, editing: null, paying: null, draft: null };
+      if (this.page === "payments") return this.render();
+      this.openPage("payments");
+    },
+    "pay-month": (el) => {
+      const shift = Number(el.dataset.shift);
+      const today = todayISO().slice(0, 7);
+      const [y, m] = (this.paymentsUi.month ?? today).split("-").map(Number);
+      const d = new Date(y, m - 1 + shift, 1);
+      const month = shift === 0 ? today : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      this.paymentsUi = { ...this.paymentsUi, month, paying: null };
+      this.#renderKeepingScroll();
+    },
+    "pay-mark": (el) => {
+      this.paymentsUi = { ...this.paymentsUi, paying: `${el.dataset.id}|${el.dataset.due}`, editing: null };
+      this.#renderKeepingScroll();
+      requestAnimationFrame(() => document.querySelector("[data-role=pay-paid] [name=amount]")?.focus());
+    },
+    "pay-unmark": async (el) => {
+      await this.#updatePayments(Payments.unmarkPaid(this.repo.payments(), el.dataset.id, el.dataset.due));
+    },
+    "pay-cancel": () => {
+      this.paymentsUi = { ...this.paymentsUi, editing: null, paying: null, draft: null };
+      this.#renderKeepingScroll();
+    },
+    "pay-new": () => {
+      this.paymentsUi = { ...this.paymentsUi, editing: "new", paying: null, draft: null };
+      this.#renderKeepingScroll();
+      requestAnimationFrame(() => document.querySelector("[data-role=pay-edit] [name=name]")?.focus());
+    },
+    // Modèle (DAS, TPS/TVQ, ma paie…) : le formulaire s'ouvre déjà rempli, à vérifier avant d'enregistrer
+    "pay-template": (el) => {
+      const tpl = Payments.TEMPLATES.find((x) => x.key === el.dataset.key);
+      if (!tpl) return;
+      const today = todayISO();
+      const draft = { name: t(`pay.tpl.${tpl.key}`), scope: tpl.scope, kind: tpl.kind, freq: tpl.freq, start: tpl.start(today), lastDay: Boolean(tpl.lastDay),
+        amount: null, auto: false, remindDays: 3, note: "" };
+      this.paymentsUi = { ...this.paymentsUi, editing: "new", paying: null, draft };
+      this.#renderKeepingScroll();
+      requestAnimationFrame(() => document.querySelector("[data-role=pay-edit]")?.scrollIntoView({ block: "start" }));
+    },
+    "pay-edit": (el) => {
+      this.paymentsUi = { ...this.paymentsUi, editing: el.dataset.id, paying: null, draft: null };
+      this.#renderKeepingScroll();
+    },
+    "pay-remove": async (el) => {
+      const p = this.repo.payments().list.find((x) => x.id === el.dataset.id);
+      if (!p || !confirm(t("pay.confirmRemove", { name: p.name }))) return;
+      this.paymentsUi = { ...this.paymentsUi, editing: null };
+      await this.#updatePayments(Payments.removePayment(this.repo.payments(), p.id));
+    },
     "open-house": () => {
       this.houseUi = { ...this.houseUi, focus: null, editing: null };
       if (this.page === "house") return this.render();
@@ -1762,6 +1832,7 @@ export class App {
     if (e.target.dataset.role?.startsWith("ts-")) return this.#onTimesheetSubmit(e);
     if (e.target.dataset.role === "price-add") return this.#addPrice(e);
     if (e.target.dataset.role?.startsWith("health-")) return this.#onHealthSubmit(e);
+    if (e.target.dataset.role?.startsWith("pay-")) return this.#onPaymentsSubmit(e);
     if (e.target.dataset.role === "house-task") return this.#saveHouseTask(e);
     if (e.target.dataset.role === "house-supply") return this.#saveHouseSupply(e);
     if (e.target.dataset.role === "house-purchase") {
@@ -1974,6 +2045,47 @@ export class App {
       const count = $(".hl-group-count", group);
       if (count) count.textContent = `${n ? `✓ ${n} · ` : ""}${boxes.length}`;
     }
+  }
+
+  async #updatePayments(payments) {
+    const top = window.scrollY;
+    await this.repo.updatePayments(payments);
+    window.scrollTo(0, top);
+  }
+
+  // Formulaires de la page Paiements : ajouter ou modifier un paiement, « payé »
+  async #onPaymentsSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const f = new FormData(form);
+    const get = (k) => String(f.get(k) ?? "").trim();
+    let payments = this.repo.payments();
+    if (form.dataset.role === "pay-edit") {
+      const amount = get("amount");
+      if (amount && Payments.parseAmount(amount) === null) return toast(t("pay.errors.amount"));
+      const fields = {
+        name: get("name"), scope: get("scope"), kind: get("kind"), freq: get("freq"), start: get("start"), lastDay: f.has("lastDay"),
+        amount: amount || null, auto: f.has("auto"), remindDays: Number(get("remindDays")), note: get("note"),
+      };
+      if (form.dataset.id) payments = Payments.updatePayment(payments, form.dataset.id, fields);
+      else {
+        const added = Payments.addPayment(payments, fields);
+        if (!added.payment) return toast(t("pay.errors.payment"));
+        payments = added.payments;
+      }
+      this.paymentsUi = { ...this.paymentsUi, editing: null, draft: null };
+      await this.#updatePayments(payments);
+      return toast(t("pay.saved"));
+    }
+    if (form.dataset.role === "pay-paid") {
+      const amount = get("amount");
+      if (amount && Payments.parseAmount(amount) === null) return toast(t("pay.errors.amount"));
+      payments = Payments.markPaid(payments, form.dataset.id, form.dataset.due, { date: get("date"), amount: amount || null, note: get("note") });
+      this.paymentsUi = { ...this.paymentsUi, paying: null };
+      await this.#updatePayments(payments);
+      return toast(t("pay.paidToast"));
+    }
+    return undefined;
   }
 
   async #updateHealth(health) {
