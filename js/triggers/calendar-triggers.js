@@ -12,6 +12,7 @@ import { dueSoon } from "../house/house.js";
 import { currentPhase, currentTest, toTest } from "../health/health.js";
 import { foodName } from "../health/food-names.js";
 import { holidayOn } from "../timesheet/holidays.js";
+import { dueSoon as paymentsDue } from "../payments/payments.js";
 
 const upcoming = (items, today, moduleId, maxDays) =>
   items
@@ -258,6 +259,26 @@ export const holidayToday = {
   },
 };
 
+// Paiements à faire bientôt ou en retard (sauf prélèvement automatique) : un seul rappel, qui ouvre la page
+export const paymentReminder = {
+  id: "paiement",
+  kind: "calendar",
+  evaluate({ payments, today }) {
+    if (!payments?.list?.length) return [];
+    const due = paymentsDue(payments, today);
+    if (!due.length) return [];
+    const first = due[0];
+    const late = due.some((r) => r.days < 0);
+    const amount = first.payment.amount !== null ? ` (${fmt.money(first.payment.amount)})` : "";
+    const messageKey = due.length > 1 ? "nudge.payments" : first.days < 0 ? "nudge.paymentLate" : "nudge.paymentOne";
+    return [{
+      id: `paiement:${today}:${due.length}`, tone: late ? "info" : "soft", icon: "💳", messageKey,
+      params: { count: due.length, name: first.payment.name, when: fmt.inDays(Math.max(0, first.days)), amount },
+      itemIds: [], actionKey: "nudge.paymentsAction", action: "open-payments",
+    }];
+  },
+};
+
 // Le dimanche, si la dernière copie des données date de plus d'un mois
 // (ou n'existe pas) : un rappel doux d'en faire une. Les données ne vivent
 // que sur l'appareil ; une copie les met à l'abri.
@@ -286,5 +307,5 @@ export const backupReminder = {
 };
 
 export const calendarTriggers = [
-  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, timesheetReminder, houseReminder, healthReminder, holidayToday, backupReminder,
+  packingReminder, travelPreparation, eventReminders, missedHabitEncouragement, flexibleWeekReview, eveningJournal, timesheetReminder, houseReminder, healthReminder, paymentReminder, holidayToday, backupReminder,
 ];
